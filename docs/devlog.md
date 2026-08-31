@@ -41,10 +41,24 @@ Goal: environment configured, datasets inspected and split.
 - Thresholds are stored on every record so that historical results stay interpretable
   after the thresholds are revised during validation.
 
+- Built the upload, result, case history and reporting dashboard views against the
+  database, using a fixed placeholder in place of a model prediction.
+- Wrote the interface theme. The first light version was rejected on review as too flat,
+  and was reworked as a dark reading-room theme: radiographs are read against dark
+  backgrounds on viewing stations, so the interface follows that convention rather than
+  a general web style.
+- Two defects were found by reviewing the rendered pages rather than the code. A triage
+  marker rendered as a stray letter, and the radiograph panel had no height limit, so one
+  image pushed the review form off the screen. Both were fixed.
+- Wrote and ran ten tests covering uploads, rejected files, filtering, dashboard counts on
+  an empty and a populated database, and the review workflow. All pass.
+
+**Phase 1 definition of done: met.** An upload creates a stored record, the result renders,
+and the record appears in the dashboard, the case history and the Django admin.
+
 **Planned next**
-- Upload, result, history and dashboard routes with a fixed placeholder result.
 - Inspect the datasets once downloaded and build the stratified 70/15/15 split.
 
 **Blockers**
 - Dataset download is running at roughly 175 KB/s, so the full 4.4 GB will take several
-  hours. It does not block the Django work.
+  hours. It does not block the application work.
