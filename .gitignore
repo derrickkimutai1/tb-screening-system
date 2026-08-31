@@ -1,0 +1,31 @@
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.ruff_cache/
+.ipynb_checkpoints/
+
+# Django
+*.log
+db.sqlite3
+staticfiles/
+media/
+
+# Environment and secrets
+.env
+
+# Datasets are downloaded, not tracked
+data/
+
+# Training checkpoints (the selected final model is tracked)
+ml/models/checkpoints/
+
+# Editor and tooling
+.vscode/
+.cursor/
+.idea/
+CLAUDE.md
+
+# Windows
+Thumbs.db
+desktop.ini
