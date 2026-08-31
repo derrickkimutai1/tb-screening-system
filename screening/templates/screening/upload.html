@@ -1,0 +1,107 @@
+{% extends "screening/base.html" %}
+
+{% block title %}Screen a chest X-ray{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+
+  <div class="col-lg-7">
+    <div class="panel">
+      <div class="panel-head">
+        <h1 class="panel-title">New screening</h1>
+      </div>
+      <div class="panel-body">
+
+        {% if form.non_field_errors %}
+          <div class="notice notice-caution mb-3">{{ form.non_field_errors }}</div>
+        {% endif %}
+
+        <form method="post" enctype="multipart/form-data" novalidate>
+          {% csrf_token %}
+
+          <div class="mb-3">
+            <label class="field-label" for="{{ form.patient_reference.id_for_label }}">
+              Case reference
+            </label>
+            {{ form.patient_reference }}
+            <p class="field-hint">{{ form.patient_reference.help_text }}</p>
+            {% for error in form.patient_reference.errors %}
+              <p class="field-hint" style="color: var(--triage-high);">{{ error }}</p>
+            {% endfor %}
+          </div>
+
+          <div class="mb-3">
+            <label class="field-label" for="{{ form.xray_image.id_for_label }}">
+              Chest radiograph
+            </label>
+            {{ form.xray_image }}
+            <p class="field-hint">{{ form.xray_image.help_text }}</p>
+            {% for error in form.xray_image.errors %}
+              <p class="field-hint" style="color: var(--triage-high);">{{ error }}</p>
+            {% endfor %}
+          </div>
+
+          <button type="submit" class="btn btn-action">Analyse radiograph</button>
+        </form>
+
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-5">
+
+    <div class="notice notice-boundary mb-3">
+      This prototype supports preliminary TB screening and prioritisation only. It does not
+      provide a final diagnosis. Clinical review and confirmatory testing remain necessary.
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <h2 class="panel-title">What this produces</h2>
+      </div>
+      <div class="panel-body">
+        <table class="table">
+          <tbody>
+            <tr>
+              <td style="width: 42%; color: var(--ink-muted);">Screening result</td>
+              <td>Likely TB or Unlikely TB</td>
+            </tr>
+            <tr>
+              <td style="color: var(--ink-muted);">Model score</td>
+              <td class="numeric">0.0000 to 1.0000</td>
+            </tr>
+            <tr>
+              <td style="color: var(--ink-muted);">Triage level</td>
+              <td>
+                <span class="triage triage-low">Low suspicion</span>
+              </td>
+            </tr>
+            <tr>
+              <td style="color: var(--ink-muted);">Explanation</td>
+              <td>Grad-CAM overlay beside the original image</td>
+            </tr>
+            <tr>
+              <td style="color: var(--ink-muted);">Record</td>
+              <td>Stored for review and reporting</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel mt-3">
+      <div class="panel-head">
+        <h2 class="panel-title">Accepted images</h2>
+      </div>
+      <div class="panel-body">
+        <p class="mb-2">PNG, JPG or JPEG exports of adult or adolescent chest radiographs.</p>
+        <p class="field-hint mb-0">
+          Maximum file size {{ max_upload_mb }} MB. Do not upload images containing patient
+          identifiers. Use a non-identifying case reference such as DEMO-001.
+        </p>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

@@ -153,6 +153,15 @@ class PredictionRecord(models.Model):
         return self.tb_probability * 100
 
     @property
+    def triage_css_class(self):
+        """Modifier class for the triage marker. Colour always accompanies the label."""
+        return {
+            self.TriageLevel.LOW: "triage-low",
+            self.TriageLevel.MEDIUM: "triage-medium",
+            self.TriageLevel.HIGH: "triage-high",
+        }.get(self.triage_level, "triage-low")
+
+    @property
     def has_explanation(self):
         return bool(self.gradcam_image) and self.gradcam_status == self.GradcamStatus.GENERATED
 

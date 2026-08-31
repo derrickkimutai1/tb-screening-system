@@ -1,0 +1,167 @@
+{% extends "screening/base.html" %}
+
+{% block title %}{{ record.patient_reference }} — screening result{% endblock %}
+
+{% block content %}
+
+<div class="panel mb-3">
+  <div class="panel-head">
+    <h1 class="panel-title">Screening result</h1>
+    <span class="field-hint">
+      {{ record.patient_reference }} &middot; {{ record.created_at|date:"j M Y, H:i" }}
+    </span>
+  </div>
+  <div class="panel-body">
+    <div class="row g-4 align-items-start">
+
+      <div class="col-md-4">
+        <span class="readout-label">Result</span>
+        <div class="readout-value" style="font-family: var(--sans); font-weight: 600;">
+          {{ record.get_predicted_label_display }}
+        </div>
+        <p class="field-hint mb-0">
+          {% if record.triage_level == 'HIGH' or record.triage_level == 'MEDIUM' %}
+            Requires clinical review.
+          {% else %}
+            Routine clinical judgement applies.
+          {% endif %}
+        </p>
+      </div>
+
+      <div class="col-md-4">
+        <span class="readout-label">Model score</span>
+        <div class="readout-value">{{ record.tb_probability }}</div>
+        <p class="field-hint mb-0">
+          Threshold <span class="numeric">{{ record.decision_threshold }}</span> for this result
+        </p>
+      </div>
+
+      <div class="col-md-4">
+        <span class="readout-label">Triage</span>
+        <div class="mt-2">
+          <span class="triage {{ record.triage_css_class }}">
+            {{ record.get_triage_level_display }}
+          </span>
+        </div>
+        <p class="field-hint mb-0">{{ record.triage_justification }}</p>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<div class="notice notice-boundary mb-3">
+  This prototype supports preliminary TB screening and prioritisation only. It does not
+  provide a final diagnosis. Clinical review and confirmatory testing remain necessary.
+</div>
+
+{% if record.quality_status != 'ACCEPTABLE' %}
+<div class="notice notice-caution mb-3">
+  <strong>Image quality: {{ record.get_quality_status_display }}.</strong>
+  {{ record.quality_message }}
+</div>
+{% endif %}
+
+<div class="row g-3 mb-3">
+  <div class="col-md-6">
+    <div class="panel h-100">
+      <div class="panel-head"><h2 class="panel-title">Original radiograph</h2></div>
+      <div class="panel-body">
+        <div class="radiograph-frame">
+          <img src="{{ record.xray_image.url }}"
+               alt="Uploaded chest radiograph for {{ record.patient_reference }}">
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="col-md-6">
+    <div class="panel h-100">
+      <div class="panel-head"><h2 class="panel-title">Grad-CAM explanation</h2></div>
+      <div class="panel-body">
+        <div class="radiograph-frame">
+          {% if record.has_explanation %}
+            <img src="{{ record.gradcam_image.url }}"
+                 alt="Grad-CAM heatmap overlay for {{ record.patient_reference }}">
+          {% else %}
+            <p class="placeholder-note mb-0">
+              No explanation image for this record ({{ record.get_gradcam_status_display|lower }}).
+            </p>
+          {% endif %}
+        </div>
+        {% if record.has_explanation %}
+          <p class="field-hint mt-2 mb-0">
+            Brighter areas influenced the model's output most. They indicate where the model
+            looked, not confirmed disease locations.
+          </p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3">
+
+  <div class="col-lg-5">
+    <div class="panel">
+      <div class="panel-head"><h2 class="panel-title">Record</h2></div>
+      <div class="panel-body p-0">
+        <table class="table">
+          <tbody>
+            <tr><td style="width: 45%; color: var(--ink-muted);">Case reference</td><td>{{ record.patient_reference }}</td></tr>
+            <tr><td style="color: var(--ink-muted);">Case ID</td><td class="numeric" style="font-size: 0.6875rem;">{{ record.case_id }}</td></tr>
+            <tr><td style="color: var(--ink-muted);">Model version</td><td class="numeric">{{ record.model_version }}</td></tr>
+            <tr><td style="color: var(--ink-muted);">Triage thresholds</td><td class="numeric">{{ record.triage_low_medium_threshold }} / {{ record.triage_medium_high_threshold }}</td></tr>
+            <tr><td style="color: var(--ink-muted);">Inference time</td><td class="numeric">{% if record.inference_ms %}{{ record.inference_ms }} ms{% else %}—{% endif %}</td></tr>
+            <tr><td style="color: var(--ink-muted);">Review status</td><td>{{ record.get_review_status_display }}</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-7">
+    <div class="panel">
+      <div class="panel-head"><h2 class="panel-title">Review</h2></div>
+      <div class="panel-body">
+        <form method="post" novalidate>
+          {% csrf_token %}
+          <div class="row g-3">
+            <div class="col-sm-6">
+              <label class="field-label" for="{{ review_form.reviewer_name.id_for_label }}">Reviewer</label>
+              {{ review_form.reviewer_name }}
+            </div>
+            <div class="col-sm-6">
+              <label class="field-label" for="{{ review_form.status_set.id_for_label }}">Status</label>
+              {{ review_form.status_set }}
+            </div>
+            <div class="col-12">
+              <label class="field-label" for="{{ review_form.note.id_for_label }}">Note</label>
+              {{ review_form.note }}
+            </div>
+          </div>
+          <button type="submit" class="btn btn-action mt-3">Record review</button>
+        </form>
+
+        {% if notes %}
+          <table class="table mt-4">
+            <thead>
+              <tr><th>Date</th><th>Reviewer</th><th>Status set</th><th>Note</th></tr>
+            </thead>
+            <tbody>
+              {% for note in notes %}
+                <tr>
+                  <td class="numeric">{{ note.created_at|date:"j M Y H:i" }}</td>
+                  <td>{{ note.reviewer_name|default:"—" }}</td>
+                  <td>{{ note.get_status_set_display }}</td>
+                  <td>{{ note.note }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

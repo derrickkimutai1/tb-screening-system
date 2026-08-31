@@ -1,0 +1,97 @@
+{% extends "screening/base.html" %}
+
+{% block title %}Reporting dashboard{% endblock %}
+
+{% block content %}
+
+<div class="row g-3 mb-3">
+  <div class="col-6 col-lg-3">
+    <div class="readout">
+      <span class="readout-label">Total screenings</span>
+      <div class="readout-value">{{ total }}</div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="readout">
+      <span class="readout-label">Likely TB</span>
+      <div class="readout-value">{{ likely }}</div>
+      <span class="readout-unit">of {{ total }} screened</span>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="readout">
+      <span class="readout-label">Last 7 days</span>
+      <div class="readout-value">{{ recent }}</div>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="readout">
+      <span class="readout-label">Follow-up required</span>
+      <div class="readout-value">{{ follow_up }}</div>
+      <span class="readout-unit">{{ pending }} pending review</span>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3">
+
+  <div class="col-lg-4">
+    <div class="panel h-100">
+      <div class="panel-head"><h2 class="panel-title">Suspicion distribution</h2></div>
+      <table class="table">
+        <tbody>
+          {% for label, count in triage_counts %}
+            <tr>
+              <td>{{ label }}</td>
+              <td class="numeric text-end" style="width: 5rem;">{{ count }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="col-lg-8">
+    <div class="panel h-100">
+      <div class="panel-head">
+        <h2 class="panel-title">Recent screenings</h2>
+        <a class="field-hint" href="{% url 'screening:case_list' %}">All cases</a>
+      </div>
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Case reference</th>
+            <th>Analysed</th>
+            <th>Result</th>
+            <th class="text-end">Score</th>
+            <th>Triage</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for record in latest %}
+            <tr>
+              <td><a href="{% url 'screening:case_detail' record.case_id %}">{{ record.patient_reference }}</a></td>
+              <td class="numeric">{{ record.created_at|date:"j M H:i" }}</td>
+              <td>{{ record.get_predicted_label_display }}</td>
+              <td class="numeric text-end">{{ record.tb_probability }}</td>
+              <td><span class="triage {{ record.triage_css_class }}">{{ record.get_triage_level_display }}</span></td>
+            </tr>
+          {% empty %}
+            <tr>
+              <td colspan="5" style="color: var(--ink-muted); padding: 1.5rem 0.75rem;">
+                No screening records yet.
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<p class="field-hint mt-3">
+  All figures are counts of records stored in this prototype. They describe system usage
+  during development and are not population screening statistics.
+</p>
+{% endblock %}
