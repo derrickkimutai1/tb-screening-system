@@ -47,7 +47,9 @@ def fetch(session, url, target):
     """
     partial = target.with_suffix(".part")
     with session.get(url, stream=True, timeout=TIMEOUT_SECONDS) as response:
-        if response.status_code == 404:
+        # The portal answers 403 rather than 404 for a name that does not exist,
+        # so both mean "try the other label suffix" rather than "retry".
+        if response.status_code in (403, 404):
             return False
         response.raise_for_status()
         with open(partial, "wb") as handle:

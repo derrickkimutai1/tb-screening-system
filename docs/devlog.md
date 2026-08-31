@@ -76,6 +76,35 @@ and the record appears in the dashboard, the case history and the Django admin.
   source dataset.
 
 **Blockers**
-- The Shenzhen download failed part-way with a connection reset and was restarted with
-  resume and retry enabled. Montgomery completed and was verified. The remaining download
-  does not block the application work.
+- The Shenzhen download failed part-way with a connection reset. Carried into 1 September.
+
+### 1 September 2026
+
+**Completed**
+- Replaced the Shenzhen bulk download. The archive on openi.nlm.nih.gov began returning an
+  error page and the server does not honour range requests, so an interrupted transfer
+  could not be resumed. The images are now fetched individually from the National Library
+  of Medicine data portal by `ml/scripts/download_shenzhen.py`, which skips files already
+  present and is therefore restartable. This route also proved roughly twenty times
+  faster.
+- Retrieved all 662 Shenzhen images: 326 normal and 336 TB-positive, matching the figures
+  quoted in proposal section 3.2.1.
+- Verified the set. No corrupt files, no exact duplicates, and no truncated downloads.
+
+**Findings that affect preprocessing**
+- The Shenzhen images are not uniformly encoded: 635 are palette mode and 27 are RGB.
+  Loaded without conversion these produce arrays of different shapes, which would either
+  fail or silently pass malformed input for about four per cent of the data.
+- Image dimensions vary widely, from 1130 by 948 to 3001 by 3001 in the Shenzhen set and
+  around 4020 by 4892 in Montgomery. Aspect ratios therefore differ, so the resize
+  strategy has to be decided and applied identically in training and inference.
+- Both findings reinforce the decision to keep a single preprocessing module imported by
+  the training scripts and the web application.
+
+**Planned next**
+- Write `ml/preprocessing.py` and `ml/scripts/prepare_data.py`.
+- Produce the stratified 70/15/15 split with a manifest recording each image's source
+  dataset.
+
+**Blockers**
+- None.
