@@ -39,6 +39,9 @@ Create the database and an application role, for example through pgAdmin:
 ```sql
 CREATE ROLE tb_app WITH LOGIN PASSWORD 'your-password';
 CREATE DATABASE tb_screening OWNER tb_app;
+
+-- Django builds a temporary database when running the test suite.
+ALTER ROLE tb_app CREATEDB;
 ```
 
 Create the virtual environment and install dependencies:
@@ -60,6 +63,12 @@ Apply migrations and start the development server:
 .venv/Scripts/python.exe manage.py migrate
 .venv/Scripts/python.exe manage.py createsuperuser
 .venv/Scripts/python.exe manage.py runserver
+```
+
+Run the tests with:
+
+```bash
+.venv/Scripts/python.exe manage.py test screening
 ```
 
 ## Layout
