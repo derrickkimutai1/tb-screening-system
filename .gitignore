@@ -22,6 +22,7 @@ ml/models/checkpoints/
 
 # Editor and tooling
 .vscode/
+.claude/
 .cursor/
 .idea/
 CLAUDE.md
