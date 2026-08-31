@@ -56,9 +56,26 @@ Goal: environment configured, datasets inspected and split.
 **Phase 1 definition of done: met.** An upload creates a stored record, the result renders,
 and the record appears in the dashboard, the case history and the Django admin.
 
+- Reworked the interface twice on review. The first version was too restrained and the
+  second still read as generic, so the theme was rebuilt with layered translucent
+  surfaces over a near-black ground, an electric lime accent, and entrance and hover
+  transitions. Triage labels and reduced-motion support were kept throughout.
+- Verified the Montgomery archive. It contains 138 chest radiographs, 80 normal and 58
+  TB-positive, which matches the figures quoted in proposal section 3.2.1. Labels are
+  encoded in the filename suffix, `_0` for normal and `_1` for TB.
+- Confirmed the archive also ships 276 manual lung masks, a left and a right mask per
+  image, plus 139 radiologist clinical readings. The masks make it possible to measure
+  how much of the Grad-CAM activation falls inside the lung fields, and the readings will
+  support the error analysis in Phase 4.
+
 **Planned next**
-- Inspect the datasets once downloaded and build the stratified 70/15/15 split.
+- Write `ml/preprocessing.py`, imported by both the training scripts and the application
+  so that training and inference preprocessing cannot diverge.
+- Write `ml/scripts/prepare_data.py` to inspect both datasets for corrupt and duplicate
+  images and produce the stratified 70/15/15 split as a manifest recording each image's
+  source dataset.
 
 **Blockers**
-- Dataset download is running at roughly 175 KB/s, so the full 4.4 GB will take several
-  hours. It does not block the application work.
+- The Shenzhen download failed part-way with a connection reset and was restarted with
+  resume and retry enabled. Montgomery completed and was verified. The remaining download
+  does not block the application work.
