@@ -16,9 +16,7 @@
 
       <div class="col-md-4">
         <span class="readout-label">Result</span>
-        <div class="readout-value" style="font-family: var(--sans); font-weight: 600;">
-          {{ record.get_predicted_label_display }}
-        </div>
+        <div class="headline-label mt-2">{{ record.get_predicted_label_display }}</div>
         <p class="field-hint mb-0">
           {% if record.triage_level == 'HIGH' or record.triage_level == 'MEDIUM' %}
             Requires clinical review.
@@ -30,20 +28,20 @@
 
       <div class="col-md-4">
         <span class="readout-label">Model score</span>
-        <div class="readout-value">{{ record.tb_probability }}</div>
+        <div class="headline-score mt-2">{{ record.tb_probability }}</div>
         <p class="field-hint mb-0">
-          Threshold <span class="numeric">{{ record.decision_threshold }}</span> for this result
+          Decision threshold <span class="numeric">{{ record.decision_threshold }}</span>
         </p>
       </div>
 
       <div class="col-md-4">
         <span class="readout-label">Triage</span>
-        <div class="mt-2">
+        <div class="mt-2 mb-2">
           <span class="triage {{ record.triage_css_class }}">
             {{ record.get_triage_level_display }}
           </span>
         </div>
-        <p class="field-hint mb-0">{{ record.triage_justification }}</p>
+        <p class="field-hint mb-0" style="margin-top: 0;">{{ record.triage_justification }}</p>
       </div>
 
     </div>

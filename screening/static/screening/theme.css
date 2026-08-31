@@ -1,12 +1,13 @@
 /*
- * Design layer for the screening interface.
+ * Interface theme for the screening application.
  *
- * Bootstrap supplies the grid, form controls and reset. Everything visual is
- * set here: Bootstrap's own variables are overridden so the interface reads as
- * a clinical instrument rather than a default component library.
+ * The interface is dark by convention rather than for style: radiology reading
+ * rooms are darkened and PACS workstations use dark backgrounds because
+ * greyscale radiographs are perceived more accurately against black. The
+ * radiograph panels sit on true black for the same reason.
  *
- * Reference points are radiology viewers and laboratory reports: dense,
- * labelled, high contrast, no decoration that does not carry information.
+ * Bootstrap supplies the grid and form structure. Every colour, weight and
+ * measurement below overrides it.
  */
 
 @font-face {
@@ -41,26 +42,29 @@
 }
 
 :root {
-  --bg: #f4f5f6;
-  --surface: #ffffff;
-  --surface-sunk: #eceef0;
-  --border: #d2d7db;
-  --border-strong: #a9b2b9;
-  --ink: #16191c;
-  --ink-muted: #5b6670;
-  --accent: #0f6e6e;
-  --accent-dark: #0b5757;
+  --bg: #0b0f13;
+  --surface: #141a21;
+  --surface-raised: #1b232c;
+  --well: #000000;
+  --border: #263039;
+  --border-strong: #38454f;
 
-  --triage-low: #46535e;
-  --triage-medium: #8a5a00;
-  --triage-high: #9b2c2c;
+  --ink: #e8eef4;
+  --ink-muted: #8496a6;
+  --ink-dim: #5d6e7d;
+
+  --accent: #17e0ad;
+  --accent-dim: #0e9c78;
+  --accent-wash: rgba(23, 224, 173, 0.12);
+
+  --triage-low: #6f8496;
+  --triage-medium: #f4a838;
+  --triage-high: #ff5f6d;
 
   --sans: "IBM Plex Sans", "Segoe UI", Arial, sans-serif;
   --mono: "IBM Plex Mono", "Cascadia Mono", Consolas, monospace;
+  --radius: 3px;
 
-  --radius: 2px;
-
-  /* Bootstrap overrides. Radii and shadows are removed rather than softened. */
   --bs-body-bg: var(--bg);
   --bs-body-color: var(--ink);
   --bs-body-font-family: var(--sans);
@@ -70,9 +74,9 @@
   --bs-border-radius-sm: var(--radius);
   --bs-border-radius-lg: var(--radius);
   --bs-link-color: var(--accent);
-  --bs-link-hover-color: var(--accent-dark);
-  --bs-primary: var(--accent);
-  --bs-focus-ring-color: rgba(15, 110, 110, 0.35);
+  --bs-link-hover-color: #4df0c4;
+  --bs-emphasis-color: var(--ink);
+  --bs-secondary-color: var(--ink-muted);
 }
 
 * {
@@ -85,10 +89,9 @@ body {
   font-family: var(--sans);
   font-size: 0.875rem;
   line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
 }
 
-/* Numeric data uses the mono face with aligned figures so values in a column
-   can be compared by eye. */
 .numeric,
 td.numeric,
 .readout-value {
@@ -106,10 +109,10 @@ td.numeric,
 
 .masthead-inner {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: space-between;
   gap: 2rem;
-  padding: 0.75rem 0;
+  padding: 0.875rem 0;
 }
 
 .masthead-title {
@@ -117,34 +120,47 @@ td.numeric,
   font-weight: 600;
   letter-spacing: -0.01em;
   margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+}
+
+.masthead-title::before {
+  content: "";
+  width: 3px;
+  height: 1.125rem;
+  background: var(--accent);
 }
 
 .masthead-title .qualifier {
-  color: var(--ink-muted);
+  color: var(--ink-dim);
   font-weight: 400;
 }
 
 .masthead-nav {
   display: flex;
-  gap: 1.5rem;
-  font-size: 0.8125rem;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
 .masthead-nav a {
   color: var(--ink-muted);
   text-decoration: none;
-  padding-bottom: 0.125rem;
-  border-bottom: 2px solid transparent;
+  padding: 0.375rem 0.75rem;
+  border-radius: var(--radius);
 }
 
 .masthead-nav a:hover {
   color: var(--ink);
+  background: var(--surface-raised);
 }
 
 .masthead-nav a.current {
-  color: var(--ink);
-  font-weight: 500;
-  border-bottom-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-wash);
 }
 
 /* ---- Panels -------------------------------------------------------------- */
@@ -157,16 +173,17 @@ td.numeric,
 
 .panel-head {
   border-bottom: 1px solid var(--border);
-  padding: 0.5rem 1rem;
+  padding: 0.625rem 1rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 1rem;
 }
 
 .panel-title {
   font-size: 0.6875rem;
   font-weight: 600;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--ink-muted);
   margin: 0;
@@ -176,56 +193,80 @@ td.numeric,
   padding: 1rem;
 }
 
-/* ---- Field labels -------------------------------------------------------- */
+/* ---- Form fields --------------------------------------------------------- */
 
 .field-label {
   display: block;
   font-size: 0.6875rem;
   font-weight: 600;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--ink-muted);
-  margin-bottom: 0.25rem;
+  margin-bottom: 0.375rem;
 }
 
 .field-hint {
   font-size: 0.75rem;
-  color: var(--ink-muted);
-  margin-top: 0.25rem;
+  color: var(--ink-dim);
+  margin-top: 0.375rem;
 }
 
 .form-control,
 .form-select {
+  background: var(--bg);
+  border: 1px solid var(--border-strong);
   border-radius: var(--radius);
-  border-color: var(--border-strong);
+  color: var(--ink);
   font-size: 0.875rem;
+  padding: 0.4375rem 0.625rem;
+}
+
+.form-control::placeholder {
+  color: var(--ink-dim);
 }
 
 .form-control:focus,
 .form-select:focus {
+  background: var(--bg);
   border-color: var(--accent);
-  box-shadow: 0 0 0 2px rgba(15, 110, 110, 0.25) !important;
+  color: var(--ink);
+  outline: 2px solid var(--accent-wash);
+}
+
+.form-select {
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%238496a6' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
+}
+
+.form-control[type="file"]::file-selector-button {
+  background: var(--surface-raised);
+  border: 0;
+  border-right: 1px solid var(--border-strong);
+  color: var(--ink);
+  margin: -0.4375rem 0.625rem -0.4375rem -0.625rem;
+  padding: 0.4375rem 0.75rem;
 }
 
 /* ---- Buttons ------------------------------------------------------------- */
 
 .btn {
   border-radius: var(--radius);
-  font-size: 0.8125rem;
-  font-weight: 500;
-  padding: 0.4375rem 1rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 0.5rem 1.125rem;
 }
 
 .btn-action {
   background: var(--accent);
   border: 1px solid var(--accent);
-  color: #fff;
+  color: #04120d;
 }
 
 .btn-action:hover {
-  background: var(--accent-dark);
-  border-color: var(--accent-dark);
-  color: #fff;
+  background: #4df0c4;
+  border-color: #4df0c4;
+  color: #04120d;
 }
 
 .btn-quiet {
@@ -235,24 +276,25 @@ td.numeric,
 }
 
 .btn-quiet:hover {
-  background: var(--surface-sunk);
+  background: var(--surface-raised);
+  border-color: var(--ink-dim);
   color: var(--ink);
 }
 
 /* ---- Triage markers -----------------------------------------------------
-   Colour never carries the meaning on its own: every marker shows its text
-   label, and the three levels differ in weight as well as hue. */
+   Colour never carries the meaning alone: each marker shows its text label,
+   and the three levels differ in fill as well as hue. */
 
 .triage {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.375rem;
-  font-size: 0.75rem;
+  display: inline-block;
+  font-size: 0.6875rem;
   font-weight: 600;
-  letter-spacing: 0.02em;
-  padding: 0.1875rem 0.5rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 0.25rem 0.5rem;
   border-radius: var(--radius);
   border: 1px solid;
+  white-space: nowrap;
 }
 
 .triage-low {
@@ -264,26 +306,25 @@ td.numeric,
 .triage-medium {
   color: var(--triage-medium);
   border-color: var(--triage-medium);
-  background: rgba(138, 90, 0, 0.07);
+  background: rgba(244, 168, 56, 0.14);
 }
 
 .triage-high {
-  color: #fff;
+  color: #1a0508;
   background: var(--triage-high);
   border-color: var(--triage-high);
 }
 
-/* ---- Radiograph panels ---------------------------------------------------
-   The original and the Grad-CAM overlay are held to the same box so the two
-   can be compared directly. Chest radiographs are large and portrait, so the
-   height is capped to keep both panels and the review form on one screen. */
+/* ---- Radiograph wells ---------------------------------------------------
+   True black, matching how radiographs are read on a viewing station. Both
+   panels use the same box so the original and the overlay compare directly. */
 
 .radiograph-frame {
   display: flex;
   align-items: center;
   justify-content: center;
   height: 26rem;
-  background: var(--surface-sunk);
+  background: var(--well);
   border: 1px solid var(--border);
 }
 
@@ -294,7 +335,7 @@ td.numeric,
 }
 
 .radiograph-frame .placeholder-note {
-  color: var(--ink-muted);
+  color: var(--ink-dim);
   font-size: 0.8125rem;
   padding: 0 1.5rem;
   text-align: center;
@@ -304,8 +345,9 @@ td.numeric,
 
 .notice {
   border-left: 3px solid var(--border-strong);
-  padding: 0.625rem 0.875rem;
   background: var(--surface);
+  border-radius: var(--radius);
+  padding: 0.75rem 1rem;
   font-size: 0.8125rem;
   color: var(--ink-muted);
 }
@@ -316,32 +358,50 @@ td.numeric,
 
 .notice-caution {
   border-left-color: var(--triage-medium);
+  background: rgba(244, 168, 56, 0.08);
   color: var(--ink);
 }
 
 /* ---- Tables -------------------------------------------------------------- */
 
 .table {
-  --bs-table-bg: var(--surface);
+  --bs-table-bg: transparent;
+  --bs-table-color: var(--ink);
   font-size: 0.8125rem;
   margin: 0;
 }
 
 .table > thead th {
-  font-size: 0.6875rem;
+  background: var(--surface-raised);
+  font-size: 0.625rem;
   font-weight: 600;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--ink-muted);
-  border-bottom: 1px solid var(--border-strong);
-  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--border);
+  padding: 0.5rem 0.875rem;
   white-space: nowrap;
 }
 
 .table > tbody td {
   border-bottom: 1px solid var(--border);
-  padding: 0.5rem 0.75rem;
+  color: var(--ink);
+  padding: 0.625rem 0.875rem;
   vertical-align: middle;
+}
+
+.table > tbody tr:hover td {
+  background: var(--surface-raised);
+}
+
+.table a {
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.table a:hover {
+  text-decoration: underline;
 }
 
 /* ---- Instrument readouts ------------------------------------------------- */
@@ -349,28 +409,54 @@ td.numeric,
 .readout {
   background: var(--surface);
   border: 1px solid var(--border);
+  border-left: 2px solid var(--accent);
   border-radius: var(--radius);
-  padding: 0.75rem 0.875rem;
+  padding: 0.875rem 1rem;
 }
 
 .readout-label {
-  font-size: 0.6875rem;
+  display: block;
+  font-size: 0.625rem;
   font-weight: 600;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--ink-muted);
 }
 
 .readout-value {
-  font-size: 1.625rem;
+  font-size: 2rem;
   font-weight: 500;
   line-height: 1.1;
-  margin-top: 0.25rem;
+  margin-top: 0.375rem;
+  color: var(--ink);
+}
+
+.readout-value.accented {
+  color: var(--accent);
 }
 
 .readout-unit {
-  font-size: 0.8125rem;
-  color: var(--ink-muted);
+  display: block;
+  font-size: 0.75rem;
+  color: var(--ink-dim);
+  margin-top: 0.25rem;
+}
+
+/* Headline figure on the result page. */
+.headline-score {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 2.75rem;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--accent);
+}
+
+.headline-label {
+  font-size: 1.75rem;
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
 }
 
 /* ---- Footer -------------------------------------------------------------- */
@@ -378,7 +464,7 @@ td.numeric,
 .colophon {
   border-top: 1px solid var(--border);
   margin-top: 2.5rem;
-  padding: 0.875rem 0;
+  padding: 1rem 0 2rem;
   font-size: 0.75rem;
-  color: var(--ink-muted);
+  color: var(--ink-dim);
 }
