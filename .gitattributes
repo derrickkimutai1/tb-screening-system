@@ -1,0 +1,11 @@
+# Normalise line endings so the repository stays consistent across machines.
+* text=auto eol=lf
+
+# Binary assets must never be converted.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.keras binary
+*.h5 binary
+*.zip binary
+*.woff2 binary
