@@ -384,6 +384,130 @@ td.numeric,
   box-shadow: 0 6px 20px -8px rgba(255, 46, 99, 0.9);
 }
 
+/* ---- Score gauge --------------------------------------------------------
+   The model score is drawn as a filled arc so its magnitude is read at a
+   glance, with the figure itself in the centre for the exact value. */
+
+.gauge {
+  position: relative;
+  width: 11.5rem;
+  height: 11.5rem;
+}
+
+.gauge svg {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.gauge-track {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.07);
+  stroke-width: 10;
+}
+
+.gauge-fill {
+  fill: none;
+  stroke-width: 10;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.9s var(--ease);
+}
+
+.gauge-fill.level-low {
+  stroke: var(--triage-low);
+}
+.gauge-fill.level-medium {
+  stroke: var(--triage-medium);
+}
+.gauge-fill.level-high {
+  stroke: var(--triage-high);
+}
+
+.gauge-centre {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.gauge-figure {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 1.875rem;
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+.gauge-caption {
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  margin-top: 0.375rem;
+}
+
+/* ---- Threshold scale ----------------------------------------------------
+   Shows where this score falls across the two triage thresholds, so the
+   category is visibly a consequence of the number rather than an assertion. */
+
+.scale {
+  margin-top: 0.5rem;
+}
+
+.scale-track {
+  position: relative;
+  height: 0.5rem;
+  border-radius: 999px;
+  overflow: hidden;
+  display: flex;
+}
+
+.scale-band-low {
+  background: rgba(127, 147, 168, 0.45);
+}
+.scale-band-medium {
+  background: rgba(255, 166, 43, 0.5);
+}
+.scale-band-high {
+  background: rgba(255, 46, 99, 0.55);
+}
+
+.scale-marker {
+  position: absolute;
+  top: -0.25rem;
+  width: 3px;
+  height: 1rem;
+  background: var(--ink);
+  border-radius: 2px;
+  transform: translateX(-50%);
+}
+
+.scale-ticks {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.6875rem;
+  color: var(--ink-dim);
+  margin-top: 0.375rem;
+}
+
+/* ---- Charts -------------------------------------------------------------- */
+
+.chart-box {
+  position: relative;
+  height: 13rem;
+}
+
+.chart-box-tall {
+  height: 15rem;
+}
+
 /* ---- Radiograph wells ---------------------------------------------------
    True black, matching how radiographs are read on a viewing station. Both
    panels use the same box so the original and the overlay compare directly. */

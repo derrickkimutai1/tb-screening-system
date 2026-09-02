@@ -12,36 +12,52 @@
     </span>
   </div>
   <div class="panel-body">
-    <div class="row g-4 align-items-start">
+    <div class="row g-4 align-items-center">
 
-      <div class="col-md-4">
+      <div class="col-md-auto">
+        <div class="gauge">
+          <svg viewBox="0 0 120 120" role="img"
+               aria-label="Model score {{ record.tb_probability }} out of 1">
+            <circle class="gauge-track" cx="60" cy="60" r="52"></circle>
+            <circle class="gauge-fill level-{{ record.triage_slug }}" cx="60" cy="60" r="52"
+                    stroke-dasharray="{{ record.GAUGE_CIRCUMFERENCE }}"
+                    stroke-dashoffset="{{ record.gauge_offset }}"></circle>
+          </svg>
+          <div class="gauge-centre">
+            <span class="gauge-figure">{{ record.tb_probability }}</span>
+            <span class="gauge-caption">Model score</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-md">
         <span class="readout-label">Result</span>
-        <div class="headline-label mt-2">{{ record.get_predicted_label_display }}</div>
+        <div class="headline-label mt-1 mb-2">{{ record.get_predicted_label_display }}</div>
+        <span class="triage {{ record.triage_css_class }}">
+          {{ record.get_triage_level_display }}
+        </span>
         <p class="field-hint mb-0">
+          {{ record.triage_justification }}
           {% if record.triage_level == 'HIGH' or record.triage_level == 'MEDIUM' %}
             Requires clinical review.
-          {% else %}
-            Routine clinical judgement applies.
           {% endif %}
         </p>
-      </div>
 
-      <div class="col-md-4">
-        <span class="readout-label">Model score</span>
-        <div class="headline-score mt-2">{{ record.tb_probability }}</div>
-        <p class="field-hint mb-0">
-          Decision threshold <span class="numeric">{{ record.decision_threshold }}</span>
-        </p>
-      </div>
-
-      <div class="col-md-4">
-        <span class="readout-label">Triage</span>
-        <div class="mt-2 mb-2">
-          <span class="triage {{ record.triage_css_class }}">
-            {{ record.get_triage_level_display }}
-          </span>
+        <div class="scale">
+          <div class="scale-track">
+            <span class="scale-band-low" style="width: {{ record.scale_bands.low }}%"></span>
+            <span class="scale-band-medium" style="width: {{ record.scale_bands.medium }}%"></span>
+            <span class="scale-band-high" style="width: {{ record.scale_bands.high }}%"></span>
+            <span class="scale-marker" style="left: {{ record.probability_percent }}%"
+                  title="This score"></span>
+          </div>
+          <div class="scale-ticks">
+            <span>0.000</span>
+            <span>{{ record.triage_low_medium_threshold }}</span>
+            <span>{{ record.triage_medium_high_threshold }}</span>
+            <span>1.000</span>
+          </div>
         </div>
-        <p class="field-hint mb-0" style="margin-top: 0;">{{ record.triage_justification }}</p>
       </div>
 
     </div>

@@ -1,4 +1,5 @@
 {% extends "screening/base.html" %}
+{% load static %}
 
 {% block title %}Reporting dashboard{% endblock %}
 
@@ -38,16 +39,19 @@
   <div class="col-lg-4">
     <div class="panel h-100">
       <div class="panel-head"><h2 class="panel-title">Suspicion distribution</h2></div>
-      <table class="table">
-        <tbody>
-          {% for label, count in triage_counts %}
-            <tr>
-              <td>{{ label }}</td>
-              <td class="numeric text-end" style="width: 5rem;">{{ count }}</td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+      <div class="panel-body">
+        <div class="chart-box"><canvas id="triage-chart"></canvas></div>
+        <table class="table mt-2">
+          <tbody>
+            {% for label, count in triage_counts %}
+              <tr>
+                <td>{{ label }}</td>
+                <td class="numeric text-end" style="width: 5rem;">{{ count }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>
 
@@ -90,8 +94,84 @@
 
 </div>
 
+<div class="panel mt-3">
+  <div class="panel-head">
+    <h2 class="panel-title">Screening activity, last 14 days</h2>
+  </div>
+  <div class="panel-body">
+    <div class="chart-box chart-box-tall"><canvas id="activity-chart"></canvas></div>
+  </div>
+</div>
+
 <p class="field-hint mt-3">
   All figures are counts of records stored in this prototype. They describe system usage
   during development and are not population screening statistics.
 </p>
+
+{{ triage_labels|json_script:"triage-labels" }}
+{{ triage_values|json_script:"triage-values" }}
+{{ activity_labels|json_script:"activity-labels" }}
+{{ activity_values|json_script:"activity-values" }}
+{% endblock %}
+
+{% block scripts %}
+<script src="{% static 'screening/vendor/chart.umd.min.js' %}"></script>
+<script>
+  (function () {
+    const read = (id) => JSON.parse(document.getElementById(id).textContent);
+    const css = (name) =>
+      getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+    Chart.defaults.font.family = "IBM Plex Sans, Segoe UI, Arial, sans-serif";
+    Chart.defaults.font.size = 11;
+    Chart.defaults.color = css("--ink-dim");
+
+    new Chart(document.getElementById("triage-chart"), {
+      type: "doughnut",
+      data: {
+        labels: read("triage-labels"),
+        datasets: [{
+          data: read("triage-values"),
+          backgroundColor: [css("--triage-low"), css("--triage-medium"), css("--triage-high")],
+          borderColor: css("--bg"),
+          borderWidth: 3,
+        }],
+      },
+      options: {
+        maintainAspectRatio: false,
+        cutout: "62%",
+        plugins: {
+          legend: { position: "bottom", labels: { boxWidth: 10, padding: 12 } },
+        },
+      },
+    });
+
+    new Chart(document.getElementById("activity-chart"), {
+      type: "bar",
+      data: {
+        labels: read("activity-labels"),
+        datasets: [{
+          label: "Screenings",
+          data: read("activity-values"),
+          backgroundColor: css("--accent"),
+          borderRadius: 3,
+          maxBarThickness: 34,
+        }],
+      },
+      options: {
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { grid: { display: false }, border: { color: css("--hairline") } },
+          y: {
+            beginAtZero: true,
+            ticks: { precision: 0 },
+            grid: { color: css("--hairline") },
+            border: { display: false },
+          },
+        },
+      },
+    });
+  })();
+</script>
 {% endblock %}

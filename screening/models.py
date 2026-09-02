@@ -152,6 +152,30 @@ class PredictionRecord(models.Model):
         """Probability as a percentage. Kept as Decimal so display stays exact."""
         return self.tb_probability * 100
 
+    # Circumference of the gauge arc, for a circle of radius 52.
+    GAUGE_CIRCUMFERENCE = 327
+
+    @property
+    def triage_slug(self):
+        """Lower-case triage level, for building CSS class names."""
+        return self.triage_level.lower()
+
+    @property
+    def gauge_offset(self):
+        """Stroke offset that fills the score gauge to the model's score."""
+        return round(self.GAUGE_CIRCUMFERENCE * (1 - float(self.tb_probability)), 1)
+
+    @property
+    def scale_bands(self):
+        """Widths of the low, medium and high bands as percentages.
+
+        Drawn from the thresholds stored on this record, so the scale always
+        reflects the thresholds the result was actually judged under.
+        """
+        low = float(self.triage_low_medium_threshold) * 100
+        high = float(self.triage_medium_high_threshold) * 100
+        return {"low": low, "medium": high - low, "high": 100 - high}
+
     @property
     def triage_css_class(self):
         """Modifier class for the triage marker. Colour always accompanies the label."""

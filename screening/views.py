@@ -14,6 +14,7 @@ from django.conf import settings
 from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Count
+from django.db.models.functions import TruncDate
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
@@ -149,6 +150,30 @@ def dashboard(request):
 
     week_ago = timezone.now() - timedelta(days=7)
 
+    triage_counts = [
+        (label, by_triage.get(value, 0))
+        for value, label in PredictionRecord.TriageLevel.choices
+    ]
+
+    # Screening activity over the last fortnight, including days with no
+    # activity so the chart shows real gaps rather than compressing them away.
+    first_day = (timezone.localtime() - timedelta(days=13)).date()
+    per_day = dict(
+        records.filter(created_at__date__gte=first_day)
+        .annotate(day=TruncDate("created_at"))
+        .values_list("day")
+        .annotate(n=Count("id"))
+        .order_by()
+    )
+    activity = [
+        {
+            "label": f"{(first_day + timedelta(days=offset)).day} "
+            f"{(first_day + timedelta(days=offset)):%b}",
+            "count": per_day.get(first_day + timedelta(days=offset), 0),
+        }
+        for offset in range(14)
+    ]
+
     return render(
         request,
         "screening/dashboard.html",
@@ -156,10 +181,11 @@ def dashboard(request):
             "total": total,
             "likely": by_label.get(PredictionRecord.PredictedLabel.LIKELY_TB, 0),
             "unlikely": by_label.get(PredictionRecord.PredictedLabel.UNLIKELY_TB, 0),
-            "triage_counts": [
-                (label, by_triage.get(value, 0))
-                for value, label in PredictionRecord.TriageLevel.choices
-            ],
+            "triage_counts": triage_counts,
+            "triage_labels": [label for label, _ in triage_counts],
+            "triage_values": [count for _, count in triage_counts],
+            "activity_labels": [day["label"] for day in activity],
+            "activity_values": [day["count"] for day in activity],
             "recent": records.filter(created_at__gte=week_ago).count(),
             "follow_up": records.filter(
                 review_status=PredictionRecord.ReviewStatus.FOLLOW_UP
