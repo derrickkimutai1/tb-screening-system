@@ -2,42 +2,23 @@
 
 {% block title %}Case history{% endblock %}
 
-{% block pageheader %}
-<div class="page-header d-print-none">
-  <div class="container-xl">
-    <div class="row align-items-center">
-      <div class="col">
-        <div class="page-pretitle">Records</div>
-        <h2 class="page-title">Case history</h2>
-      </div>
-      <div class="col-auto ms-auto d-print-none">
-        <a href="{% url 'screening:upload' %}" class="btn btn-primary">
-          <i class="ti ti-plus me-1"></i> New screening
-        </a>
-      </div>
-    </div>
-  </div>
-</div>
-{% endblock %}
-
 {% block content %}
-<div class="card">
-  <div class="card-header">
-    <h3 class="card-title">Screening records</h3>
-    <div class="card-actions text-secondary numeric">
-      {{ page.paginator.count }} record{{ page.paginator.count|pluralize }}
-    </div>
+
+<div class="panel">
+  <div class="panel-head">
+    <h1 class="panel-title">Case history</h1>
+    <span class="field-hint numeric">{{ page.paginator.count }} record{{ page.paginator.count|pluralize }}</span>
   </div>
 
-  <div class="card-body border-bottom py-3">
+  <div class="panel-body" style="border-bottom: 1px solid var(--border);">
     <form method="get" class="row g-2 align-items-end">
       <div class="col-sm-4">
-        <label class="form-label" for="reference">Case reference</label>
+        <label class="field-label" for="reference">Case reference</label>
         <input type="text" class="form-control" id="reference" name="reference"
                value="{{ reference }}" placeholder="DEMO-001" autocomplete="off">
       </div>
       <div class="col-sm-3">
-        <label class="form-label" for="triage">Triage level</label>
+        <label class="field-label" for="triage">Triage level</label>
         <select class="form-select" id="triage" name="triage">
           <option value="">All levels</option>
           {% for value, label in triage_choices %}
@@ -46,72 +27,61 @@
         </select>
       </div>
       <div class="col-sm-auto">
-        <button type="submit" class="btn btn-outline-primary">
-          <i class="ti ti-filter me-1"></i> Filter
-        </button>
+        <button type="submit" class="btn btn-quiet">Filter</button>
       </div>
       {% if reference or triage %}
         <div class="col-sm-auto">
-          <a class="btn btn-ghost-secondary" href="{% url 'screening:case_list' %}">Clear</a>
+          <a class="btn btn-quiet" href="{% url 'screening:case_list' %}">Clear</a>
         </div>
       {% endif %}
     </form>
   </div>
 
-  <div class="table-responsive">
-    <table class="table table-vcenter card-table">
-      <thead>
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Case reference</th>
+        <th>Analysed</th>
+        <th>Result</th>
+        <th class="text-end">Score</th>
+        <th>Triage</th>
+        <th>Quality</th>
+        <th>Review status</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for record in page %}
         <tr>
-          <th>Case reference</th>
-          <th>Analysed</th>
-          <th>Result</th>
-          <th class="text-end">Score</th>
-          <th>Triage</th>
-          <th>Quality</th>
-          <th>Review status</th>
+          <td><a href="{% url 'screening:case_detail' record.case_id %}">{{ record.patient_reference }}</a></td>
+          <td class="numeric">{{ record.created_at|date:"j M Y H:i" }}</td>
+          <td>{{ record.get_predicted_label_display }}</td>
+          <td class="numeric text-end">{{ record.tb_probability }}</td>
+          <td><span class="triage {{ record.triage_css_class }}">{{ record.get_triage_level_display }}</span></td>
+          <td>{{ record.get_quality_status_display }}</td>
+          <td>{{ record.get_review_status_display }}</td>
         </tr>
-      </thead>
-      <tbody>
-        {% for record in page %}
-          <tr>
-            <td><a href="{% url 'screening:case_detail' record.case_id %}">{{ record.patient_reference }}</a></td>
-            <td class="numeric text-secondary">{{ record.created_at|date:"j M Y H:i" }}</td>
-            <td>{{ record.get_predicted_label_display }}</td>
-            <td class="numeric text-end">{{ record.tb_probability }}</td>
-            <td><span class="triage {{ record.triage_css_class }}">{{ record.get_triage_level_display }}</span></td>
-            <td class="text-secondary">{{ record.get_quality_status_display }}</td>
-            <td>{{ record.get_review_status_display }}</td>
-          </tr>
-        {% empty %}
-          <tr>
-            <td colspan="7" class="text-secondary py-4">
-              No screening records yet.
-              <a href="{% url 'screening:upload' %}">Screen a radiograph</a> to create one.
-            </td>
-          </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
+      {% empty %}
+        <tr>
+          <td colspan="7" style="color: var(--ink-muted); padding: 1.5rem 0.75rem;">
+            No screening records yet.
+            <a href="{% url 'screening:upload' %}">Screen a radiograph</a> to create one.
+          </td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
 
   {% if page.paginator.num_pages > 1 %}
-    <div class="card-footer d-flex align-items-center">
-      <p class="m-0 text-secondary">
-        Page <span class="numeric">{{ page.number }}</span> of
-        <span class="numeric">{{ page.paginator.num_pages }}</span>
-      </p>
-      <ul class="pagination m-0 ms-auto">
+    <div class="panel-body d-flex justify-content-between align-items-center" style="border-top: 1px solid var(--border);">
+      <span class="field-hint">Page <span class="numeric">{{ page.number }}</span> of <span class="numeric">{{ page.paginator.num_pages }}</span></span>
+      <span>
         {% if page.has_previous %}
-          <li class="page-item">
-            <a class="page-link" href="?page={{ page.previous_page_number }}{% if reference %}&reference={{ reference }}{% endif %}{% if triage %}&triage={{ triage }}{% endif %}">Previous</a>
-          </li>
+          <a class="btn btn-quiet" href="?page={{ page.previous_page_number }}{% if reference %}&reference={{ reference }}{% endif %}{% if triage %}&triage={{ triage }}{% endif %}">Previous</a>
         {% endif %}
         {% if page.has_next %}
-          <li class="page-item">
-            <a class="page-link" href="?page={{ page.next_page_number }}{% if reference %}&reference={{ reference }}{% endif %}{% if triage %}&triage={{ triage }}{% endif %}">Next</a>
-          </li>
+          <a class="btn btn-quiet" href="?page={{ page.next_page_number }}{% if reference %}&reference={{ reference }}{% endif %}{% if triage %}&triage={{ triage }}{% endif %}">Next</a>
         {% endif %}
-      </ul>
+      </span>
     </div>
   {% endif %}
 </div>
