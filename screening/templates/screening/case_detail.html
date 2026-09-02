@@ -2,69 +2,87 @@
 
 {% block title %}{{ record.patient_reference }} — screening result{% endblock %}
 
+{% block pageheader %}
+<div class="page-header d-print-none">
+  <div class="container-xl">
+    <div class="row align-items-center">
+      <div class="col">
+        <div class="page-pretitle">Screening result</div>
+        <h2 class="page-title">{{ record.patient_reference }}</h2>
+      </div>
+      <div class="col-auto ms-auto d-print-none text-secondary numeric">
+        {{ record.created_at|date:"j M Y, H:i" }}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
 {% block content %}
 
-<div class="panel mb-3">
-  <div class="panel-head">
-    <h1 class="panel-title">Screening result</h1>
-    <span class="field-hint">
-      {{ record.patient_reference }} &middot; {{ record.created_at|date:"j M Y, H:i" }}
-    </span>
-  </div>
-  <div class="panel-body">
+<div class="card mb-3">
+  <div class="card-body">
     <div class="row g-4 align-items-start">
 
       <div class="col-md-4">
-        <span class="readout-label">Result</span>
-        <div class="headline-label mt-2">{{ record.get_predicted_label_display }}</div>
-        <p class="field-hint mb-0">
+        <div class="subheader mb-2">Result</div>
+        <div class="headline-label">{{ record.get_predicted_label_display }}</div>
+        <div class="text-secondary mt-1">
           {% if record.triage_level == 'HIGH' or record.triage_level == 'MEDIUM' %}
             Requires clinical review.
           {% else %}
             Routine clinical judgement applies.
           {% endif %}
-        </p>
-      </div>
-
-      <div class="col-md-4">
-        <span class="readout-label">Model score</span>
-        <div class="headline-score mt-2">{{ record.tb_probability }}</div>
-        <p class="field-hint mb-0">
-          Decision threshold <span class="numeric">{{ record.decision_threshold }}</span>
-        </p>
-      </div>
-
-      <div class="col-md-4">
-        <span class="readout-label">Triage</span>
-        <div class="mt-2 mb-2">
-          <span class="triage {{ record.triage_css_class }}">
-            {{ record.get_triage_level_display }}
-          </span>
         </div>
-        <p class="field-hint mb-0" style="margin-top: 0;">{{ record.triage_justification }}</p>
+      </div>
+
+      <div class="col-md-4">
+        <div class="subheader mb-2">Model score</div>
+        <div class="headline-score">{{ record.tb_probability }}</div>
+        <div class="text-secondary mt-1">
+          Decision threshold <span class="numeric">{{ record.decision_threshold }}</span>
+        </div>
+      </div>
+
+      <div class="col-md-4">
+        <div class="subheader mb-2">Triage</div>
+        <div class="mb-2">
+          <span class="triage {{ record.triage_css_class }}">{{ record.get_triage_level_display }}</span>
+        </div>
+        <div class="text-secondary">{{ record.triage_justification }}</div>
       </div>
 
     </div>
   </div>
 </div>
 
-<div class="notice notice-boundary mb-3">
-  This prototype supports preliminary TB screening and prioritisation only. It does not
-  provide a final diagnosis. Clinical review and confirmatory testing remain necessary.
+<div class="alert alert-info" role="alert">
+  <div class="d-flex">
+    <div class="me-2"><i class="ti ti-info-circle"></i></div>
+    <div>
+      This prototype supports preliminary TB screening and prioritisation only. It does not
+      provide a final diagnosis. Clinical review and confirmatory testing remain necessary.
+    </div>
+  </div>
 </div>
 
 {% if record.quality_status != 'ACCEPTABLE' %}
-<div class="notice notice-caution mb-3">
-  <strong>Image quality: {{ record.get_quality_status_display }}.</strong>
-  {{ record.quality_message }}
+<div class="alert alert-warning" role="alert">
+  <div class="d-flex">
+    <div class="me-2"><i class="ti ti-alert-triangle"></i></div>
+    <div>
+      <strong>Image quality: {{ record.get_quality_status_display }}.</strong>
+      {{ record.quality_message }}
+    </div>
+  </div>
 </div>
 {% endif %}
 
-<div class="row g-3 mb-3">
+<div class="row row-deck row-cards mb-3">
   <div class="col-md-6">
-    <div class="panel h-100">
-      <div class="panel-head"><h2 class="panel-title">Original radiograph</h2></div>
-      <div class="panel-body">
+    <div class="card">
+      <div class="card-header"><h3 class="card-title">Original radiograph</h3></div>
+      <div class="card-body">
         <div class="radiograph-frame">
           <img src="{{ record.xray_image.url }}"
                alt="Uploaded chest radiograph for {{ record.patient_reference }}">
@@ -73,9 +91,9 @@
     </div>
   </div>
   <div class="col-md-6">
-    <div class="panel h-100">
-      <div class="panel-head"><h2 class="panel-title">Grad-CAM explanation</h2></div>
-      <div class="panel-body">
+    <div class="card">
+      <div class="card-header"><h3 class="card-title">Grad-CAM explanation</h3></div>
+      <div class="card-body">
         <div class="radiograph-frame">
           {% if record.has_explanation %}
             <img src="{{ record.gradcam_image.url }}"
@@ -87,7 +105,7 @@
           {% endif %}
         </div>
         {% if record.has_explanation %}
-          <p class="field-hint mt-2 mb-0">
+          <p class="text-secondary small mt-2 mb-0">
             Brighter areas influenced the model's output most. They indicate where the model
             looked, not confirmed disease locations.
           </p>
@@ -97,20 +115,20 @@
   </div>
 </div>
 
-<div class="row g-3">
+<div class="row row-deck row-cards">
 
   <div class="col-lg-5">
-    <div class="panel">
-      <div class="panel-head"><h2 class="panel-title">Record</h2></div>
-      <div class="panel-body p-0">
-        <table class="table">
+    <div class="card">
+      <div class="card-header"><h3 class="card-title">Record</h3></div>
+      <div class="table-responsive">
+        <table class="table table-vcenter card-table">
           <tbody>
-            <tr><td style="width: 45%; color: var(--ink-muted);">Case reference</td><td>{{ record.patient_reference }}</td></tr>
-            <tr><td style="color: var(--ink-muted);">Case ID</td><td class="numeric" style="font-size: 0.6875rem;">{{ record.case_id }}</td></tr>
-            <tr><td style="color: var(--ink-muted);">Model version</td><td class="numeric">{{ record.model_version }}</td></tr>
-            <tr><td style="color: var(--ink-muted);">Triage thresholds</td><td class="numeric">{{ record.triage_low_medium_threshold }} / {{ record.triage_medium_high_threshold }}</td></tr>
-            <tr><td style="color: var(--ink-muted);">Inference time</td><td class="numeric">{% if record.inference_ms %}{{ record.inference_ms }} ms{% else %}—{% endif %}</td></tr>
-            <tr><td style="color: var(--ink-muted);">Review status</td><td>{{ record.get_review_status_display }}</td></tr>
+            <tr><td class="text-secondary" style="width: 45%;">Case reference</td><td>{{ record.patient_reference }}</td></tr>
+            <tr><td class="text-secondary">Case ID</td><td class="numeric small">{{ record.case_id }}</td></tr>
+            <tr><td class="text-secondary">Model version</td><td class="numeric">{{ record.model_version }}</td></tr>
+            <tr><td class="text-secondary">Triage thresholds</td><td class="numeric">{{ record.triage_low_medium_threshold }} / {{ record.triage_medium_high_threshold }}</td></tr>
+            <tr><td class="text-secondary">Inference time</td><td class="numeric">{% if record.inference_ms %}{{ record.inference_ms }} ms{% else %}—{% endif %}</td></tr>
+            <tr><td class="text-secondary">Review status</td><td>{{ record.get_review_status_display }}</td></tr>
           </tbody>
         </table>
       </div>
@@ -118,37 +136,41 @@
   </div>
 
   <div class="col-lg-7">
-    <div class="panel">
-      <div class="panel-head"><h2 class="panel-title">Review</h2></div>
-      <div class="panel-body">
+    <div class="card">
+      <div class="card-header"><h3 class="card-title">Review</h3></div>
+      <div class="card-body">
         <form method="post" novalidate>
           {% csrf_token %}
           <div class="row g-3">
             <div class="col-sm-6">
-              <label class="field-label" for="{{ review_form.reviewer_name.id_for_label }}">Reviewer</label>
+              <label class="form-label" for="{{ review_form.reviewer_name.id_for_label }}">Reviewer</label>
               {{ review_form.reviewer_name }}
             </div>
             <div class="col-sm-6">
-              <label class="field-label" for="{{ review_form.status_set.id_for_label }}">Status</label>
+              <label class="form-label" for="{{ review_form.status_set.id_for_label }}">Status</label>
               {{ review_form.status_set }}
             </div>
             <div class="col-12">
-              <label class="field-label" for="{{ review_form.note.id_for_label }}">Note</label>
+              <label class="form-label" for="{{ review_form.note.id_for_label }}">Note</label>
               {{ review_form.note }}
             </div>
           </div>
-          <button type="submit" class="btn btn-action mt-3">Record review</button>
+          <button type="submit" class="btn btn-primary mt-3">
+            <i class="ti ti-check me-1"></i> Record review
+          </button>
         </form>
+      </div>
 
-        {% if notes %}
-          <table class="table mt-4">
+      {% if notes %}
+        <div class="table-responsive border-top">
+          <table class="table table-vcenter card-table">
             <thead>
               <tr><th>Date</th><th>Reviewer</th><th>Status set</th><th>Note</th></tr>
             </thead>
             <tbody>
               {% for note in notes %}
                 <tr>
-                  <td class="numeric">{{ note.created_at|date:"j M Y H:i" }}</td>
+                  <td class="numeric text-secondary">{{ note.created_at|date:"j M Y H:i" }}</td>
                   <td>{{ note.reviewer_name|default:"—" }}</td>
                   <td>{{ note.get_status_set_display }}</td>
                   <td>{{ note.note }}</td>
@@ -156,8 +178,8 @@
               {% endfor %}
             </tbody>
           </table>
-        {% endif %}
-      </div>
+        </div>
+      {% endif %}
     </div>
   </div>
 

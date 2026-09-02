@@ -2,46 +2,61 @@
 
 {% block title %}Screen a chest X-ray{% endblock %}
 
+{% block pageheader %}
+<div class="page-header d-print-none">
+  <div class="container-xl">
+    <div class="row align-items-center">
+      <div class="col">
+        <div class="page-pretitle">Screening</div>
+        <h2 class="page-title">New chest radiograph</h2>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
 {% block content %}
-<div class="row g-4">
+<div class="row row-deck row-cards">
 
   <div class="col-lg-7">
-    <div class="panel">
-      <div class="panel-head">
-        <h1 class="panel-title">New screening</h1>
+    <div class="card">
+      <div class="card-header">
+        <h3 class="card-title">Upload</h3>
       </div>
-      <div class="panel-body">
+      <div class="card-body">
 
         {% if form.non_field_errors %}
-          <div class="notice notice-caution mb-3">{{ form.non_field_errors }}</div>
+          <div class="alert alert-danger">{{ form.non_field_errors }}</div>
         {% endif %}
 
         <form method="post" enctype="multipart/form-data" novalidate>
           {% csrf_token %}
 
           <div class="mb-3">
-            <label class="field-label" for="{{ form.patient_reference.id_for_label }}">
+            <label class="form-label required" for="{{ form.patient_reference.id_for_label }}">
               Case reference
             </label>
             {{ form.patient_reference }}
-            <p class="field-hint">{{ form.patient_reference.help_text }}</p>
+            <small class="form-hint">{{ form.patient_reference.help_text }}</small>
             {% for error in form.patient_reference.errors %}
-              <p class="field-hint" style="color: var(--triage-high);">{{ error }}</p>
+              <div class="invalid-feedback d-block">{{ error }}</div>
             {% endfor %}
           </div>
 
           <div class="mb-3">
-            <label class="field-label" for="{{ form.xray_image.id_for_label }}">
+            <label class="form-label required" for="{{ form.xray_image.id_for_label }}">
               Chest radiograph
             </label>
             {{ form.xray_image }}
-            <p class="field-hint">{{ form.xray_image.help_text }}</p>
+            <small class="form-hint">{{ form.xray_image.help_text }}</small>
             {% for error in form.xray_image.errors %}
-              <p class="field-hint" style="color: var(--triage-high);">{{ error }}</p>
+              <div class="invalid-feedback d-block">{{ error }}</div>
             {% endfor %}
           </div>
 
-          <button type="submit" class="btn btn-action">Analyse radiograph</button>
+          <button type="submit" class="btn btn-primary">
+            <i class="ti ti-scan me-1"></i> Analyse radiograph
+          </button>
         </form>
 
       </div>
@@ -50,38 +65,42 @@
 
   <div class="col-lg-5">
 
-    <div class="notice notice-boundary mb-3">
-      This prototype supports preliminary TB screening and prioritisation only. It does not
-      provide a final diagnosis. Clinical review and confirmatory testing remain necessary.
+    <div class="alert alert-info" role="alert">
+      <div class="d-flex">
+        <div class="me-2"><i class="ti ti-info-circle"></i></div>
+        <div>
+          This prototype supports preliminary TB screening and prioritisation only. It does
+          not provide a final diagnosis. Clinical review and confirmatory testing remain
+          necessary.
+        </div>
+      </div>
     </div>
 
-    <div class="panel">
-      <div class="panel-head">
-        <h2 class="panel-title">What this produces</h2>
+    <div class="card mb-3">
+      <div class="card-header">
+        <h3 class="card-title">What this produces</h3>
       </div>
-      <div class="panel-body">
-        <table class="table">
+      <div class="table-responsive">
+        <table class="table table-vcenter card-table">
           <tbody>
             <tr>
-              <td style="width: 42%; color: var(--ink-muted);">Screening result</td>
+              <td class="text-secondary" style="width: 45%;">Screening result</td>
               <td>Likely TB or Unlikely TB</td>
             </tr>
             <tr>
-              <td style="color: var(--ink-muted);">Model score</td>
+              <td class="text-secondary">Model score</td>
               <td class="numeric">0.0000 to 1.0000</td>
             </tr>
             <tr>
-              <td style="color: var(--ink-muted);">Triage level</td>
-              <td>
-                <span class="triage triage-low">Low suspicion</span>
-              </td>
+              <td class="text-secondary">Triage level</td>
+              <td><span class="triage triage-low">Low suspicion</span></td>
             </tr>
             <tr>
-              <td style="color: var(--ink-muted);">Explanation</td>
-              <td>Grad-CAM overlay beside the original image</td>
+              <td class="text-secondary">Explanation</td>
+              <td>Grad-CAM overlay beside the original</td>
             </tr>
             <tr>
-              <td style="color: var(--ink-muted);">Record</td>
+              <td class="text-secondary">Record</td>
               <td>Stored for review and reporting</td>
             </tr>
           </tbody>
@@ -89,15 +108,13 @@
       </div>
     </div>
 
-    <div class="panel mt-3">
-      <div class="panel-head">
-        <h2 class="panel-title">Accepted images</h2>
-      </div>
-      <div class="panel-body">
-        <p class="mb-2">PNG, JPG or JPEG exports of adult or adolescent chest radiographs.</p>
-        <p class="field-hint mb-0">
-          Maximum file size {{ max_upload_mb }} MB. Do not upload images containing patient
-          identifiers. Use a non-identifying case reference such as DEMO-001.
+    <div class="card">
+      <div class="card-body">
+        <h4 class="card-title">Accepted images</h4>
+        <p class="text-secondary mb-0">
+          PNG, JPG or JPEG exports of adult or adolescent chest radiographs, up to
+          {{ max_upload_mb }} MB. Do not upload images containing patient identifiers.
+          Use a non-identifying case reference such as DEMO-001.
         </p>
       </div>
     </div>
