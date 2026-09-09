@@ -13,8 +13,8 @@
   <div class="container-xl">
     <div class="masthead-inner">
       <p class="masthead-title">
-        TB Screening Support
-        <span class="qualifier">/ chest radiograph triage</span>
+        TB Screening
+        <span class="qualifier">Chest radiograph triage</span>
       </p>
       <nav class="masthead-nav">
         <a href="{% url 'screening:upload' %}" class="{% if active == 'upload' %}current{% endif %}">Screen</a>
@@ -25,7 +25,8 @@
   </div>
 </header>
 
-<main class="container-xl py-4">
+<main class="container-xl">
+  {% block pagehead %}{% endblock %}
   {% block content %}{% endblock %}
 </main>
 
@@ -37,6 +38,49 @@
 </footer>
 
 <script src="{% static 'screening/vendor/bootstrap.bundle.min.js' %}"></script>
+<script>
+  // Reveal content as it enters the viewport, and count live figures up to
+  // their value. Both are skipped when reduced motion is requested.
+  (function () {
+    const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const targets = document.querySelectorAll(".rise");
+
+    if (still || !("IntersectionObserver" in window)) {
+      targets.forEach((el) => el.classList.add("shown"));
+      return;
+    }
+
+    const watcher = new IntersectionObserver(
+      (entries, self) => {
+        entries.forEach((entry, index) => {
+          if (!entry.isIntersecting) return;
+          const el = entry.target;
+          el.style.transitionDelay = `${Math.min(index, 5) * 60}ms`;
+          el.classList.add("shown");
+          countUp(el.querySelector("[data-count]"));
+          self.unobserve(el);
+        });
+      },
+      { rootMargin: "0px 0px -40px 0px", threshold: 0.1 }
+    );
+
+    targets.forEach((el) => watcher.observe(el));
+
+    function countUp(el) {
+      if (!el) return;
+      const final = Number(el.dataset.count);
+      if (!Number.isFinite(final) || final === 0) return;
+      const started = performance.now();
+      const span = 700;
+      (function step(now) {
+        const progress = Math.min((now - started) / span, 1);
+        const eased = 1 - Math.pow(1 - progress, 3);
+        el.textContent = Math.round(final * eased);
+        if (progress < 1) requestAnimationFrame(step);
+      })(started);
+    }
+  })();
+</script>
 {% block scripts %}{% endblock %}
 </body>
 </html>

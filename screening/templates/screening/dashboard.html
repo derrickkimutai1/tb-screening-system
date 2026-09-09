@@ -3,32 +3,40 @@
 
 {% block title %}Reporting dashboard{% endblock %}
 
+{% block pagehead %}
+<div class="pagehead">
+  <span class="micro micro-acid">Reporting</span>
+  <h1 class="display display-xl mt-2">Screening<br>activity</h1>
+  <span class="micro">Counts of records stored in this prototype</span>
+</div>
+{% endblock %}
+
 {% block content %}
 
 <div class="row g-3 mb-3">
   <div class="col-6 col-lg-3">
-    <div class="readout">
+    <div class="readout rise">
       <span class="readout-label">Total screenings</span>
-      <div class="readout-value">{{ total }}</div>
+      <div class="readout-value" data-count="{{ total }}">0</div>
     </div>
   </div>
   <div class="col-6 col-lg-3">
-    <div class="readout">
+    <div class="readout rise">
       <span class="readout-label">Likely TB</span>
-      <div class="readout-value accented">{{ likely }}</div>
+      <div class="readout-value accented" data-count="{{ likely }}">0</div>
       <span class="readout-unit">of {{ total }} screened</span>
     </div>
   </div>
   <div class="col-6 col-lg-3">
-    <div class="readout">
+    <div class="readout rise">
       <span class="readout-label">Last 7 days</span>
-      <div class="readout-value">{{ recent }}</div>
+      <div class="readout-value" data-count="{{ recent }}">0</div>
     </div>
   </div>
   <div class="col-6 col-lg-3">
-    <div class="readout">
-      <span class="readout-label">Follow-up required</span>
-      <div class="readout-value">{{ follow_up }}</div>
+    <div class="readout rise">
+      <span class="readout-label">Follow-up</span>
+      <div class="readout-value" data-count="{{ follow_up }}">0</div>
       <span class="readout-unit">{{ pending }} pending review</span>
     </div>
   </div>
@@ -37,29 +45,32 @@
 <div class="row g-3">
 
   <div class="col-lg-4">
-    <div class="panel h-100">
-      <div class="panel-head"><h2 class="panel-title">Suspicion distribution</h2></div>
+    <div class="panel h-100 rise">
+      <div class="panel-head">
+        <h2 class="panel-title">Suspicion distribution</h2>
+      </div>
       <div class="panel-body">
         <div class="chart-box"><canvas id="triage-chart"></canvas></div>
-        <table class="table mt-2">
-          <tbody>
-            {% for label, count in triage_counts %}
-              <tr>
-                <td>{{ label }}</td>
-                <td class="numeric text-end" style="width: 5rem;">{{ count }}</td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
       </div>
+      <table class="table">
+        <tbody>
+          {% for label, count in triage_counts %}
+            <tr>
+              <td>{{ label }}</td>
+              <td class="numeric text-end" style="width: 5rem;">{{ count }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
     </div>
   </div>
 
   <div class="col-lg-8">
-    <div class="panel h-100">
+    <div class="panel h-100 rise">
       <div class="panel-head">
         <h2 class="panel-title">Recent screenings</h2>
-        <a class="field-hint" href="{% url 'screening:case_list' %}">All cases</a>
+        <a class="micro micro-acid" href="{% url 'screening:case_list' %}"
+           style="text-decoration: none;">All cases &rarr;</a>
       </div>
       <table class="table">
         <thead>
@@ -82,7 +93,7 @@
             </tr>
           {% empty %}
             <tr>
-              <td colspan="5" style="color: var(--ink-muted); padding: 1.5rem 0.75rem;">
+              <td colspan="5" style="color: var(--ink-muted); padding: 1.5rem 1rem;">
                 No screening records yet.
               </td>
             </tr>
@@ -94,9 +105,10 @@
 
 </div>
 
-<div class="panel mt-3">
+<div class="panel mt-3 rise">
   <div class="panel-head">
-    <h2 class="panel-title">Screening activity, last 14 days</h2>
+    <h2 class="panel-title">Screening activity</h2>
+    <span class="micro">Last 14 days</span>
   </div>
   <div class="panel-body">
     <div class="chart-box chart-box-tall"><canvas id="activity-chart"></canvas></div>
@@ -122,8 +134,8 @@
     const css = (name) =>
       getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 
-    Chart.defaults.font.family = "IBM Plex Sans, Segoe UI, Arial, sans-serif";
-    Chart.defaults.font.size = 11;
+    Chart.defaults.font.family = "Archivo, Segoe UI, Arial, sans-serif";
+    Chart.defaults.font.size = 10;
     Chart.defaults.color = css("--ink-dim");
 
     new Chart(document.getElementById("triage-chart"), {
@@ -133,15 +145,15 @@
         datasets: [{
           data: read("triage-values"),
           backgroundColor: [css("--triage-low"), css("--triage-medium"), css("--triage-high")],
-          borderColor: css("--bg"),
+          borderColor: css("--surface"),
           borderWidth: 3,
         }],
       },
       options: {
         maintainAspectRatio: false,
-        cutout: "62%",
+        cutout: "68%",
         plugins: {
-          legend: { position: "bottom", labels: { boxWidth: 10, padding: 12 } },
+          legend: { position: "bottom", labels: { boxWidth: 8, padding: 12 } },
         },
       },
     });
@@ -153,20 +165,22 @@
         datasets: [{
           label: "Screenings",
           data: read("activity-values"),
-          backgroundColor: css("--accent"),
-          borderRadius: 3,
-          maxBarThickness: 34,
+          backgroundColor: css("--acid"),
+          hoverBackgroundColor: "#e9ff5c",
+          borderRadius: 2,
+          maxBarThickness: 30,
         }],
       },
       options: {
         maintainAspectRatio: false,
+        animation: { duration: 900, easing: "easeOutQuart" },
         plugins: { legend: { display: false } },
         scales: {
-          x: { grid: { display: false }, border: { color: css("--hairline") } },
+          x: { grid: { display: false }, border: { color: css("--line") } },
           y: {
             beginAtZero: true,
             ticks: { precision: 0 },
-            grid: { color: css("--hairline") },
+            grid: { color: css("--line") },
             border: { display: false },
           },
         },

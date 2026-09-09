@@ -2,15 +2,24 @@
 
 {% block title %}Case history{% endblock %}
 
-{% block content %}
+{% block pagehead %}
+<div class="pagehead">
+  <span class="micro micro-acid">Records</span>
+  <h1 class="display display-xl mt-2">Case history</h1>
+  <span class="micro numeric">{{ page.paginator.count }} record{{ page.paginator.count|pluralize }} stored</span>
+</div>
+{% endblock %}
 
-<div class="panel">
+{% block content %}
+<div class="panel rise">
   <div class="panel-head">
-    <h1 class="panel-title">Case history</h1>
-    <span class="field-hint numeric">{{ page.paginator.count }} record{{ page.paginator.count|pluralize }}</span>
+    <h2 class="panel-title">Screening records</h2>
+    <a class="micro micro-acid" href="{% url 'screening:upload' %}" style="text-decoration: none;">
+      New screening &rarr;
+    </a>
   </div>
 
-  <div class="panel-body" style="border-bottom: 1px solid var(--border);">
+  <div class="panel-body" style="border-bottom: 1px solid var(--line);">
     <form method="get" class="row g-2 align-items-end">
       <div class="col-sm-4">
         <label class="field-label" for="reference">Case reference</label>
@@ -57,12 +66,12 @@
           <td>{{ record.get_predicted_label_display }}</td>
           <td class="numeric text-end">{{ record.tb_probability }}</td>
           <td><span class="triage {{ record.triage_css_class }}">{{ record.get_triage_level_display }}</span></td>
-          <td>{{ record.get_quality_status_display }}</td>
+          <td style="color: var(--ink-muted);">{{ record.get_quality_status_display }}</td>
           <td>{{ record.get_review_status_display }}</td>
         </tr>
       {% empty %}
         <tr>
-          <td colspan="7" style="color: var(--ink-muted); padding: 1.5rem 0.75rem;">
+          <td colspan="7" style="color: var(--ink-muted); padding: 1.75rem 1rem;">
             No screening records yet.
             <a href="{% url 'screening:upload' %}">Screen a radiograph</a> to create one.
           </td>
@@ -72,9 +81,10 @@
   </table>
 
   {% if page.paginator.num_pages > 1 %}
-    <div class="panel-body d-flex justify-content-between align-items-center" style="border-top: 1px solid var(--border);">
-      <span class="field-hint">Page <span class="numeric">{{ page.number }}</span> of <span class="numeric">{{ page.paginator.num_pages }}</span></span>
-      <span>
+    <div class="panel-body d-flex justify-content-between align-items-center"
+         style="border-top: 1px solid var(--line);">
+      <span class="micro numeric">Page {{ page.number }} of {{ page.paginator.num_pages }}</span>
+      <span class="d-flex gap-2">
         {% if page.has_previous %}
           <a class="btn btn-quiet" href="?page={{ page.previous_page_number }}{% if reference %}&reference={{ reference }}{% endif %}{% if triage %}&triage={{ triage }}{% endif %}">Previous</a>
         {% endif %}
