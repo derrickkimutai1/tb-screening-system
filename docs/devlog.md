@@ -16,7 +16,7 @@ Goal: environment configured, datasets inspected and split.
 - Initialised the Git repository and created the virtual environment.
 - Fixed the dependency set and split it into runtime and model-development requirements.
 - Resolved two conflicts between the proposal and the engineering brief:
-  the database design becomes `ScreeningCase` with a related `ReviewNote` table, and
+  the database design becomes `PredictionRecord` with a related `ReviewNote` table, and
   preprocessing uses the MobileNetV2 `preprocess_input` scaling rather than 0 to 1.
   Both changes are to be reflected in the proposal text and diagrams.
 
