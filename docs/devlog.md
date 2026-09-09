@@ -108,3 +108,45 @@ and the record appears in the dashboard, the case history and the Django admin.
 
 **Blockers**
 - None.
+
+### 9 September 2026
+
+**Completed**
+- Reworked the interface after further review. The ground moved to a warm olive
+  charcoal with a single acid accent, headings to a heavy condensed face at display
+  size, and technical fields to monospaced small caps. Content settles in on scroll,
+  dashboard figures count up, and the score gauge sweeps to its reading. All motion is
+  suppressed under `prefers-reduced-motion` and triage markers keep their text labels.
+- Extracted and inspected the Montgomery set: 138 images, 80 normal and 58 TB, no
+  corrupt files, all 8-bit greyscale, 4020 to 4892 pixels square.
+- Wrote `ml/preprocessing.py`, the single image-preparation module imported by both the
+  training scripts and the web application. It converts any source encoding to intensity,
+  resizes to 224 by 224, repeats across three channels and scales to the range -1 to 1.
+- Wrote `ml/scripts/prepare_data.py`, which inspects both datasets, checks for duplicate
+  images by content hash within and across them, and writes the stratified split.
+- Produced the split: 559 training, 121 validation, 120 test images, stratified on source
+  dataset and class together so both stay proportional across all three. Seed 42, so the
+  split reproduces exactly. No duplicates were found in 800 images.
+
+**Verified rather than assumed**
+- The scaling in `ml/preprocessing.py` was compared against
+  `tf.keras.applications.mobilenet_v2.preprocess_input` and is identical, so the module
+  can stay free of a TensorFlow dependency without risking a mismatch. A test now pins
+  this.
+- A further test confirms that greyscale, palette and RGB inputs produce byte-identical
+  output, which is the defect the combined dataset would otherwise have introduced.
+- Batches load from each split with correct shapes, dtype, value range and labels.
+
+**Notes for the report**
+- Both reference datasets hold one image per patient, so the image-level split is also a
+  patient-level split. This satisfies the data-integrity requirement without needing
+  patient identifiers.
+- The combined set is 800 images at 49.2 per cent TB, so no resampling or class weighting
+  is required.
+
+**Planned next**
+- Sprint 2: image quality checking with OpenCV, and the augmentation pipeline for the
+  training split only.
+
+**Blockers**
+- None.

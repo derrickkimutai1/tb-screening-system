@@ -8,15 +8,21 @@ so nothing here asserts anything about model accuracy.
 
 import io
 import shutil
+import sys
 import tempfile
 from decimal import Decimal
 
+import numpy as np
+from django.conf import settings
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from django.urls import reverse
 from PIL import Image
 
 from .models import PredictionRecord, ReviewNote
+
+sys.path.insert(0, str(settings.ML_DIR))
+import preprocessing  # noqa: E402
 
 MEDIA_FOR_TESTS = tempfile.mkdtemp()
 
@@ -142,3 +148,60 @@ class ReportingTests(TestCase):
         self.assertEqual(record.review_status, PredictionRecord.ReviewStatus.FOLLOW_UP)
         self.assertEqual(record.review_notes.count(), 1)
         self.assertEqual(ReviewNote.objects.get().reviewer_name, "D. Kimutai")
+
+
+class PreprocessingTests(TestCase):
+    """The image preparation shared by training and inference.
+
+    A mismatch between the two would not raise an error, it would simply make
+    every prediction meaningless, so the behaviour is pinned here.
+    """
+
+    def test_output_shape_and_range(self):
+        prepared = preprocessing.prepare(make_image(size=(700, 900)))
+
+        self.assertEqual(prepared.shape, (224, 224, 3))
+        self.assertEqual(prepared.dtype, np.float32)
+        self.assertGreaterEqual(prepared.min(), -1.0)
+        self.assertLessEqual(prepared.max(), 1.0)
+
+    def test_all_source_colour_modes_produce_the_same_result(self):
+        """Montgomery is greyscale, Shenzhen mixes palette and RGB."""
+        grey = Image.new("L", (300, 300), color=128)
+        outputs = []
+        for mode in ("L", "P", "RGB"):
+            buffer = io.BytesIO()
+            grey.convert(mode).save(buffer, format="PNG")
+            buffer.seek(0)
+            outputs.append(preprocessing.prepare(buffer))
+
+        for other in outputs[1:]:
+            np.testing.assert_array_equal(outputs[0], other)
+
+    def test_scaling_matches_keras_preprocess_input(self):
+        """Our scaling must equal the function MobileNetV2 was trained with."""
+        from tensorflow.keras.applications.mobilenet_v2 import preprocess_input
+
+        source = make_image(size=(400, 320))
+        ours = preprocessing.prepare(source)
+
+        source.seek(0)
+        with Image.open(source) as image:
+            resized = image.convert("L").resize((224, 224), Image.Resampling.BILINEAR)
+        raw = np.repeat(np.asarray(resized, dtype=np.float32)[..., np.newaxis], 3, axis=-1)
+
+        np.testing.assert_array_equal(ours, preprocess_input(raw))
+
+    def test_label_is_read_from_the_filename_suffix(self):
+        self.assertEqual(preprocessing.label_from_filename("MCUCXR_0001_0.png"), 0)
+        self.assertEqual(preprocessing.label_from_filename("CHNCXR_0002_1.png"), 1)
+
+        with self.assertRaises(ValueError):
+            preprocessing.label_from_filename("radiograph.png")
+
+    def test_batch_stacks_images(self):
+        batch = preprocessing.prepare_batch([make_image(), make_image()])
+        self.assertEqual(batch.shape, (2, 224, 224, 3))
+
+    def test_single_image_is_shaped_as_a_batch_of_one(self):
+        self.assertEqual(preprocessing.as_model_input(make_image()).shape, (1, 224, 224, 3))
