@@ -50,12 +50,10 @@ class ScreeningUploadForm(forms.Form):
             )
 
         if image.size > settings.MAX_UPLOAD_BYTES:
+            actual = filesizeformat(image.size)
+            limit = filesizeformat(settings.MAX_UPLOAD_BYTES)
             raise forms.ValidationError(
-                "That image is %(actual)s, which is larger than the %(limit)s limit."
-                % {
-                    "actual": filesizeformat(image.size),
-                    "limit": filesizeformat(settings.MAX_UPLOAD_BYTES),
-                }
+                f"That image is {actual}, which is larger than the {limit} limit."
             )
 
         return image

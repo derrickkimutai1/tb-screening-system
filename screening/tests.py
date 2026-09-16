@@ -52,9 +52,7 @@ class UploadTests(TestCase):
         self.assertEqual(PredictionRecord.objects.count(), 1)
         record = PredictionRecord.objects.get()
         self.assertEqual(record.patient_reference, "DEMO-100")
-        self.assertRedirects(
-            response, reverse("screening:case_detail", args=[record.case_id])
-        )
+        self.assertRedirects(response, reverse("screening:case_detail", args=[record.case_id]))
 
     def test_upload_stores_the_thresholds_used(self):
         """A record must remain interpretable after thresholds are revised."""

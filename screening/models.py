@@ -84,17 +84,13 @@ class PredictionRecord(models.Model):
     decision_threshold = models.DecimalField(max_digits=4, decimal_places=3)
 
     # Triage, derived from the probability rather than from a second model
-    triage_level = models.CharField(
-        max_length=8, choices=TriageLevel.choices, db_index=True
-    )
+    triage_level = models.CharField(max_length=8, choices=TriageLevel.choices, db_index=True)
     triage_justification = models.TextField(blank=True)
     triage_low_medium_threshold = models.DecimalField(max_digits=4, decimal_places=3)
     triage_medium_high_threshold = models.DecimalField(max_digits=4, decimal_places=3)
 
     # Explainability
-    gradcam_image = models.ImageField(
-        upload_to=heatmap_upload_path, null=True, blank=True
-    )
+    gradcam_image = models.ImageField(upload_to=heatmap_upload_path, null=True, blank=True)
     gradcam_status = models.CharField(
         max_length=16,
         choices=GradcamStatus.choices,
@@ -136,9 +132,7 @@ class PredictionRecord(models.Model):
             ),
             models.CheckConstraint(
                 condition=models.Q(
-                    triage_low_medium_threshold__lt=models.F(
-                        "triage_medium_high_threshold"
-                    )
+                    triage_low_medium_threshold__lt=models.F("triage_medium_high_threshold")
                 ),
                 name="triage_thresholds_ordered",
             ),

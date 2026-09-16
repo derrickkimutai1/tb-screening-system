@@ -127,8 +127,15 @@ def assign_splits(records):
 def write_manifest(records):
     ARTIFACTS.mkdir(parents=True, exist_ok=True)
     columns = [
-        "filename", "filepath", "source", "label", "split",
-        "width", "height", "mode", "md5",
+        "filename",
+        "filepath",
+        "source",
+        "label",
+        "split",
+        "width",
+        "height",
+        "mode",
+        "md5",
     ]
     with open(MANIFEST, "w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=columns)
@@ -155,28 +162,31 @@ def write_summary(records, duplicates):
         "",
         "## Images per split",
         "",
-        "| Split | Montgomery normal | Montgomery TB | Shenzhen normal | Shenzhen TB | Total | TB share |",
+        "| Split | Montgomery normal | Montgomery TB | Shenzhen normal "
+        "| Shenzhen TB | Total | TB share |",
         "|---|---|---|---|---|---|---|",
     ]
 
-    for split in splits:
-        mn = counts[(split, "montgomery", 0)]
-        mt = counts[(split, "montgomery", 1)]
-        sn = counts[(split, "shenzhen", 0)]
-        st = counts[(split, "shenzhen", 1)]
+    def cells(wanted_splits):
+        """Counts for one or more splits, as the four source-and-class figures."""
+        return [
+            sum(counts[(s, source, label)] for s in wanted_splits)
+            for source in ("montgomery", "shenzhen")
+            for label in (0, 1)
+        ]
+
+    def row(name, wanted_splits, bold=False):
+        mn, mt, sn, st = cells(wanted_splits)
         total = mn + mt + sn + st
         share = (mt + st) / total * 100 if total else 0
-        lines.append(f"| {split} | {mn} | {mt} | {sn} | {st} | {total} | {share:.1f}% |")
+        mark = "**" if bold else ""
+        return (
+            f"| {mark}{name}{mark} | {mn} | {mt} | {sn} | {st} "
+            f"| {mark}{total}{mark} | {mark}{share:.1f}%{mark} |"
+        )
 
-    total_all = len(records)
-    tb_all = sum(1 for r in records if r["label"] == 1)
-    lines.append(
-        f"| **all** | {counts[('train','montgomery',0)] + counts[('validation','montgomery',0)] + counts[('test','montgomery',0)]} "
-        f"| {counts[('train','montgomery',1)] + counts[('validation','montgomery',1)] + counts[('test','montgomery',1)]} "
-        f"| {counts[('train','shenzhen',0)] + counts[('validation','shenzhen',0)] + counts[('test','shenzhen',0)]} "
-        f"| {counts[('train','shenzhen',1)] + counts[('validation','shenzhen',1)] + counts[('test','shenzhen',1)]} "
-        f"| **{total_all}** | **{tb_all / total_all * 100:.1f}%** |"
-    )
+    lines += [row(split, (split,)) for split in splits]
+    lines.append(row("all", splits, bold=True))
 
     modes = Counter(r["mode"] for r in records)
     widths = [r["width"] for r in records]

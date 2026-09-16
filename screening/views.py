@@ -141,12 +141,8 @@ def dashboard(request):
     records = PredictionRecord.objects.all()
     total = records.count()
 
-    by_label = dict(
-        records.values_list("predicted_label").annotate(n=Count("id")).order_by()
-    )
-    by_triage = dict(
-        records.values_list("triage_level").annotate(n=Count("id")).order_by()
-    )
+    by_label = dict(records.values_list("predicted_label").annotate(n=Count("id")).order_by())
+    by_triage = dict(records.values_list("triage_level").annotate(n=Count("id")).order_by())
 
     week_ago = timezone.now() - timedelta(days=7)
 

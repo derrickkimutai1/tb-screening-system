@@ -71,6 +71,47 @@ Run the tests with:
 .venv/Scripts/python.exe manage.py test screening
 ```
 
+## Development workflow
+
+Checks run automatically rather than by memory.
+
+**Before each commit.** Install the hooks once per clone:
+
+```bash
+.venv/Scripts/python.exe -m pre_commit install
+```
+
+They then lint and format the code, normalise line endings, and block an accidental
+commit of a large file or a private key.
+
+**On every push.** GitHub Actions runs the same checks against a PostgreSQL 17
+service: lint, formatting, missing-migration check, Django system checks, and the
+full test suite. See `.github/workflows/ci.yml`.
+
+Run them by hand at any time:
+
+```bash
+.venv/Scripts/python.exe -m ruff check .
+.venv/Scripts/python.exe -m ruff format --check .
+.venv/Scripts/python.exe manage.py makemigrations --check --dry-run
+.venv/Scripts/python.exe manage.py test screening
+```
+
+## Preparing the data
+
+Two scripts fetch and prepare the datasets. Both are repeatable; re-running skips
+work already done.
+
+```bash
+.venv/Scripts/python.exe ml/scripts/download_shenzhen.py
+.venv/Scripts/python.exe ml/scripts/prepare_data.py
+```
+
+`prepare_data.py` inspects every image, checks for duplicates by content hash within
+and across both datasets, and writes a seeded 70/15/15 split stratified on source and
+class together. It produces `ml/artifacts/splits.csv`, the manifest every later script
+reads, and `ml/artifacts/data_summary.md`.
+
 ## Layout
 
 ```

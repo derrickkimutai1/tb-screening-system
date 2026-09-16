@@ -1,0 +1,34 @@
+# Checks that run before each commit, so problems are caught at the point they
+# are introduced rather than in review.
+#
+# Enable once per clone:
+#     pre-commit install
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-case-conflict
+      - id: mixed-line-ending
+        args: [--fix=lf]
+      # Datasets and trained models must never be committed by accident.
+      - id: check-added-large-files
+        args: [--maxkb=2048]
+      # Refuse a commit that would publish credentials.
+      - id: detect-private-key
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.14.0
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+# The check for model changes without a matching migration runs in CI rather than
+# here. It needs the project's own interpreter with Django configured, which a
+# hook cannot locate portably across machines.

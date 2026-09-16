@@ -8,3 +8,4 @@ matplotlib==3.10.*
 seaborn==0.13.*
 ipykernel==6.*
 ruff==0.14.*
+pre-commit==4.*

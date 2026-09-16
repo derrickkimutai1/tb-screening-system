@@ -1,0 +1,24 @@
+[project]
+name = "tb-screening-system"
+version = "0.1.0"
+description = "AI-assisted pulmonary tuberculosis screening and triage from chest X-ray images"
+requires-python = ">=3.11"
+
+[tool.ruff]
+line-length = 96
+target-version = "py311"
+extend-exclude = ["screening/migrations", ".venv", "data"]
+
+[tool.ruff.lint]
+# pycodestyle errors and warnings, pyflakes, import order, modern syntax,
+# common bug patterns, and Django-specific checks.
+select = ["E", "W", "F", "I", "UP", "B", "DJ"]
+
+[tool.ruff.lint.per-file-ignores]
+# Settings and scripts legitimately import after path setup or configuration.
+"config/settings.py" = ["E402"]
+"screening/tests.py" = ["E402"]
+"ml/scripts/*.py" = ["E402"]
+
+[tool.ruff.format]
+quote-style = "double"
