@@ -97,6 +97,44 @@ Run them by hand at any time:
 .venv/Scripts/python.exe manage.py test screening
 ```
 
+## Cloud workflow: GitHub, Google Drive and Colab
+
+[![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/derrickkimutai1/tb-screening-system/blob/main/ml/notebooks/colab_workspace.ipynb)
+
+Each place holds one thing, so nothing depends on a single machine:
+
+| Location | Holds |
+|---|---|
+| Laptop | The working copy, where the application is developed and run |
+| GitHub | The code and its full history |
+| Google Drive | Datasets, trained models, evaluation outputs, uploaded images and database dumps |
+| Colab | GPU compute for training |
+
+```
+Laptop  --git push-->  GitHub  --git clone-->  Colab
+Laptop  --backup---->  Drive   <--mount----->  Colab
+```
+
+The project folder itself is not placed inside Drive. Drive's file sync conflicts with
+Git's internal files, so code travels through GitHub and large files through Drive.
+
+**Laptop to Drive.** With Google Drive for desktop installed and signed in:
+
+```bash
+.venv/Scripts/python.exe scripts/backup_to_drive.py
+```
+
+This writes the datasets as one archive, mirrors models, artefacts and uploads, and
+dumps the database, copying only what has changed. Drive for desktop then uploads it.
+The `.env` file is never copied.
+
+**Colab.** The badge above opens `ml/notebooks/colab_workspace.ipynb`, which mounts
+Drive, clones this repository, unpacks the datasets, checks the pipeline, and saves
+training output back to Drive for the laptop to pick up.
+
+**Recovering on a new machine.** Clone from GitHub, restore `datasets.zip` into the
+project folder, and load the latest dump from Drive with `psql`.
+
 ## Preparing the data
 
 Two scripts fetch and prepare the datasets. Both are repeatable; re-running skips
