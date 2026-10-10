@@ -27,3 +27,6 @@ ml/models/checkpoints/
 # Windows
 Thumbs.db
 desktop.ini
+
+# Scratch output from Grad-CAM development
+ml/artifacts/gradcam_samples/

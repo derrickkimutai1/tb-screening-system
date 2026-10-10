@@ -25,6 +25,10 @@
       </div>
       <div class="panel-body">
 
+        {% if unavailable %}
+          <div class="notice notice-caution mb-3">{{ unavailable }}</div>
+        {% endif %}
+
         {% if form.non_field_errors %}
           <div class="notice notice-caution mb-3">{{ form.non_field_errors }}</div>
         {% endif %}

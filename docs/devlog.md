@@ -150,3 +150,54 @@ and the record appears in the dashboard, the case history and the Django admin.
 
 **Blockers**
 - None.
+
+---
+
+## Sprint 2 — Core functionality, integration and initial testing
+
+### 10 October 2026
+
+**Completed**
+- Trained the baseline classifier. MobileNetV2 transfer learning in two stages, as set out
+  in proposal section 3.2.3, with augmentation on the training split only.
+- Compared four training variants on the validation split alone and recorded them in
+  `ml/artifacts/experiments.csv`. Lighter augmentation with a deeper fine-tune at a higher
+  learning rate won on both AUC and recall.
+- Selected the decision and triage thresholds from validation behaviour rather than
+  defaulting to 0.50, targeting the World Health Organization product profile for a TB
+  triage test. The chosen decision threshold is 0.362, the lowest reaching 90 per cent
+  sensitivity.
+- Evaluated once on the held-out test split. Every figure carries a bootstrap confidence
+  interval, because 120 images cannot support a single precise number.
+- Built the five services named in the proposal class diagram: `ImageProcessor`,
+  `ImageQualityChecker`, `PredictionEngine`, `TriageJustifier` and `GradCAMGenerator`.
+- Calibrated the image quality thresholds against the 559 training radiographs rather than
+  choosing them arbitrarily, so an image is flagged only when it falls outside the range
+  of images already accepted as readable.
+- Integrated everything into the upload workflow. An upload now runs a quality check,
+  preprocessing, prediction, triage and Grad-CAM, and stores the result in PostgreSQL.
+- Wrote the Sprint 2 test record and the product backlog.
+
+**Results on the held-out test split**
+- AUC 0.891, 95% CI [0.825, 0.944]
+- Sensitivity 0.949, 95% CI [0.887, 1.000] — meets the WHO target of 90 per cent
+- Specificity 0.508, 95% CI [0.382, 0.641] — below the WHO target of 70 per cent
+- 56 of 59 TB cases detected; 30 of 61 healthy patients incorrectly flagged
+- Validation AUC was 0.893 and test AUC 0.891, so the result generalises and the
+  selection process did not overfit the validation split.
+
+**Observations**
+- Inference takes about 150 milliseconds per image on this laptop's CPU after the first
+  call, which supports the low-resource claim with a measurement rather than an assertion.
+- Inspecting a Grad-CAM overlay for a TB case showed strong activation over the
+  mediastinum and along the top edge near the "PA ERECT" annotation, rather than clearly
+  over the lung fields. The model may be partly reading acquisition markers. Montgomery's
+  276 manual lung masks make this measurable, and that measurement is planned for Sprint 3.
+
+**Planned next**
+- Improve specificity, the main outstanding defect.
+- Measure Grad-CAM activation inside the lung fields.
+- Update Chapter 5 and the Chapter 4 diagrams.
+
+**Blockers**
+- None technical. Documentation remains behind the implementation.

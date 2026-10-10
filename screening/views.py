@@ -1,16 +1,20 @@
 """
 Views for the screening workflow.
 
-The prediction itself is still a fixed placeholder at this stage. The purpose of
-the current phase is to prove that an upload creates a stored record and renders
-a result page before any model is connected. Phase 6 replaces
-`placeholder_prediction` with the real service call and changes nothing else.
+The upload view coordinates the services in the order set out in the proposal's
+activity diagram: quality check, preprocessing, prediction, triage, explanation,
+then storage. The services themselves know nothing about the database; this is
+where their results are persisted.
 """
 
+import logging
+import uuid
 from datetime import timedelta
 from decimal import Decimal
+from pathlib import Path
 
 from django.conf import settings
+from django.core.files.storage import default_storage
 from django.core.paginator import Paginator
 from django.db import transaction
 from django.db.models import Count
@@ -20,53 +24,94 @@ from django.utils import timezone
 
 from .forms import ReviewForm, ScreeningUploadForm
 from .models import PredictionRecord, ReviewNote
+from .services.gradcam import ExplanationUnavailable, GradCAMGenerator
+from .services.predict import ModelUnavailable, PredictionEngine
+from .services.quality import ImageQualityChecker
 
-# Prototype thresholds. These are provisional and will be replaced by values
-# justified from validation results in Sprint 3. Every record stores the
-# thresholds it was judged under, so earlier results stay interpretable.
-DECISION_THRESHOLD = Decimal("0.500")
-TRIAGE_LOW_MEDIUM = Decimal("0.500")
-TRIAGE_MEDIUM_HIGH = Decimal("0.800")
-
-PLACEHOLDER_MODEL_VERSION = "placeholder-0"
+logger = logging.getLogger(__name__)
 
 
-def placeholder_prediction():
-    """Return a fixed result so the workflow can be verified without a model.
+def store_upload(case_id, uploaded):
+    """Write the upload to media storage and return its stored name."""
+    suffix = Path(uploaded.name).suffix.lower() or ".png"
+    name = f"uploads/{timezone.now():%Y/%m}/{case_id}{suffix}"
+    return default_storage.save(name, uploaded)
 
-    Replaced in Phase 6 by the prediction service. The model version is
-    deliberately marked so placeholder records can be told apart from real ones.
+
+def screen(case_id, image_path):
+    """Run the screening pipeline over one stored radiograph.
+
+    Returns the fields to persist. A failed explanation is recorded rather than
+    raised: the prediction is still valid and useful without the heatmap, and
+    the result page says which of the two happened.
     """
-    return {
-        "tb_probability": Decimal("0.5000"),
-        "predicted_label": PredictionRecord.PredictedLabel.LIKELY_TB,
-        "triage_level": PredictionRecord.TriageLevel.MEDIUM,
-        "triage_justification": (
-            "Placeholder result. No model is connected at this stage of development."
-        ),
-        "quality_status": PredictionRecord.QualityStatus.ACCEPTABLE,
-        "quality_message": "",
-        "model_version": PLACEHOLDER_MODEL_VERSION,
+    engine = PredictionEngine()
+    prediction = engine.predict(image_path)
+
+    fields = {
+        "predicted_label": prediction.label,
+        "tb_probability": Decimal(str(prediction.probability)),
+        "decision_threshold": Decimal(str(prediction.decision_threshold)),
+        "triage_level": prediction.triage_level,
+        "triage_justification": prediction.triage_justification,
+        "triage_low_medium_threshold": Decimal(str(prediction.triage_low_medium)),
+        "triage_medium_high_threshold": Decimal(str(prediction.triage_medium_high)),
+        "model_version": prediction.model_version,
+        "inference_ms": prediction.inference_ms,
+        "gradcam_status": PredictionRecord.GradcamStatus.NOT_ATTEMPTED,
+        "gradcam_image": None,
     }
+
+    relative = f"heatmaps/{timezone.now():%Y/%m}/{case_id}.png"
+    destination = Path(settings.MEDIA_ROOT) / relative
+    try:
+        prepared = engine.processor.prepare(image_path)
+        GradCAMGenerator().overlay(image_path, engine.model(), prepared, destination)
+        fields["gradcam_status"] = PredictionRecord.GradcamStatus.GENERATED
+        fields["gradcam_image"] = relative
+    except (ExplanationUnavailable, OSError, ValueError):
+        logger.exception("Grad-CAM failed for case %s", case_id)
+        fields["gradcam_status"] = PredictionRecord.GradcamStatus.FAILED
+
+    return fields
 
 
 def upload(request):
-    if request.method == "POST":
-        form = ScreeningUploadForm(request.POST, request.FILES)
-        if form.is_valid():
-            result = placeholder_prediction()
-            with transaction.atomic():
-                record = PredictionRecord.objects.create(
-                    patient_reference=form.cleaned_data["patient_reference"],
-                    xray_image=form.cleaned_data["xray_image"],
-                    decision_threshold=DECISION_THRESHOLD,
-                    triage_low_medium_threshold=TRIAGE_LOW_MEDIUM,
-                    triage_medium_high_threshold=TRIAGE_MEDIUM_HIGH,
-                    **result,
+    form = ScreeningUploadForm(request.POST or None, request.FILES or None)
+    unavailable = None
+
+    if request.method == "POST" and form.is_valid():
+        case_id = uuid.uuid4()
+        stored = store_upload(case_id, form.cleaned_data["xray_image"])
+        image_path = default_storage.path(stored)
+
+        report = ImageQualityChecker().check(image_path)
+        if not report.is_usable:
+            default_storage.delete(stored)
+            form.add_error("xray_image", report.message)
+        else:
+            try:
+                fields = screen(case_id, image_path)
+            except ModelUnavailable:
+                logger.exception("No trained model available")
+                default_storage.delete(stored)
+                unavailable = (
+                    "The screening model is not installed on this machine, so no "
+                    "prediction can be made. The rest of the application is unaffected."
                 )
-            return redirect("screening:case_detail", case_id=record.case_id)
-    else:
-        form = ScreeningUploadForm()
+            else:
+                with transaction.atomic():
+                    record = PredictionRecord.objects.create(
+                        case_id=case_id,
+                        patient_reference=form.cleaned_data["patient_reference"],
+                        xray_image=stored,
+                        quality_status=report.status,
+                        quality_message=report.message,
+                        blur_score=report.blur_score,
+                        brightness_mean=report.brightness_mean,
+                        **fields,
+                    )
+                return redirect("screening:case_detail", case_id=record.case_id)
 
     return render(
         request,
@@ -74,6 +119,7 @@ def upload(request):
         {
             "form": form,
             "active": "upload",
+            "unavailable": unavailable,
             "max_upload_mb": settings.MAX_UPLOAD_BYTES // (1024 * 1024),
         },
     )
