@@ -1,0 +1,11 @@
+# Dependencies for the portable desktop build only.
+#
+# Deliberately excludes TensorFlow, OpenCV and the PostgreSQL driver. Building
+# from an environment that contains only these packages guarantees the
+# executable cannot pick anything else up by accident, which keeps it small.
+Django==5.2.*
+Pillow==11.*
+python-dotenv==1.*
+waitress==3.*
+whitenoise==6.*
+pyinstaller==6.*
