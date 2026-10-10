@@ -1,0 +1,50 @@
+{
+  "model_version": "tb_mobilenetv2_v1",
+  "run_tag": "deep-tune",
+  "evaluated_on": "test split, held out from training and model selection",
+  "test_images": 120,
+  "test_tb": 59,
+  "decision_threshold": 0.362,
+  "high_suspicion_threshold": 0.959,
+  "metrics": {
+    "accuracy": 0.725,
+    "precision": 0.6512,
+    "recall": 0.9492,
+    "specificity": 0.5082,
+    "f1": 0.7724,
+    "auc": 0.8905
+  },
+  "confidence_intervals_95": {
+    "accuracy": [
+      0.65,
+      0.8
+    ],
+    "precision": [
+      0.5517,
+      0.7501
+    ],
+    "recall": [
+      0.8868,
+      1.0
+    ],
+    "specificity": [
+      0.3818,
+      0.6406
+    ],
+    "f1": [
+      0.6944,
+      0.8421
+    ],
+    "auc": [
+      0.8251,
+      0.9442
+    ]
+  },
+  "bootstrap_samples": 2000,
+  "confusion_matrix": {
+    "true_negative": 31,
+    "false_positive": 30,
+    "false_negative": 3,
+    "true_positive": 56
+  }
+}

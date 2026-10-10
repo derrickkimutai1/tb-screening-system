@@ -16,9 +16,12 @@ repos:
       - id: check-case-conflict
       - id: mixed-line-ending
         args: [--fix=lf]
-      # Datasets and trained models must never be committed by accident.
+      # Guards against committing a dataset by accident. The selected model is
+      # a deliverable and is tracked deliberately, so it is exempt; training
+      # checkpoints stay out through .gitignore.
       - id: check-added-large-files
         args: [--maxkb=2048]
+        exclude: ^ml/models/tb_mobilenetv2_v1\.keras$
       # Refuse a commit that would publish credentials.
       - id: detect-private-key
 
