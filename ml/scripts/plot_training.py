@@ -4,8 +4,8 @@ Draw the training curves and write a plain-language model report.
 The numbers from training are kept as JSON, which is precise but unreadable. This
 produces the two things a reader actually needs:
 
-    training_history.png   training against validation, epoch by epoch
-    model_report.md        what the curves mean, in words
+    training_history_<tag>.png  training against validation, epoch by epoch
+    model_report_<tag>.md       what the curves mean, in words
 
 The gap between the training and validation curves is what shows overfitting. If
 training keeps improving while validation flattens or worsens, the model is
@@ -98,7 +98,7 @@ def draw(series, boundaries, best_epochs, total, tag):
         )
 
     plt.tight_layout()
-    plt.savefig(ARTIFACTS / "training_history.png", dpi=150)
+    plt.savefig(ARTIFACTS / f"training_history_{tag}.png", dpi=150)
     plt.close()
 
 
@@ -225,14 +225,17 @@ def main():
             "",
         ]
 
-    lines += ["## Figure", "", "![Training history](training_history.png)", ""]
+    lines += ["## Figure", "", f"![Training history](training_history_{args.tag}.png)", ""]
 
-    (ARTIFACTS / "model_report.md").write_text("\n".join(lines), encoding="utf-8")
+    report_path = ARTIFACTS / f"model_report_{args.tag}.md"
+    report_path.write_text("\n".join(lines), encoding="utf-8")
 
     print(f"total epochs run : {total}")
     print(f"verdict          : {judgement} (AUC gap {gap:.3f})")
-    print(f"figure           -> {(ARTIFACTS / 'training_history.png').relative_to(ROOT)}")
-    print(f"report           -> {(ARTIFACTS / 'model_report.md').relative_to(ROOT)}")
+    figure = ARTIFACTS / f"training_history_{args.tag}.png"
+    report = ARTIFACTS / f"model_report_{args.tag}.md"
+    print(f"figure           -> {figure.relative_to(ROOT)}")
+    print(f"report           -> {report.relative_to(ROOT)}")
     return 0
 
 

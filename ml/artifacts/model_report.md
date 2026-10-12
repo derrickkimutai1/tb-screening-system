@@ -61,4 +61,4 @@ meaningless. This agreement shows the second did not happen.
 
 ## Figure
 
-![Training history](training_history.png)
+![Training history](training_history_deep-tune.png)
