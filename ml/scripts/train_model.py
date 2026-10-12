@@ -48,6 +48,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "ml"))
 
 import preprocessing  # noqa: E402
+import provenance  # noqa: E402
 
 MANIFEST = ROOT / "ml" / "artifacts" / "splits.csv"
 MODELS = ROOT / "ml" / "models"
@@ -345,6 +346,7 @@ def main():
         "architecture": "MobileNetV2, ImageNet weights, custom classification head",
         "framework": {"tensorflow": tf.__version__, "keras": keras.__version__},
         "seed": SEED,
+        "provenance": provenance.describe(MANIFEST),
         "classes": {"0": "Unlikely TB", "1": "Likely TB"},
         "positive_class": 1,
         "preprocessing": preprocessing.describe(),

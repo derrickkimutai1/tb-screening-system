@@ -47,6 +47,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "ml"))
 
 import preprocessing  # noqa: E402
+import provenance  # noqa: E402
 
 MANIFEST = ROOT / "ml" / "artifacts" / "splits.csv"
 MODELS = ROOT / "ml" / "models"
@@ -194,6 +195,7 @@ def main():
     results = {
         "model_version": MODEL_VERSION,
         "run_tag": metadata.get("run_tag"),
+        "provenance": provenance.describe(MANIFEST),
         "evaluated_on": "test split, held out from training and model selection",
         "test_images": len(rows),
         "test_tb": int(labels.sum()),

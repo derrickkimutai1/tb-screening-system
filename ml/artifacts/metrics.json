@@ -1,6 +1,16 @@
 {
   "model_version": "tb_mobilenetv2_v1",
   "run_tag": "deep-tune",
+  "provenance": {
+    "git_commit": "dc6161faa4ead9373dfc7e654d9e91ad0b25adeb",
+    "git_branch": "main",
+    "code_is_clean": false,
+    "dataset": {
+      "manifest": "splits.csv",
+      "sha256_prefix": "fecb7a83594b671a",
+      "images": 800
+    }
+  },
   "evaluated_on": "test split, held out from training and model selection",
   "test_images": 120,
   "test_tb": 59,
