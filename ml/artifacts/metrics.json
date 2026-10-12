@@ -2,9 +2,9 @@
   "model_version": "tb_mobilenetv2_v1",
   "run_tag": "deep-tune",
   "provenance": {
-    "git_commit": "dc6161faa4ead9373dfc7e654d9e91ad0b25adeb",
+    "git_commit": "a0d0c682cb8a89b01a281db0033e6918ba01b88b",
     "git_branch": "main",
-    "code_is_clean": false,
+    "code_is_clean": true,
     "dataset": {
       "manifest": "splits.csv",
       "sha256_prefix": "fecb7a83594b671a",
