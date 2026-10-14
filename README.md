@@ -99,7 +99,9 @@ Run them by hand at any time:
 
 ## Cloud workflow: GitHub, Google Drive and Colab
 
-[![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/derrickkimutai1/tb-screening-system/blob/main/ml/notebooks/colab_workspace.ipynb)
+Sprint 1, data preparation [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/derrickkimutai1/tb-screening-system/blob/main/ml/notebooks/01_sprint1_data_preparation.ipynb)
+
+Sprint 2, baseline classifier [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/derrickkimutai1/tb-screening-system/blob/main/ml/notebooks/02_sprint2_baseline_classifier.ipynb)
 
 Each place holds one thing, so nothing depends on a single machine:
 
