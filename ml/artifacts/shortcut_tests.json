@@ -1,0 +1,36 @@
+{
+  "model_version": "tb_mobilenetv2_v1",
+  "provenance": {
+    "git_commit": "cc01966c993d9460c02dd03185b8071545fc4f7c",
+    "git_branch": "main",
+    "code_is_clean": false,
+    "dataset": {
+      "manifest": "splits.csv",
+      "sha256_prefix": "fecb7a83594b671a",
+      "images": 800
+    }
+  },
+  "source_separability": {
+    "auc": 1.0,
+    "accuracy": 1.0,
+    "test_images": 120
+  },
+  "occlusion": {
+    "intact": 0.8905,
+    "top_blanked": 0.8691,
+    "bottom_blanked": 0.8941,
+    "drop_from_top": 0.0214,
+    "drop_from_bottom": -0.0036
+  },
+  "regions": {
+    "test_images": 21,
+    "intact": 0.8241,
+    "lungs_only": 0.787,
+    "surroundings_only": 0.4259
+  },
+  "notes": {
+    "source_separability": "A high score means the shortcut exists and could be learned. It does not by itself prove the TB classifier used it.",
+    "occlusion": "The bottom band is a control: it removes the same number of pixels from a region carrying no acquisition markers.",
+    "regions": "Montgomery only, because only it has masks. The sample is small, so these figures are indicative rather than precise."
+  }
+}

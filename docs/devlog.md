@@ -201,3 +201,42 @@ and the record appears in the dashboard, the case history and the Django admin.
 
 **Blockers**
 - None technical. Documentation remains behind the implementation.
+
+### 17 October 2026
+
+**Completed**
+- Tested whether the classifier reads pathology or shortcuts, prompted by the Grad-CAM
+  lung concentration of 1.11 measured on 12 October. Three tests, in
+  `ml/scripts/evaluate_shortcuts.py`, all against the held-out test split.
+
+**Results**
+- *Source separability.* A classifier trained to predict which dataset an image came from,
+  ignoring TB entirely, scores AUC 1.000 and 100 per cent accuracy. The two datasets are
+  perfectly distinguishable, so the shortcut is available to be learned.
+- *Corner occlusion.* Blanking the top band, where the acquisition markers sit, moves AUC
+  from 0.891 to 0.869, a loss of 0.021. Blanking the bottom band as a control changes
+  nothing, 0.894. There is therefore a small but real dependence on the marker region.
+- *Lungs against surroundings.* On the 21 Montgomery test images with masks, the intact
+  images score 0.824. With everything outside the lungs blanked the score is 0.787, so
+  almost all of the signal survives. With the lungs blanked and only the surroundings left
+  the score falls to 0.426, below chance.
+
+**Interpretation**
+- The model reads the lungs. The signal lives inside them: remove the surroundings and
+  performance barely moves, remove the lungs and it collapses below chance.
+- The shortcut exists and is trivially learnable, but the model is not substantially
+  relying on it. The marker region contributes about 0.02 of AUC.
+- The Grad-CAM lung concentration of 1.11 therefore understates where the model is
+  actually looking. The limitation is in the explanation method, not in the classifier.
+  Grad-CAM produces a 7 by 7 map stretched across the image, which is too coarse to
+  localise the diffuse texture changes that TB produces across both lungs.
+- The sample for the third test is 21 images, so it is indicative rather than precise.
+
+**Planned next**
+- Repeat the lungs-against-surroundings test on more images, by training a model on
+  Shenzhen and testing on all 138 Montgomery images.
+- Report the Grad-CAM limitation honestly rather than presenting the heatmap as evidence
+  of where the model looks.
+
+**Blockers**
+- None.
