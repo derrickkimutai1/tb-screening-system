@@ -1,13 +1,23 @@
 {
   "model_version": "tb_mobilenetv2_v1",
-  "run_tag": "deep-tune",
-  "created": "2026-10-10T14:54:23+00:00",
+  "run_tag": "reg-both",
+  "created": "2026-10-17T09:14:52+00:00",
   "architecture": "MobileNetV2, ImageNet weights, custom classification head",
   "framework": {
     "tensorflow": "2.21.0",
     "keras": "3.15.1"
   },
   "seed": 42,
+  "provenance": {
+    "git_commit": "3b668d8a5b7ba18e4731318d9cb7ef5af087a2e9",
+    "git_branch": "main",
+    "code_is_clean": false,
+    "dataset": {
+      "manifest": "splits.csv",
+      "sha256_prefix": "fecb7a83594b671a",
+      "images": 800
+    }
+  },
   "classes": {
     "0": "Unlikely TB",
     "1": "Likely TB"
@@ -32,6 +42,8 @@
     "train_images": 559,
     "validation_images": 121,
     "batch_size": 32,
+    "dropout": 0.5,
+    "weight_decay": 0.0001,
     "augmentation": "light",
     "augmentation_settings": {
       "rotation": 0.02,
@@ -45,16 +57,16 @@
     "stage_kept": "fine_tune"
   },
   "validation_metrics": {
-    "accuracy": 0.7438,
-    "auc": 0.893,
-    "loss": 0.5087,
-    "precision": 0.6986,
-    "recall": 0.85
+    "accuracy": 0.8264,
+    "auc": 0.9119,
+    "loss": 0.4176,
+    "precision": 0.9149,
+    "recall": 0.7167
   },
   "thresholds": {
-    "decision": 0.362,
-    "triage_low_medium": 0.362,
-    "triage_medium_high": 0.959,
+    "decision": 0.133,
+    "triage_low_medium": 0.133,
+    "triage_medium_high": 0.546,
     "selected_on": "validation split",
     "basis": "lowest cutoff reaching 90% sensitivity",
     "who_target": {
@@ -63,11 +75,11 @@
       "source": "WHO target product profile for a TB triage test"
     },
     "validation_at_decision": {
-      "sensitivity": 0.9167,
-      "specificity": 0.5738
+      "sensitivity": 0.9,
+      "specificity": 0.6885
     },
     "validation_at_high_suspicion": {
-      "sensitivity": 0.65,
+      "sensitivity": 0.7167,
       "specificity": 0.9508
     }
   }

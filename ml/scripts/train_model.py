@@ -126,7 +126,7 @@ def build_augmentation(level):
     return keras.Sequential(layers, name="augmentation")
 
 
-def build_model(augmentation_level):
+def build_model(augmentation_level, dropout=0.3):
     """MobileNetV2 with the classification head from proposal section 3.2.3.
 
     The head is a separate model rather than loose layers so that Grad-CAM can
@@ -146,9 +146,9 @@ def build_model(augmentation_level):
         [
             keras.layers.GlobalAveragePooling2D(),
             keras.layers.BatchNormalization(),
-            keras.layers.Dropout(0.3),
+            keras.layers.Dropout(dropout),
             keras.layers.Dense(128, activation="relu"),
-            keras.layers.Dropout(0.2),
+            keras.layers.Dropout(max(0.0, dropout - 0.1)),
             keras.layers.Dense(64, activation="relu"),
             keras.layers.Dense(1, activation="sigmoid", name="tb_probability"),
         ],
@@ -166,11 +166,13 @@ def build_model(augmentation_level):
     return keras.Model(inputs, outputs, name=MODEL_VERSION), base
 
 
-def compile_model(model, learning_rate):
+def compile_model(model, learning_rate, weight_decay=0.0):
     import keras
 
     model.compile(
-        optimizer=keras.optimizers.Adam(learning_rate=learning_rate),
+        optimizer=keras.optimizers.Adam(
+            learning_rate=learning_rate, weight_decay=weight_decay or None
+        ),
         loss="binary_crossentropy",
         metrics=[
             keras.metrics.BinaryAccuracy(name="accuracy"),
@@ -245,6 +247,8 @@ def main():
     parser.add_argument("--unfreeze", type=int, default=30, help="base layers to unfreeze")
     parser.add_argument("--fine-tune-lr", type=float, default=1e-5)
     parser.add_argument("--batch-size", type=int, default=32)
+    parser.add_argument("--dropout", type=float, default=0.3)
+    parser.add_argument("--weight-decay", type=float, default=0.0)
     parser.add_argument("--no-fine-tune", action="store_true")
     parser.add_argument("--promote", action="store_true", help="promote this tag and exit")
     args = parser.parse_args()
@@ -262,7 +266,7 @@ def main():
     train_x, train_y = load_split("train")
     val_x, val_y = load_split("validation")
 
-    model, base = build_model(args.augmentation)
+    model, base = build_model(args.augmentation, dropout=args.dropout)
     trainable = sum(int(np.prod(w.shape)) for w in model.trainable_weights)
     print(f"\ntrainable parameters, stage 1: {trainable:,}")
 
@@ -274,7 +278,7 @@ def main():
     selected = STAGING / f"{args.tag}_selected.keras"
 
     print("\nstage 1: training the classification head")
-    compile_model(model, learning_rate=1e-3)
+    compile_model(model, learning_rate=1e-3, weight_decay=args.weight_decay)
     first = model.fit(
         train_x,
         train_y,
@@ -307,7 +311,7 @@ def main():
         trainable = sum(int(np.prod(w.shape)) for w in model.trainable_weights)
         print(f"trainable parameters, stage 2: {trainable:,}")
 
-        compile_model(model, learning_rate=args.fine_tune_lr)
+        compile_model(model, learning_rate=args.fine_tune_lr, weight_decay=args.weight_decay)
         second = model.fit(
             train_x,
             train_y,
@@ -354,6 +358,8 @@ def main():
             "train_images": int(len(train_y)),
             "validation_images": int(len(val_y)),
             "batch_size": args.batch_size,
+            "dropout": args.dropout,
+            "weight_decay": args.weight_decay,
             "augmentation": args.augmentation,
             "augmentation_settings": AUGMENTATION_LEVELS[args.augmentation],
             "head_learning_rate": 1e-3,
@@ -381,6 +387,8 @@ def main():
             "tag": args.tag,
             "run_at": metadata["created"],
             "augmentation": args.augmentation,
+            "dropout": args.dropout,
+            "weight_decay": args.weight_decay,
             "head_epochs": len(history["head"]["val_auc"]),
             "unfreeze": args.unfreeze if not args.no_fine_tune else 0,
             "fine_tune_lr": args.fine_tune_lr,

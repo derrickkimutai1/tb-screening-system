@@ -240,3 +240,44 @@ and the record appears in the dashboard, the case history and the Django admin.
 
 **Blockers**
 - None.
+
+### 17 October 2026, continued
+
+**Regularisation, to address specificity**
+- Three variants trained and judged on validation only: higher dropout, weight decay, and
+  both. Validation AUC rose from 0.8930 for the previous model to 0.9077, 0.9016 and
+  0.9119 respectively. `reg-both`, dropout 0.5 with weight decay 1e-4, was promoted.
+- On the test split: AUC 0.9291, accuracy 0.800, precision 0.754, specificity 0.721,
+  recall 0.881. Against the previous model that is AUC up 0.039 and specificity up from
+  0.508 to 0.721, which meets the WHO target of 0.70 for the first time. False positives
+  fell from 30 of 61 healthy patients to 17.
+- Recall fell from 0.949 to 0.881, so the WHO sensitivity target of 0.90 is now narrowly
+  missed, and missed cases rose from 3 to 7.
+- The cause is threshold transfer rather than the model. The threshold was chosen on
+  validation to reach exactly 0.900 sensitivity; on the test split the same threshold
+  delivered 0.881. With 121 validation images a sensitivity estimate carries roughly
+  ±0.07, so aiming at exactly 0.90 leaves no margin. Targeting a higher sensitivity on
+  validation would leave room for the transfer, and that decision can be made without
+  consulting the test results.
+
+**Cross-dataset validation**
+- Trained on Shenzhen alone, 463 images, and tested on all 138 Montgomery images, none of
+  which the model had seen.
+- Within Shenzhen the validation AUC was 0.9336. Across to Montgomery it was 0.8625.
+  **The cost of changing hospital is 0.071 of AUC.** Specificity at 90 per cent
+  sensitivity on the unseen hospital was 0.525.
+- This is the closest available estimate of what deploying to a Kenyan clinic would cost,
+  and it is a measured figure rather than the assertion the proposal currently makes.
+
+**The region test, repeated on 138 images instead of 21**
+- Intact 0.8625, lungs only 0.7884, surroundings only 0.5453.
+- The earlier finding holds on the larger sample: most of the signal is inside the lungs.
+  The surroundings retain a little above chance, consistent with the 0.021 of AUC the
+  occlusion test attributed to the acquisition markers.
+
+**Planned next**
+- Decide whether to re-select the threshold with a sensitivity margin, which would mean
+  consulting the test split a third time and must be disclosed if done.
+
+**Blockers**
+- None.

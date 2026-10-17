@@ -1,0 +1,38 @@
+{
+  "provenance": {
+    "git_commit": "3b668d8a5b7ba18e4731318d9cb7ef5af087a2e9",
+    "git_branch": "main",
+    "code_is_clean": false,
+    "dataset": {
+      "manifest": "splits.csv",
+      "sha256_prefix": "fecb7a83594b671a",
+      "images": 800
+    }
+  },
+  "trained_on": {
+    "source": "shenzhen",
+    "images": 463
+  },
+  "validated_on": {
+    "source": "shenzhen",
+    "images": 100
+  },
+  "tested_on": {
+    "source": "montgomery",
+    "images": 138
+  },
+  "auc_within_source": 0.9336,
+  "auc_across_source": 0.8625,
+  "generalisation_cost": 0.0711,
+  "specificity_at_target_sensitivity": {
+    "target_sensitivity": 0.9,
+    "specificity": 0.525,
+    "threshold": 0.00800000037997961
+  },
+  "regions": {
+    "intact": 0.8625,
+    "lungs_only": 0.7884,
+    "surroundings_only": 0.5453
+  },
+  "note": "Every Montgomery image is unseen, so this is a genuine external test. The region test now uses all 138 images rather than the 21 in the ordinary test split."
+}
