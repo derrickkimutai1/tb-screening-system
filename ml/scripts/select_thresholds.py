@@ -54,7 +54,30 @@ ARTIFACTS = ROOT / "ml" / "artifacts"
 MODEL_VERSION = "tb_mobilenetv2_v1"
 
 # World Health Organization target product profile for a TB triage test.
+# The requirement: the WHO target product profile for a TB triage test.
 TARGET_SENSITIVITY = 0.90
+
+# Chosen with a margin above the requirement. A threshold picked to reach
+# exactly 0.90 on validation lands either side of it on unseen data: the
+# validation split holds about 60 TB cases, so a sensitivity estimate carries
+# a standard error near 0.04. Aiming at 0.90 gives roughly even odds of
+# falling short, and that happened: a threshold selected at 0.900 delivered
+# 0.881 on unseen images.
+#
+# The margin is 0.02 rather than more, because the trade-off on validation is
+# steep in this region. Raising the selection target from 0.92 to 0.95 buys
+# two points of sensitivity for ten of specificity:
+#
+#     target 0.90 -> sensitivity 0.900, specificity 0.689
+#     target 0.92 -> sensitivity 0.933, specificity 0.639
+#     target 0.95 -> sensitivity 0.950, specificity 0.541
+#
+# Note that no threshold satisfies both WHO targets at once. The best
+# specificity available at or above 90 per cent sensitivity is 0.689, short
+# of the 0.70 the profile asks for. That is a property of this model on this
+# data and is reported rather than worked around.
+SELECTION_MARGIN = 0.02
+SELECTION_SENSITIVITY = TARGET_SENSITIVITY + SELECTION_MARGIN
 TARGET_SPECIFICITY = 0.70
 HIGH_SUSPICION_SPECIFICITY = 0.95
 
@@ -97,10 +120,14 @@ def main():
 
     table = sweep(labels, scores)
 
-    reaching_target = [row for row in table if row[1] >= TARGET_SENSITIVITY]
+    reaching_target = [row for row in table if row[1] >= SELECTION_SENSITIVITY]
     if reaching_target:
         decision, sens, spec = max(reaching_target, key=lambda row: row[2])
-        basis = f"lowest cutoff reaching {TARGET_SENSITIVITY:.0%} sensitivity"
+        basis = (
+            f"lowest cutoff reaching {SELECTION_SENSITIVITY:.0%} sensitivity on "
+            f"validation, a margin of {SELECTION_MARGIN:.0%} above the WHO target "
+            f"of {TARGET_SENSITIVITY:.0%} to allow for transfer to unseen data"
+        )
     else:
         # No cutoff reaches the target, so fall back to the best balance of the
         # two rates (Youden's J) and say so plainly.
@@ -161,6 +188,8 @@ def main():
         "basis": basis,
         "who_target": {
             "sensitivity": TARGET_SENSITIVITY,
+            "selection_sensitivity": SELECTION_SENSITIVITY,
+            "selection_margin": SELECTION_MARGIN,
             "specificity": TARGET_SPECIFICITY,
             "source": "WHO target product profile for a TB triage test",
         },

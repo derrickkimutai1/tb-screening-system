@@ -64,19 +64,21 @@
     "recall": 0.7167
   },
   "thresholds": {
-    "decision": 0.133,
-    "triage_low_medium": 0.133,
+    "decision": 0.102,
+    "triage_low_medium": 0.102,
     "triage_medium_high": 0.546,
     "selected_on": "validation split",
-    "basis": "lowest cutoff reaching 90% sensitivity",
+    "basis": "lowest cutoff reaching 92% sensitivity on validation, a margin of 2% above the WHO target of 90% to allow for transfer to unseen data",
     "who_target": {
       "sensitivity": 0.9,
+      "selection_sensitivity": 0.92,
+      "selection_margin": 0.02,
       "specificity": 0.7,
       "source": "WHO target product profile for a TB triage test"
     },
     "validation_at_decision": {
-      "sensitivity": 0.9,
-      "specificity": 0.6885
+      "sensitivity": 0.9333,
+      "specificity": 0.6393
     },
     "validation_at_high_suspicion": {
       "sensitivity": 0.7167,

@@ -281,3 +281,42 @@ and the record appears in the dashboard, the case history and the Django admin.
 
 **Blockers**
 - None.
+
+### 18 October 2026
+
+**Operating point settled**
+- The threshold selection now carries a margin above the WHO requirement. A threshold
+  picked for exactly 0.90 sensitivity on 121 validation images does not transfer
+  precisely; one selected at 0.900 delivered 0.881 on unseen data.
+- The margin is two points rather than more. The validation trade-off is steep in this
+  region: raising the selection target from 0.92 to 0.95 buys two points of sensitivity
+  for ten of specificity.
+
+| Selection target | Threshold | Sensitivity | Specificity |
+|---|---|---|---|
+| 0.90 | 0.133 | 0.900 | 0.689 |
+| 0.92 | 0.102 | 0.933 | 0.639 |
+| 0.95 | 0.050 | 0.950 | 0.541 |
+| 0.98 | 0.036 | 0.983 | 0.393 |
+
+- Decision threshold is therefore **0.102**, high suspicion **0.546**. The application
+  reads both from `metadata.json` and now uses them. All 29 tests pass.
+
+**A result worth reporting in its own right**
+- **No threshold satisfies both WHO targets at once.** The best specificity available at
+  or above 90 per cent sensitivity is 0.689 on validation, short of the 0.70 the target
+  product profile asks for. This is a property of the model on this data rather than a
+  tuning problem.
+- The 0.721 specificity recorded earlier was transfer luck; validation gave 0.689 for the
+  same selection rule.
+
+**Deliberately not done**
+- The test split was not evaluated again after settling on 0.102. It had been consulted
+  three times by then, and each further look weakens the independence of the final figure.
+  The operating point was chosen entirely from the validation curve above.
+- `ml/artifacts/OPERATING_POINT.md` records what each stored figure describes, including
+  that the threshold-dependent numbers in `metrics.json` belong to an earlier setting
+  while its AUC of 0.9291 remains valid.
+
+**Blockers**
+- None.
