@@ -64,13 +64,15 @@ def lung_mask(filename):
     return (left > 127) | (right > 127)
 
 
-def measure(rows, model, generator, activation):
+def measure(rows, model, generator, activation, layer=None):
     from screening.services.gradcam import ExplanationUnavailable
 
     results = []
     for row in rows:
         try:
-            cam = generator.heatmap(model, preprocessing.prepare(ROOT / row["filepath"]))
+            cam = generator.heatmap(
+                model, preprocessing.prepare(ROOT / row["filepath"]), layer_name=layer
+            )
         except ExplanationUnavailable:
             continue
 
@@ -107,6 +109,14 @@ def main():
         default=0.5,
         help="a pixel counts as activated at or above this share of the peak",
     )
+    parser.add_argument(
+        "--layer",
+        default=None,
+        help=(
+            "base layer to read the map from; defaults to the one the application "
+            "uses. Pass out_relu to measure the 7 by 7 map for comparison."
+        ),
+    )
     args = parser.parse_args()
 
     if not MASKS.is_dir():
@@ -129,7 +139,12 @@ def main():
     print(f"images {len(rows)} Montgomery radiographs from the {args.split} split")
 
     model = keras.models.load_model(MODELS / f"{MODEL_VERSION}.keras")
-    results = measure(rows, model, GradCAMGenerator(), args.activation)
+    generator = GradCAMGenerator()
+    results = measure(rows, model, generator, args.activation, layer=args.layer)
+    # Report the layer actually used, which may be the fallback rather than the
+    # one asked for.
+    layer_used = generator.layer_used() or "unknown"
+    print(f"layer  {layer_used}")
     if not results:
         raise SystemExit("No explanations could be produced.")
 
@@ -171,10 +186,17 @@ def main():
     )
     plt.xlabel("Lift: activation in lungs relative to lung area")
     plt.ylabel("Images")
-    plt.title(f"Grad-CAM lung concentration, Montgomery {args.split} split")
+    plt.title(f"Grad-CAM lung concentration from {layer_used}, Montgomery {args.split} split")
     plt.legend(fontsize=8)
     plt.tight_layout()
-    plt.savefig(ARTIFACTS / "gradcam_lung_concentration.png", dpi=150)
+    # Named after the layer when one was asked for, so a comparison between
+    # two layers leaves two figures rather than overwriting the first.
+    figure = (
+        ARTIFACTS / "gradcam_lung_concentration.png"
+        if args.layer is None
+        else ARTIFACTS / f"gradcam_lung_concentration_{layer_used}.png"
+    )
+    plt.savefig(figure, dpi=150)
     plt.close()
 
     summary = {
@@ -182,6 +204,7 @@ def main():
         "split": args.split,
         "images": len(results),
         "activation_threshold": args.activation,
+        "layer": layer_used,
         "share_in_lungs_mean": round(float(shares.mean()), 4),
         "lung_area_mean": round(float(areas.mean()), 4),
         "lift_mean": round(float(lifts.mean()), 4),
@@ -196,12 +219,15 @@ def main():
         ),
         "per_image": results,
     }
-    (ARTIFACTS / "gradcam_evaluation.json").write_text(
-        json.dumps(summary, indent=2), encoding="utf-8"
+    destination = (
+        ARTIFACTS / "gradcam_evaluation.json"
+        if args.layer is None
+        else ARTIFACTS / f"gradcam_evaluation_{layer_used}.json"
     )
+    destination.write_text(json.dumps(summary, indent=2), encoding="utf-8")
 
-    print(f"\n  summary -> {(ARTIFACTS / 'gradcam_evaluation.json').relative_to(ROOT)}")
-    print(f"  figure  -> {(ARTIFACTS / 'gradcam_lung_concentration.png').relative_to(ROOT)}")
+    print(f"\n  summary -> {destination.relative_to(ROOT)}")
+    print(f"  figure  -> {figure.relative_to(ROOT)}")
     return 0
 
 

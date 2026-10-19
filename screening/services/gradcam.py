@@ -5,16 +5,29 @@ Gradient-weighted Class Activation Mapping shows which regions of an image most
 influenced the model's output. It takes the gradient of the score with respect
 to the activations of the last convolutional layer, averages those gradients
 over each feature map to get an importance weight, and sums the maps by weight.
-The result is a coarse map, 7 by 7 for MobileNetV2, which is then enlarged and
-laid over the original radiograph.
+The result is a coarse map which is then enlarged and laid over the original
+radiograph.
 
 The map shows where the model looked. It is not a claim that disease is present
 at those locations, and the result page says so.
 
-The network is split at `out_relu`, MobileNetV2's final convolutional layer.
-This is possible because training built the classifier head as its own model
-rather than as loose layers, so the two halves can be recombined around the
-point where the gradients are needed.
+Which layer the map comes from
+------------------------------
+The usual choice is the final convolutional layer, `out_relu`, but in
+MobileNetV2 that layer is only 7 by 7. Stretched over a radiograph of a few
+thousand pixels, one cell covers a region far larger than a lesion, and
+measurement against Montgomery's manual lung masks bore that out: lift over
+chance was 1.11, barely better than a random map.
+
+`block_13_expand_relu` is the deepest layer still at 14 by 14, immediately
+before the final downsample. It gives four times the spatial resolution at the
+cost of slightly less abstract features. `evaluate_explanations.py` measures
+both, so the choice is settled by the lung-mask lift rather than by argument.
+
+Gradients are taken through a probe model that returns the chosen activation
+and the prediction from one forward pass. Taking them through two separately
+built halves would only work at the final layer, because MobileNetV2's residual
+connections cannot be cut at an arbitrary depth and reassembled.
 """
 
 from dataclasses import dataclass
@@ -23,6 +36,9 @@ from pathlib import Path
 import cv2
 import numpy as np
 
+# The layer the heatmap is read from, and the fallback if a model does not have
+# it. EXPLANATION_LAYER must be a convolutional activation inside the base.
+EXPLANATION_LAYER = "block_13_expand_relu"
 LAST_CONV_LAYER = "out_relu"
 OVERLAY_STRENGTH = 0.4
 COLOUR_MAP = cv2.COLORMAP_JET
@@ -47,46 +63,74 @@ class Explanation:
 class GradCAMGenerator:
     """Produces a heatmap overlay showing what influenced a prediction."""
 
-    _split = None
+    _probe = None
+    _layer_used = None
 
     @classmethod
-    def _split_model(cls, model):
-        """Split the network at the last convolutional layer.
+    def _probe_model(cls, model, layer_name=None):
+        """Build a model returning the chosen activation and the final features.
 
-        Cached, because rebuilding the two halves on every request is wasteful
-        and they never change for a given loaded model.
+        Cached, because rebuilding it on every request is wasteful and it never
+        changes for a given loaded model. Both outputs come from one forward
+        pass, which is what lets the tape connect the score back to an
+        activation partway down the network.
         """
-        if cls._split is not None:
-            return cls._split
+        wanted = layer_name or EXPLANATION_LAYER
+        if cls._probe is not None and cls._layer_used == wanted:
+            return (*cls._probe, cls._layer_used)
 
         import keras
 
-        base = next(
-            (layer for layer in model.layers if "mobilenet" in layer.name.lower()), None
-        )
         head = next(
             (layer for layer in model.layers if layer.name == "classification_head"), None
         )
-        if base is None or head is None:
+        if head is None:
+            raise ExplanationUnavailable("The model has no classification head.")
+
+        # Find the pretrained base by looking for the layer that actually
+        # contains the activation we want. Picking the first nested model
+        # instead would find the augmentation pipeline, which is a Sequential
+        # and therefore also a Model.
+        base = chosen = None
+        for candidate in model.layers:
+            if not isinstance(candidate, keras.Model) or candidate is head:
+                continue
+            names = {layer.name for layer in candidate.layers}
+            for option in (wanted, LAST_CONV_LAYER):
+                if option in names:
+                    base, chosen = candidate, option
+                    break
+            if base is not None:
+                break
+
+        if base is None:
             raise ExplanationUnavailable(
-                "The model does not have the expected base and head layers."
+                f"No layer of the model contains '{wanted}' or '{LAST_CONV_LAYER}'."
             )
 
-        features = keras.Model(base.input, base.get_layer(LAST_CONV_LAYER).output)
-        cls._split = (features, head)
-        return cls._split
+        probe = keras.Model(
+            base.input, [base.get_layer(chosen).output, base.output], name="gradcam_probe"
+        )
+        cls._probe = (probe, head)
+        cls._layer_used = chosen
+        return probe, head, chosen
 
-    def heatmap(self, model, prepared_image):
+    @classmethod
+    def layer_used(cls):
+        """The base layer the last heatmap was read from, or None."""
+        return cls._layer_used
+
+    def heatmap(self, model, prepared_image, layer_name=None):
         """Compute the raw Grad-CAM map for one prepared image."""
         import tensorflow as tf
 
-        features, head = self._split_model(model)
+        probe, head, _ = self._probe_model(model, layer_name)
         batch = prepared_image[np.newaxis, ...]
 
         with tf.GradientTape() as tape:
-            maps = features(batch, training=False)
+            maps, pooled = probe(batch, training=False)
             tape.watch(maps)
-            score = head(maps, training=False)[:, 0]
+            score = head(pooled, training=False)[:, 0]
 
         gradients = tape.gradient(score, maps)
         if gradients is None:
@@ -119,7 +163,11 @@ class GradCAMGenerator:
             )
 
         cam = self.heatmap(model, prepared_image)
-        enlarged = cv2.resize(cam, (original.shape[1], original.shape[0]))
+        # Bilinear, so a 14 by 14 map does not reach the radiograph as visible
+        # squares. The underlying resolution is unchanged by the interpolation.
+        enlarged = cv2.resize(
+            cam, (original.shape[1], original.shape[0]), interpolation=cv2.INTER_LINEAR
+        )
         coloured = cv2.applyColorMap(np.uint8(255 * enlarged), COLOUR_MAP)
         background = cv2.cvtColor(original, cv2.COLOR_GRAY2BGR)
         blended = cv2.addWeighted(

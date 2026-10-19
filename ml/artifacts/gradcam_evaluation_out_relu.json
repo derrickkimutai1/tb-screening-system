@@ -1,0 +1,815 @@
+{
+  "model_version": "tb_mobilenetv2_v1",
+  "split": "all",
+  "images": 114,
+  "activation_threshold": 0.5,
+  "layer": "out_relu",
+  "share_in_lungs_mean": 0.1247,
+  "lung_area_mean": 0.2643,
+  "lift_mean": 0.4852,
+  "lift_median": 0.0623,
+  "lift_tb_mean": 0.7537,
+  "lift_normal_mean": 0.2166,
+  "interpretation": "the explanations are no more concentrated on the lungs than chance",
+  "note": "Only Montgomery images carry hand-drawn lung masks, so only they can be checked. A lift near 1 means the activation is distributed as though placed at random with respect to the lungs.",
+  "per_image": [
+    {
+      "filename": "MCUCXR_0001_0.png",
+      "label": 0,
+      "share_in_lungs": 0.0,
+      "lung_area": 0.2417,
+      "lift": 0.0
+    },
+    {
+      "filename": "MCUCXR_0002_0.png",
+      "label": 0,
+      "share_in_lungs": 0.0,
+      "lung_area": 0.2037,
+      "lift": 0.0
+    },
+    {
+      "filename": "MCUCXR_0004_0.png",
+      "label": 0,
+      "share_in_lungs": 0.0,
+      "lung_area": 0.1769,
+      "lift": 0.0
+    },
+    {
+      "filename": "MCUCXR_0005_0.png",
+      "label": 0,
+      "share_in_lungs": 0.0,
+      "lung_area": 0.3084,
+      "lift": 0.0
+    },
+    {
+      "filename": "MCUCXR_0006_0.png",
+      "label": 0,
+      "share_in_lungs": 0.0,
+      "lung_area": 0.213,
+      "lift": 0.0
+    },
+    {
+      "filename": "MCUCXR_0008_0.png",
+      "label": 0,
+      "share_in_lungs": 0.2681,
+      "lung_area": 0.2757,
+      "lift": 0.9723
+    },
+    {
+      "filename": "MCUCXR_0011_0.png",
+      "label": 0,
+      "share_in_lungs": 0.0073,
+      "lung_area": 0.2618,
+      "lift": 0.0279
+    },
+    {
+      "filename": "MCUCXR_0013_0.png",
+      "label": 0,
+      "share_in_lungs": 0.0,
+      "lung_area": 0.2198,
+      "lift": 0.0
+    },
+    {
+      "filename": "MCUCXR_0015_0.png",
+      "label": 0,
+      "share_in_lungs": 0.0,
+      "lung_area": 0.2981,
+      "lift": 0.0
+    },
+    {
+      "filename": "MCUCXR_0016_0.png",
+      "label": 0,
+      "share_in_lungs": 0.0,
+      "lung_area": 0.2336,
+      "lift": 0.0
+    },
+    {
+      "filename": "MCUCXR_0019_0.png",
+      "label": 0,
+      "share_in_lungs": 0.0098,
+      "lung_area": 0.288,
+      "lift": 0.034
+    },
+    {
+      "filename": "MCUCXR_0020_0.png",
+      "label": 0,
+      "share_in_lungs": 0.0,
+      "lung_area": 0.2734,
+      "lift": 0.0
+    },
+    {
+      "filename": "MCUCXR_0022_0.png",
+      "label": 0,
+      "share_in_lungs": 0.1574,
+      "lung_area": 0.3977,
+      "lift": 0.3958
+    },
+    {
+      "filename": "MCUCXR_0023_0.png",
+      "label": 0,
+      "share_in_lungs": 0.5767,
+      "lung_area": 0.3869,
+      "lift": 1.4906
+    },
+    {
+      "filename": "MCUCXR_0024_0.png",
+      "label": 0,
+      "share_in_lungs": 0.0,
+      "lung_area": 0.1798,
+      "lift": 0.0
+    },
+    {
+      "filename": "MCUCXR_0026_0.png",
+      "label": 0,
+      "share_in_lungs": 0.0,
+      "lung_area": 0.1764,
+      "lift": 0.0
+    },
+    {
+      "filename": "MCUCXR_0027_0.png",
+      "label": 0,
+      "share_in_lungs": 0.0,
+      "lung_area": 0.2204,
+      "lift": 0.0
+    },
+    {
+      "filename": "MCUCXR_0029_0.png",
+      "label": 0,
+      "share_in_lungs": 0.0,
+      "lung_area": 0.2465,
+      "lift": 0.0
+    },
+    {
+      "filename": "MCUCXR_0030_0.png",
+      "label": 0,
+      "share_in_lungs": 0.3773,
+      "lung_area": 0.3553,
+      "lift": 1.062
+    },
+    {
+      "filename": "MCUCXR_0031_0.png",
+      "label": 0,
+      "share_in_lungs": 0.0,
+      "lung_area": 0.3556,
+      "lift": 0.0
+    },
+    {
+      "filename": "MCUCXR_0035_0.png",
+      "label": 0,
+      "share_in_lungs": 0.0,
+      "lung_area": 0.2689,
+      "lift": 0.0
+    },
+    {
+      "filename": "MCUCXR_0038_0.png",
+      "label": 0,
+      "share_in_lungs": 0.0049,
+      "lung_area": 0.2744,
+      "lift": 0.0179
+    },
+    {
+      "filename": "MCUCXR_0040_0.png",
+      "label": 0,
+      "share_in_lungs": 0.0,
+      "lung_area": 0.2773,
+      "lift": 0.0
+    },
+    {
+      "filename": "MCUCXR_0041_0.png",
+      "label": 0,
+      "share_in_lungs": 0.0,
+      "lung_area": 0.1735,
+      "lift": 0.0
+    },
+    {
+      "filename": "MCUCXR_0043_0.png",
+      "label": 0,
+      "share_in_lungs": 0.0303,
+      "lung_area": 0.1999,
+      "lift": 0.1514
+    },
+    {
+      "filename": "MCUCXR_0044_0.png",
+      "label": 0,
+      "share_in_lungs": 0.0065,
+      "lung_area": 0.2697,
+      "lift": 0.024
+    },
+    {
+      "filename": "MCUCXR_0045_0.png",
+      "label": 0,
+      "share_in_lungs": 0.0,
+      "lung_area": 0.2717,
+      "lift": 0.0
+    },
+    {
+      "filename": "MCUCXR_0046_0.png",
+      "label": 0,
+      "share_in_lungs": 0.0,
+      "lung_area": 0.2772,
+      "lift": 0.0
+    },
+    {
+      "filename": "MCUCXR_0047_0.png",
+      "label": 0,
+      "share_in_lungs": 0.0,
+      "lung_area": 0.2535,
+      "lift": 0.0
+    },
+    {
+      "filename": "MCUCXR_0051_0.png",
+      "label": 0,
+      "share_in_lungs": 0.1054,
+      "lung_area": 0.344,
+      "lift": 0.3065
+    },
+    {
+      "filename": "MCUCXR_0054_0.png",
+      "label": 0,
+      "share_in_lungs": 0.0,
+      "lung_area": 0.2381,
+      "lift": 0.0
+    },
+    {
+      "filename": "MCUCXR_0055_0.png",
+      "label": 0,
+      "share_in_lungs": 0.0,
+      "lung_area": 0.2541,
+      "lift": 0.0
+    },
+    {
+      "filename": "MCUCXR_0056_0.png",
+      "label": 0,
+      "share_in_lungs": 0.4151,
+      "lung_area": 0.2203,
+      "lift": 1.8847
+    },
+    {
+      "filename": "MCUCXR_0057_0.png",
+      "label": 0,
+      "share_in_lungs": 0.0,
+      "lung_area": 0.2421,
+      "lift": 0.0
+    },
+    {
+      "filename": "MCUCXR_0058_0.png",
+      "label": 0,
+      "share_in_lungs": 0.0078,
+      "lung_area": 0.2035,
+      "lift": 0.0382
+    },
+    {
+      "filename": "MCUCXR_0063_0.png",
+      "label": 0,
+      "share_in_lungs": 0.0,
+      "lung_area": 0.2586,
+      "lift": 0.0
+    },
+    {
+      "filename": "MCUCXR_0068_0.png",
+      "label": 0,
+      "share_in_lungs": 0.0,
+      "lung_area": 0.2253,
+      "lift": 0.0
+    },
+    {
+      "filename": "MCUCXR_0069_0.png",
+      "label": 0,
+      "share_in_lungs": 0.0466,
+      "lung_area": 0.2894,
+      "lift": 0.1611
+    },
+    {
+      "filename": "MCUCXR_0071_0.png",
+      "label": 0,
+      "share_in_lungs": 0.0,
+      "lung_area": 0.2607,
+      "lift": 0.0
+    },
+    {
+      "filename": "MCUCXR_0072_0.png",
+      "label": 0,
+      "share_in_lungs": 0.0,
+      "lung_area": 0.2566,
+      "lift": 0.0
+    },
+    {
+      "filename": "MCUCXR_0075_0.png",
+      "label": 0,
+      "share_in_lungs": 0.0,
+      "lung_area": 0.2336,
+      "lift": 0.0
+    },
+    {
+      "filename": "MCUCXR_0081_0.png",
+      "label": 0,
+      "share_in_lungs": 0.0428,
+      "lung_area": 0.2616,
+      "lift": 0.1636
+    },
+    {
+      "filename": "MCUCXR_0082_0.png",
+      "label": 0,
+      "share_in_lungs": 0.299,
+      "lung_area": 0.2529,
+      "lift": 1.1822
+    },
+    {
+      "filename": "MCUCXR_0083_0.png",
+      "label": 0,
+      "share_in_lungs": 0.338,
+      "lung_area": 0.3266,
+      "lift": 1.0348
+    },
+    {
+      "filename": "MCUCXR_0084_0.png",
+      "label": 0,
+      "share_in_lungs": 0.0,
+      "lung_area": 0.1999,
+      "lift": 0.0
+    },
+    {
+      "filename": "MCUCXR_0085_0.png",
+      "label": 0,
+      "share_in_lungs": 0.0,
+      "lung_area": 0.2383,
+      "lift": 0.0
+    },
+    {
+      "filename": "MCUCXR_0087_0.png",
+      "label": 0,
+      "share_in_lungs": 0.0,
+      "lung_area": 0.2621,
+      "lift": 0.0
+    },
+    {
+      "filename": "MCUCXR_0091_0.png",
+      "label": 0,
+      "share_in_lungs": 0.0199,
+      "lung_area": 0.275,
+      "lift": 0.0725
+    },
+    {
+      "filename": "MCUCXR_0092_0.png",
+      "label": 0,
+      "share_in_lungs": 0.7099,
+      "lung_area": 0.2444,
+      "lift": 2.904
+    },
+    {
+      "filename": "MCUCXR_0094_0.png",
+      "label": 0,
+      "share_in_lungs": 0.0,
+      "lung_area": 0.2291,
+      "lift": 0.0
+    },
+    {
+      "filename": "MCUCXR_0095_0.png",
+      "label": 0,
+      "share_in_lungs": 0.0,
+      "lung_area": 0.3349,
+      "lift": 0.0
+    },
+    {
+      "filename": "MCUCXR_0096_0.png",
+      "label": 0,
+      "share_in_lungs": 0.0,
+      "lung_area": 0.2718,
+      "lift": 0.0
+    },
+    {
+      "filename": "MCUCXR_0097_0.png",
+      "label": 0,
+      "share_in_lungs": 0.0,
+      "lung_area": 0.2463,
+      "lift": 0.0
+    },
+    {
+      "filename": "MCUCXR_0099_0.png",
+      "label": 0,
+      "share_in_lungs": 0.1408,
+      "lung_area": 0.3348,
+      "lift": 0.4206
+    },
+    {
+      "filename": "MCUCXR_0100_0.png",
+      "label": 0,
+      "share_in_lungs": 0.0,
+      "lung_area": 0.2637,
+      "lift": 0.0
+    },
+    {
+      "filename": "MCUCXR_0101_0.png",
+      "label": 0,
+      "share_in_lungs": 0.0,
+      "lung_area": 0.2319,
+      "lift": 0.0
+    },
+    {
+      "filename": "MCUCXR_0103_0.png",
+      "label": 0,
+      "share_in_lungs": 0.0,
+      "lung_area": 0.2913,
+      "lift": 0.0
+    },
+    {
+      "filename": "MCUCXR_0104_1.png",
+      "label": 1,
+      "share_in_lungs": 0.3589,
+      "lung_area": 0.3438,
+      "lift": 1.0439
+    },
+    {
+      "filename": "MCUCXR_0108_1.png",
+      "label": 1,
+      "share_in_lungs": 0.3489,
+      "lung_area": 0.2804,
+      "lift": 1.2442
+    },
+    {
+      "filename": "MCUCXR_0113_1.png",
+      "label": 1,
+      "share_in_lungs": 0.3302,
+      "lung_area": 0.1812,
+      "lift": 1.8227
+    },
+    {
+      "filename": "MCUCXR_0117_1.png",
+      "label": 1,
+      "share_in_lungs": 0.391,
+      "lung_area": 0.1753,
+      "lift": 2.231
+    },
+    {
+      "filename": "MCUCXR_0126_1.png",
+      "label": 1,
+      "share_in_lungs": 0.2633,
+      "lung_area": 0.2511,
+      "lift": 1.0484
+    },
+    {
+      "filename": "MCUCXR_0140_1.png",
+      "label": 1,
+      "share_in_lungs": 0.0,
+      "lung_area": 0.2613,
+      "lift": 0.0
+    },
+    {
+      "filename": "MCUCXR_0141_1.png",
+      "label": 1,
+      "share_in_lungs": 0.2971,
+      "lung_area": 0.3575,
+      "lift": 0.8309
+    },
+    {
+      "filename": "MCUCXR_0142_1.png",
+      "label": 1,
+      "share_in_lungs": 0.2778,
+      "lung_area": 0.2459,
+      "lift": 1.1299
+    },
+    {
+      "filename": "MCUCXR_0144_1.png",
+      "label": 1,
+      "share_in_lungs": 0.0,
+      "lung_area": 0.2748,
+      "lift": 0.0
+    },
+    {
+      "filename": "MCUCXR_0150_1.png",
+      "label": 1,
+      "share_in_lungs": 0.3414,
+      "lung_area": 0.2999,
+      "lift": 1.1384
+    },
+    {
+      "filename": "MCUCXR_0162_1.png",
+      "label": 1,
+      "share_in_lungs": 0.2633,
+      "lung_area": 0.3728,
+      "lift": 0.7061
+    },
+    {
+      "filename": "MCUCXR_0166_1.png",
+      "label": 1,
+      "share_in_lungs": 0.3071,
+      "lung_area": 0.3479,
+      "lift": 0.8828
+    },
+    {
+      "filename": "MCUCXR_0170_1.png",
+      "label": 1,
+      "share_in_lungs": 0.2767,
+      "lung_area": 0.3612,
+      "lift": 0.7661
+    },
+    {
+      "filename": "MCUCXR_0173_1.png",
+      "label": 1,
+      "share_in_lungs": 0.0173,
+      "lung_area": 0.3327,
+      "lift": 0.0521
+    },
+    {
+      "filename": "MCUCXR_0182_1.png",
+      "label": 1,
+      "share_in_lungs": 0.0,
+      "lung_area": 0.269,
+      "lift": 0.0
+    },
+    {
+      "filename": "MCUCXR_0188_1.png",
+      "label": 1,
+      "share_in_lungs": 0.1537,
+      "lung_area": 0.3422,
+      "lift": 0.4491
+    },
+    {
+      "filename": "MCUCXR_0194_1.png",
+      "label": 1,
+      "share_in_lungs": 0.0498,
+      "lung_area": 0.2386,
+      "lift": 0.2085
+    },
+    {
+      "filename": "MCUCXR_0196_1.png",
+      "label": 1,
+      "share_in_lungs": 0.3173,
+      "lung_area": 0.2422,
+      "lift": 1.3103
+    },
+    {
+      "filename": "MCUCXR_0203_1.png",
+      "label": 1,
+      "share_in_lungs": 0.1781,
+      "lung_area": 0.2616,
+      "lift": 0.681
+    },
+    {
+      "filename": "MCUCXR_0213_1.png",
+      "label": 1,
+      "share_in_lungs": 0.3557,
+      "lung_area": 0.254,
+      "lift": 1.4
+    },
+    {
+      "filename": "MCUCXR_0218_1.png",
+      "label": 1,
+      "share_in_lungs": 0.2886,
+      "lung_area": 0.3035,
+      "lift": 0.9511
+    },
+    {
+      "filename": "MCUCXR_0223_1.png",
+      "label": 1,
+      "share_in_lungs": 0.2133,
+      "lung_area": 0.2658,
+      "lift": 0.8025
+    },
+    {
+      "filename": "MCUCXR_0228_1.png",
+      "label": 1,
+      "share_in_lungs": 0.3053,
+      "lung_area": 0.2733,
+      "lift": 1.1171
+    },
+    {
+      "filename": "MCUCXR_0243_1.png",
+      "label": 1,
+      "share_in_lungs": 0.0,
+      "lung_area": 0.3246,
+      "lift": 0.0
+    },
+    {
+      "filename": "MCUCXR_0251_1.png",
+      "label": 1,
+      "share_in_lungs": 0.2051,
+      "lung_area": 0.2275,
+      "lift": 0.9018
+    },
+    {
+      "filename": "MCUCXR_0253_1.png",
+      "label": 1,
+      "share_in_lungs": 0.0,
+      "lung_area": 0.2642,
+      "lift": 0.0
+    },
+    {
+      "filename": "MCUCXR_0254_1.png",
+      "label": 1,
+      "share_in_lungs": 0.0247,
+      "lung_area": 0.3273,
+      "lift": 0.0754
+    },
+    {
+      "filename": "MCUCXR_0255_1.png",
+      "label": 1,
+      "share_in_lungs": 0.0,
+      "lung_area": 0.335,
+      "lift": 0.0
+    },
+    {
+      "filename": "MCUCXR_0258_1.png",
+      "label": 1,
+      "share_in_lungs": 0.3661,
+      "lung_area": 0.1714,
+      "lift": 2.1356
+    },
+    {
+      "filename": "MCUCXR_0264_1.png",
+      "label": 1,
+      "share_in_lungs": 0.3649,
+      "lung_area": 0.2594,
+      "lift": 1.4065
+    },
+    {
+      "filename": "MCUCXR_0266_1.png",
+      "label": 1,
+      "share_in_lungs": 0.3077,
+      "lung_area": 0.2646,
+      "lift": 1.1627
+    },
+    {
+      "filename": "MCUCXR_0275_1.png",
+      "label": 1,
+      "share_in_lungs": 0.0,
+      "lung_area": 0.2758,
+      "lift": 0.0
+    },
+    {
+      "filename": "MCUCXR_0282_1.png",
+      "label": 1,
+      "share_in_lungs": 0.1479,
+      "lung_area": 0.3013,
+      "lift": 0.4909
+    },
+    {
+      "filename": "MCUCXR_0289_1.png",
+      "label": 1,
+      "share_in_lungs": 0.1143,
+      "lung_area": 0.2395,
+      "lift": 0.4772
+    },
+    {
+      "filename": "MCUCXR_0294_1.png",
+      "label": 1,
+      "share_in_lungs": 0.0,
+      "lung_area": 0.222,
+      "lift": 0.0
+    },
+    {
+      "filename": "MCUCXR_0301_1.png",
+      "label": 1,
+      "share_in_lungs": 0.0501,
+      "lung_area": 0.3001,
+      "lift": 0.1669
+    },
+    {
+      "filename": "MCUCXR_0309_1.png",
+      "label": 1,
+      "share_in_lungs": 0.3478,
+      "lung_area": 0.1655,
+      "lift": 2.102
+    },
+    {
+      "filename": "MCUCXR_0311_1.png",
+      "label": 1,
+      "share_in_lungs": 0.3702,
+      "lung_area": 0.1558,
+      "lift": 2.3759
+    },
+    {
+      "filename": "MCUCXR_0313_1.png",
+      "label": 1,
+      "share_in_lungs": 0.3666,
+      "lung_area": 0.2612,
+      "lift": 1.4037
+    },
+    {
+      "filename": "MCUCXR_0316_1.png",
+      "label": 1,
+      "share_in_lungs": 0.1153,
+      "lung_area": 0.267,
+      "lift": 0.4319
+    },
+    {
+      "filename": "MCUCXR_0331_1.png",
+      "label": 1,
+      "share_in_lungs": 0.0,
+      "lung_area": 0.2957,
+      "lift": 0.0
+    },
+    {
+      "filename": "MCUCXR_0334_1.png",
+      "label": 1,
+      "share_in_lungs": 0.0,
+      "lung_area": 0.2317,
+      "lift": 0.0
+    },
+    {
+      "filename": "MCUCXR_0338_1.png",
+      "label": 1,
+      "share_in_lungs": 0.2376,
+      "lung_area": 0.3843,
+      "lift": 0.6182
+    },
+    {
+      "filename": "MCUCXR_0348_1.png",
+      "label": 1,
+      "share_in_lungs": 0.0,
+      "lung_area": 0.1666,
+      "lift": 0.0
+    },
+    {
+      "filename": "MCUCXR_0350_1.png",
+      "label": 1,
+      "share_in_lungs": 0.1997,
+      "lung_area": 0.2868,
+      "lift": 0.6962
+    },
+    {
+      "filename": "MCUCXR_0352_1.png",
+      "label": 1,
+      "share_in_lungs": 0.0,
+      "lung_area": 0.2458,
+      "lift": 0.0
+    },
+    {
+      "filename": "MCUCXR_0354_1.png",
+      "label": 1,
+      "share_in_lungs": 0.2208,
+      "lung_area": 0.3573,
+      "lift": 0.6181
+    },
+    {
+      "filename": "MCUCXR_0362_1.png",
+      "label": 1,
+      "share_in_lungs": 0.2745,
+      "lung_area": 0.2344,
+      "lift": 1.1715
+    },
+    {
+      "filename": "MCUCXR_0367_1.png",
+      "label": 1,
+      "share_in_lungs": 0.1146,
+      "lung_area": 0.1985,
+      "lift": 0.5774
+    },
+    {
+      "filename": "MCUCXR_0369_1.png",
+      "label": 1,
+      "share_in_lungs": 0.1466,
+      "lung_area": 0.2162,
+      "lift": 0.678
+    },
+    {
+      "filename": "MCUCXR_0372_1.png",
+      "label": 1,
+      "share_in_lungs": 0.3517,
+      "lung_area": 0.2187,
+      "lift": 1.6082
+    },
+    {
+      "filename": "MCUCXR_0375_1.png",
+      "label": 1,
+      "share_in_lungs": 0.0274,
+      "lung_area": 0.2621,
+      "lift": 0.1044
+    },
+    {
+      "filename": "MCUCXR_0383_1.png",
+      "label": 1,
+      "share_in_lungs": 0.3569,
+      "lung_area": 0.2306,
+      "lift": 1.5482
+    },
+    {
+      "filename": "MCUCXR_0387_1.png",
+      "label": 1,
+      "share_in_lungs": 0.1234,
+      "lung_area": 0.3104,
+      "lift": 0.3975
+    },
+    {
+      "filename": "MCUCXR_0390_1.png",
+      "label": 1,
+      "share_in_lungs": 0.0,
+      "lung_area": 0.2639,
+      "lift": 0.0
+    },
+    {
+      "filename": "MCUCXR_0393_1.png",
+      "label": 1,
+      "share_in_lungs": 0.3456,
+      "lung_area": 0.257,
+      "lift": 1.345
+    },
+    {
+      "filename": "MCUCXR_0399_1.png",
+      "label": 1,
+      "share_in_lungs": 0.1348,
+      "lung_area": 0.2062,
+      "lift": 0.6538
+    }
+  ]
+}
