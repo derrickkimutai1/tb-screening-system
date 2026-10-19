@@ -18,12 +18,16 @@ Admission is by allowlist
     recorded in .env.example as unsuitable for deployment.
 """
 
+import logging
+
 from allauth.account.adapter import DefaultAccountAdapter
 from allauth.core.exceptions import ImmediateHttpResponse
 from allauth.socialaccount.adapter import DefaultSocialAccountAdapter
 from django.conf import settings
 from django.contrib import messages
 from django.shortcuts import redirect
+
+logger = logging.getLogger(__name__)
 
 
 def address_is_allowed(email):
@@ -71,6 +75,9 @@ class ScreeningSocialAccountAdapter(DefaultSocialAccountAdapter):
         email = sociallogin.user.email or sociallogin.account.extra_data.get("email", "")
         if address_is_allowed(email):
             return
+        # A refused sign-in is worth a record: it is either a misconfigured
+        # allowlist or someone trying an address they should not be using.
+        logger.warning("Refused sign-in for %s: not on the allowlist.", email or "(no address)")
         messages.error(
             request,
             "That Google account is not authorised for this system. "
