@@ -188,11 +188,15 @@ class ReportingTests(SignedIn, TestCase):
         self.assertContains(response, "No screening records yet")
 
     def test_review_appends_a_note_and_updates_the_case_status(self):
+        from .models import Profile
+
+        self.clinician.profile.role = Profile.Role.CLINICIAN
+        self.clinician.profile.save()
+
         record = PredictionRecord.objects.first()
         self.client.post(
             reverse("screening:case_detail", args=[record.case_id]),
             {
-                "reviewer_name": "D. Kimutai",
                 "status_set": PredictionRecord.ReviewStatus.FOLLOW_UP,
                 "note": "Referred for confirmatory testing.",
             },
@@ -201,7 +205,7 @@ class ReportingTests(SignedIn, TestCase):
 
         self.assertEqual(record.review_status, PredictionRecord.ReviewStatus.FOLLOW_UP)
         self.assertEqual(record.review_notes.count(), 1)
-        self.assertEqual(ReviewNote.objects.get().reviewer_name, "D. Kimutai")
+        self.assertEqual(ReviewNote.objects.get().reviewer, self.clinician)
 
 
 class PreprocessingTests(TestCase):
@@ -540,3 +544,139 @@ class AllowlistTests(TestCase):
     def test_a_lookalike_domain_is_refused(self):
         """notstrathmore.edu must not pass a strathmore.edu allowlist."""
         self.assertFalse(self.check("a@notstrathmore.edu", domains={"strathmore.edu"}))
+
+
+class ProfileTests(SignedIn, TestCase):
+    """Every account carries a profile, and the profile decides what it may do."""
+
+    def test_a_profile_is_created_with_the_account(self):
+        """No view should ever have to cope with a user that has none."""
+        self.assertIsNotNone(self.clinician.profile)
+
+    def test_a_new_account_starts_as_a_radiographer(self):
+        from .models import Profile
+
+        self.assertEqual(self.clinician.profile.role, Profile.Role.RADIOGRAPHER)
+
+    def test_a_radiographer_may_not_review(self):
+        self.assertFalse(self.clinician.profile.may_review)
+
+    def test_a_clinician_may_review(self):
+        from .models import Profile
+
+        self.clinician.profile.role = Profile.Role.CLINICIAN
+        self.assertTrue(self.clinician.profile.may_review)
+
+    def test_an_administrator_may_review(self):
+        from .models import Profile
+
+        self.clinician.profile.role = Profile.Role.ADMINISTRATOR
+        self.assertTrue(self.clinician.profile.may_review)
+
+    def test_the_page_loads_for_its_owner(self):
+        response = self.client.get(reverse("screening:profile"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "clinician@example.org")
+
+    def test_the_page_requires_a_session(self):
+        self.client.logout()
+        url = reverse("screening:profile")
+
+        self.assertRedirects(self.client.get(url), f"{reverse('account_login')}?next={url}")
+
+    def test_the_facility_can_be_set_by_its_owner(self):
+        self.client.post(reverse("screening:profile"), {"facility": "Kenyatta National"})
+
+        self.clinician.profile.refresh_from_db()
+        self.assertEqual(self.clinician.profile.facility, "Kenyatta National")
+
+    def test_the_role_cannot_be_set_by_its_owner(self):
+        """Choosing your own role would make the role meaningless."""
+        from .models import Profile
+
+        self.client.post(
+            reverse("screening:profile"),
+            {"facility": "Somewhere", "role": Profile.Role.ADMINISTRATOR},
+        )
+
+        self.clinician.profile.refresh_from_db()
+        self.assertEqual(self.clinician.profile.role, Profile.Role.RADIOGRAPHER)
+
+
+@override_settings(MEDIA_ROOT=MEDIA_FOR_TESTS)
+class ReviewPermissionTests(SignedIn, TestCase):
+    """Who may record a clinical review, enforced on the POST and not just hidden."""
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(MEDIA_FOR_TESTS, ignore_errors=True)
+        super().tearDownClass()
+
+    def setUp(self):
+        super().setUp()
+        self.record = PredictionRecord.objects.create(
+            patient_reference="DEMO-700",
+            xray_image="x.png",
+            tb_probability=Decimal("0.5"),
+            triage_level=PredictionRecord.TriageLevel.MEDIUM,
+            model_version="test",
+            decision_threshold=Decimal("0.102"),
+            triage_low_medium_threshold=Decimal("0.102"),
+            triage_medium_high_threshold=Decimal("0.546"),
+        )
+        self.url = reverse("screening:case_detail", args=[self.record.case_id])
+
+    def become(self, role):
+        self.clinician.profile.role = role
+        self.clinician.profile.save()
+
+    def post_review(self):
+        return self.client.post(
+            self.url, {"status_set": PredictionRecord.ReviewStatus.REVIEWED, "note": "Seen."}
+        )
+
+    def test_a_radiographer_is_refused(self):
+        response = self.post_review()
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(ReviewNote.objects.count(), 0)
+
+    def test_a_radiographer_is_not_offered_the_form(self):
+        response = self.client.get(self.url)
+
+        self.assertNotContains(response, "Record review")
+
+    def test_a_clinician_may_record_one(self):
+        from .models import Profile
+
+        self.become(Profile.Role.CLINICIAN)
+
+        self.post_review()
+
+        self.assertEqual(ReviewNote.objects.count(), 1)
+
+    def test_the_note_is_attributed_to_the_signed_in_user(self):
+        """Not to a typed name, which nothing could verify."""
+        from .models import Profile
+
+        self.become(Profile.Role.CLINICIAN)
+
+        self.post_review()
+
+        note = ReviewNote.objects.get()
+        self.assertEqual(note.reviewer, self.clinician)
+        self.assertEqual(note.attributed_to, "clinician@example.org")
+
+    def test_a_note_survives_its_author_being_removed(self):
+        """A clinical record should not lose its history when someone leaves."""
+        from .models import Profile
+
+        self.become(Profile.Role.CLINICIAN)
+        self.post_review()
+
+        self.clinician.delete()
+
+        note = ReviewNote.objects.get()
+        self.assertIsNone(note.reviewer)
+        self.assertEqual(note.attributed_to, "clinician@example.org")

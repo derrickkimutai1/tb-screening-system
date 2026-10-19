@@ -6,7 +6,7 @@ from django import forms
 from django.conf import settings
 from django.template.defaultfilters import filesizeformat
 
-from .models import PredictionRecord
+from .models import PredictionRecord, Profile
 
 ACCEPTED_SUFFIXES = {".png", ".jpg", ".jpeg"}
 
@@ -109,14 +109,32 @@ class ScreeningUploadForm(forms.Form):
         return images
 
 
-class ReviewForm(forms.Form):
-    """Records a reviewer's decision and note against a case."""
+class ProfileForm(forms.ModelForm):
+    """The parts of a profile its owner may set themselves.
 
-    reviewer_name = forms.CharField(
-        max_length=100,
-        required=False,
-        widget=forms.TextInput(attrs={"class": "form-control"}),
-    )
+    Role is not among them. A user who could choose their own role could grant
+    themselves review rights, which would make the role meaningless; it is set
+    by an administrator through the Django admin.
+    """
+
+    class Meta:
+        model = Profile
+        fields = ["facility"]
+        widgets = {
+            "facility": forms.TextInput(
+                attrs={"class": "form-control", "placeholder": "Kenyatta National Hospital"}
+            )
+        }
+
+
+class ReviewForm(forms.Form):
+    """Records a reviewer's decision and note against a case.
+
+    The reviewer is no longer asked for their name: there is a session, so the
+    note is attributed to whoever is signed in. A typed name was unverifiable
+    and a clinical record should not carry one.
+    """
+
     status_set = forms.ChoiceField(
         choices=PredictionRecord.ReviewStatus.choices,
         widget=forms.Select(attrs={"class": "form-select"}),

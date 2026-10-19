@@ -150,24 +150,32 @@
         <span class="micro numeric">{{ notes|length }} note{{ notes|length|pluralize }}</span>
       </div>
       <div class="panel-body">
-        <form method="post" novalidate>
-          {% csrf_token %}
-          <div class="row g-3">
-            <div class="col-sm-6">
-              <label class="field-label" for="{{ review_form.reviewer_name.id_for_label }}">Reviewer</label>
-              {{ review_form.reviewer_name }}
+        {% if may_review %}
+          <form method="post" novalidate>
+            {% csrf_token %}
+            <p class="field-hint">
+              Recorded as <strong>{{ user.profile.display_name }}</strong>,
+              {{ user.profile.get_role_display|lower }}.
+            </p>
+            <div class="row g-3">
+              <div class="col-sm-6">
+                <label class="field-label" for="{{ review_form.status_set.id_for_label }}">Status</label>
+                {{ review_form.status_set }}
+              </div>
+              <div class="col-12">
+                <label class="field-label" for="{{ review_form.note.id_for_label }}">Note</label>
+                {{ review_form.note }}
+              </div>
             </div>
-            <div class="col-sm-6">
-              <label class="field-label" for="{{ review_form.status_set.id_for_label }}">Status</label>
-              {{ review_form.status_set }}
-            </div>
-            <div class="col-12">
-              <label class="field-label" for="{{ review_form.note.id_for_label }}">Note</label>
-              {{ review_form.note }}
-            </div>
+            <button type="submit" class="btn btn-action mt-3">Record review</button>
+          </form>
+        {% else %}
+          <div class="notice notice-boundary">
+            Confirming or dismissing a case is a clinical decision. Your role is
+            {{ user.profile.get_role_display|lower }}, so this case can be screened
+            and read here but reviewed only by a clinician.
           </div>
-          <button type="submit" class="btn btn-action mt-3">Record review</button>
-        </form>
+        {% endif %}
       </div>
 
       {% if notes %}
@@ -179,7 +187,7 @@
             {% for note in notes %}
               <tr>
                 <td class="numeric">{{ note.created_at|date:"j M Y H:i" }}</td>
-                <td>{{ note.reviewer_name|default:"—" }}</td>
+                <td>{{ note.attributed_to }}</td>
                 <td>{{ note.get_status_set_display }}</td>
                 <td>{{ note.note }}</td>
               </tr>

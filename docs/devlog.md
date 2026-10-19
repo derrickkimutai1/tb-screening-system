@@ -426,3 +426,44 @@ permit it" (section 118), and the records are clinical, so the gate went in.
 **Blockers**
 - The Google Cloud Console credentials have to be created by hand; the steps are
   in `docs/google-sign-in-setup.md`.
+
+---
+
+## 19 October 2026 — User profiles and role separation
+
+Sign-in answered who someone is. It did not answer what they are allowed to do,
+and every signed-in user had identical access. A profile now carries that.
+
+**What a profile holds**
+- **Role**, one of radiographer, clinician or administrator. A radiographer
+  captures and screens; confirming or dismissing a case is a clinical judgement,
+  so `Profile.may_review` is true only for the latter two. The check runs on the
+  POST as well as deciding whether the form is drawn, because a hidden form is
+  not an access control.
+- **Facility**, which the user sets themselves.
+- Role is deliberately **not** in `ProfileForm`. A user who could choose their
+  own role could grant themselves review rights, which would make the role
+  decorative. It is set in the Django admin.
+
+**Reviews are attributed, not typed**
+`ReviewNote` gains a nullable foreign key to the user. The free-text
+`reviewer_name` stays and is filled from the signed-in account, so a note still
+reads correctly after the account is removed; `on_delete=SET_NULL` means a
+clinical record does not lose its history when someone leaves. The review form
+no longer asks for a name, because nothing could verify one.
+
+**Why a signal rather than lazy creation**
+A profile is created by `post_save` on the user, so every account has exactly
+one from the moment it exists. Creating it on first access instead would leave
+every view, template and query to handle a user without one, which is the kind
+of absence that surfaces as a crash on one page months later.
+
+**Tests**
+67 pass, up from 53. The new ones cover profile creation with the account,
+default role, the page requiring a session, the facility being editable by its
+owner, the role not being, a radiographer refused with 403 on the POST, a
+clinician permitted, attribution to the signed-in user, and a note surviving its
+author's deletion.
+
+**Blockers**
+- None.

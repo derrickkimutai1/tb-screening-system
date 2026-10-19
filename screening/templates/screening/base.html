@@ -21,9 +21,10 @@
         <a href="{% url 'screening:case_list' %}" class="{% if active == 'cases' %}current{% endif %}">Cases</a>
         <a href="{% url 'screening:dashboard' %}" class="{% if active == 'dashboard' %}current{% endif %}">Dashboard</a>
         {% if user.is_authenticated %}
-          <span class="masthead-user" title="{{ user.email|default:user.get_username }}">
+          <a href="{% url 'screening:profile' %}" class="masthead-user {% if active == 'profile' %}current{% endif %}"
+             title="{{ user.email|default:user.get_username }}">
             {{ user.email|default:user.get_username }}
-          </span>
+          </a>
           <a href="{% url 'account_logout' %}">Sign out</a>
         {% endif %}
       </nav>

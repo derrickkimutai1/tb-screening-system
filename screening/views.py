@@ -15,6 +15,7 @@ from pathlib import Path
 
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
+from django.core.exceptions import PermissionDenied
 from django.core.files.storage import default_storage
 from django.core.paginator import Paginator
 from django.db import transaction
@@ -23,7 +24,7 @@ from django.db.models.functions import TruncDate
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
-from .forms import MAX_BATCH_IMAGES, ReviewForm, ScreeningUploadForm
+from .forms import MAX_BATCH_IMAGES, ProfileForm, ReviewForm, ScreeningUploadForm
 from .models import PredictionRecord, ReviewNote
 from .services.gradcam import ExplanationUnavailable, GradCAMGenerator
 from .services.predict import ModelUnavailable, PredictionEngine
@@ -186,13 +187,24 @@ def upload(request):
 def case_detail(request, case_id):
     record = get_object_or_404(PredictionRecord, case_id=case_id)
 
+    # Confirming or dismissing a case is a clinical judgement, so the form is
+    # only offered to the roles that may make one. The check is repeated on the
+    # POST because a hidden form is not an access control.
+    may_review = request.user.profile.may_review
+
     if request.method == "POST":
+        if not may_review:
+            raise PermissionDenied("Your role does not permit recording a review.")
+
         review_form = ReviewForm(request.POST)
         if review_form.is_valid():
             with transaction.atomic():
                 ReviewNote.objects.create(
                     record=record,
-                    reviewer_name=review_form.cleaned_data["reviewer_name"],
+                    reviewer=request.user,
+                    # Kept as well as the link, so the note still reads
+                    # correctly if the account is later removed.
+                    reviewer_name=request.user.profile.display_name,
                     note=review_form.cleaned_data["note"],
                     status_set=review_form.cleaned_data["status_set"],
                 )
@@ -208,8 +220,43 @@ def case_detail(request, case_id):
         {
             "record": record,
             "review_form": review_form,
-            "notes": record.review_notes.all(),
+            "may_review": may_review,
+            "notes": record.review_notes.select_related("reviewer"),
             "active": "cases",
+        },
+    )
+
+
+@login_required
+def profile(request):
+    """The signed-in user's own details, and what they have screened."""
+    profile = request.user.profile
+
+    if request.method == "POST":
+        form = ProfileForm(request.POST, instance=profile)
+        if form.is_valid():
+            form.save()
+            return redirect("screening:profile")
+    else:
+        form = ProfileForm(instance=profile)
+
+    reviewed = ReviewNote.objects.filter(reviewer=request.user).select_related("record")
+    recent = reviewed[:10]
+
+    return render(
+        request,
+        "screening/profile.html",
+        {
+            "profile": profile,
+            "form": form,
+            "active": "profile",
+            "reviewed_total": reviewed.count(),
+            "recent_reviews": recent,
+            "cases_reviewed": (
+                PredictionRecord.objects.filter(review_notes__reviewer=request.user)
+                .distinct()
+                .count()
+            ),
         },
     )
 

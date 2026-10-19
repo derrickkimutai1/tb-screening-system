@@ -11,6 +11,7 @@ history rather than a single overwritten field.
 import uuid
 from pathlib import Path
 
+from django.conf import settings
 from django.db import models
 from django.utils import timezone
 
@@ -192,6 +193,17 @@ class ReviewNote(models.Model):
         on_delete=models.CASCADE,
         related_name="review_notes",
     )
+    # Who wrote it, now that there is a session to ask. The note survives the
+    # account being removed, because a clinical record should not lose its
+    # history when someone leaves; reviewer_name keeps the name as it was at
+    # the time, so an old note still reads correctly either way.
+    reviewer = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="review_notes",
+    )
     reviewer_name = models.CharField(max_length=100, blank=True)
     note = models.TextField()
     status_set = models.CharField(
@@ -205,5 +217,62 @@ class ReviewNote(models.Model):
         ordering = ["-created_at"]
 
     def __str__(self):
-        who = self.reviewer_name or "Unnamed reviewer"
-        return f"{who} on {self.record.patient_reference}"
+        return f"{self.attributed_to} on {self.record.patient_reference}"
+
+    @property
+    def attributed_to(self):
+        """The best name available for whoever wrote this note."""
+        if self.reviewer_id:
+            return self.reviewer.get_full_name() or self.reviewer.email or str(self.reviewer)
+        return self.reviewer_name or "Unnamed reviewer"
+
+
+class Profile(models.Model):
+    """What the system knows about a signed-in member of staff.
+
+    Google answers who someone is. It cannot answer what they are allowed to do
+    here or where they work, so that is kept alongside the account rather than
+    inside it. A profile is created the first time a user signs in, so every
+    account has exactly one and no view has to handle its absence.
+    """
+
+    class Role(models.TextChoices):
+        RADIOGRAPHER = "radiographer", "Radiographer"
+        CLINICIAN = "clinician", "Clinician"
+        ADMINISTRATOR = "administrator", "Administrator"
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="profile",
+    )
+    # A radiographer captures and screens; confirming a case is a clinical
+    # judgement, so review is limited to clinicians and administrators.
+    role = models.CharField(
+        max_length=16,
+        choices=Role.choices,
+        default=Role.RADIOGRAPHER,
+        help_text="Determines whether this user may record a clinical review.",
+    )
+    facility = models.CharField(
+        max_length=120,
+        blank=True,
+        help_text="The clinic or hospital this user works at.",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["user__email"]
+
+    def __str__(self):
+        return f"{self.display_name} ({self.get_role_display()})"
+
+    @property
+    def display_name(self):
+        return self.user.get_full_name() or self.user.email or self.user.get_username()
+
+    @property
+    def may_review(self):
+        """Whether this user may record a clinical review decision."""
+        return self.role in {self.Role.CLINICIAN, self.Role.ADMINISTRATOR}

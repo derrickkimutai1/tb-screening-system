@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import PredictionRecord, ReviewNote
+from .models import PredictionRecord, Profile, ReviewNote
 
 
 class ReviewNoteInline(admin.TabularInline):
@@ -62,3 +62,26 @@ class ReviewNoteAdmin(admin.ModelAdmin):
     list_display = ["record", "reviewer_name", "status_set", "created_at"]
     list_filter = ["status_set"]
     search_fields = ["reviewer_name", "note", "record__patient_reference"]
+
+
+@admin.register(Profile)
+class ProfileAdmin(admin.ModelAdmin):
+    """Where roles are assigned.
+
+    Role is deliberately not editable by its owner, so this is the only place
+    a user becomes a clinician or an administrator.
+    """
+
+    list_display = ["display_name", "role", "facility", "may_review", "created_at"]
+    list_filter = ["role", "facility"]
+    search_fields = ["user__email", "user__username", "facility"]
+    autocomplete_fields = ["user"]
+    readonly_fields = ["created_at", "updated_at"]
+
+    @admin.display(boolean=True, description="May review")
+    def may_review(self, profile):
+        return profile.may_review
+
+    @admin.display(description="Name")
+    def display_name(self, profile):
+        return profile.display_name
