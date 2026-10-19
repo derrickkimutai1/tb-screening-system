@@ -680,3 +680,84 @@ class ReviewPermissionTests(SignedIn, TestCase):
         note = ReviewNote.objects.get()
         self.assertIsNone(note.reviewer)
         self.assertEqual(note.attributed_to, "clinician@example.org")
+
+
+class MetadataStrippingTests(TestCase):
+    """Nothing the system was not given should survive into storage."""
+
+    def exif_image(self, lat=(1, 1, 1)):
+        """A JPEG carrying GPS coordinates, as a phone photograph would."""
+        import piexif
+
+        buffer = io.BytesIO()
+        Image.new("L", (64, 64), color=120).save(buffer, format="JPEG")
+        buffer.seek(0)
+
+        exif = {
+            "0th": {piexif.ImageIFD.Make: b"TestCam"},
+            "GPS": {
+                piexif.GPSIFD.GPSLatitudeRef: b"S",
+                piexif.GPSIFD.GPSLatitude: ((lat[0], 1), (lat[1], 1), (lat[2], 1)),
+            },
+            "Exif": {},
+            "1st": {},
+            "thumbnail": None,
+        }
+        out = io.BytesIO()
+        piexif.insert(piexif.dump(exif), buffer.getvalue(), out)
+        out.seek(0)
+        return SimpleUploadedFile("photo.jpg", out.read(), "image/jpeg")
+
+    def gps_tags(self, handle):
+        """The GPS block Pillow can read back out of a file, if any."""
+        import piexif
+
+        handle.seek(0)
+        data = handle.read()
+        handle.seek(0)
+        try:
+            return piexif.load(data).get("GPS") or {}
+        except (ValueError, piexif.InvalidImageDataError):
+            return {}
+
+    def test_gps_coordinates_do_not_survive(self):
+        from .services.sanitise import strip_metadata
+
+        original = self.exif_image()
+        # The fixture must actually carry coordinates, or the test proves nothing.
+        self.assertTrue(self.gps_tags(original))
+
+        cleaned = strip_metadata(original)
+
+        self.assertFalse(self.gps_tags(cleaned))
+        with Image.open(cleaned) as image:
+            self.assertFalse(image.getexif())
+
+    def test_the_camera_make_does_not_survive(self):
+        import piexif
+
+        from .services.sanitise import strip_metadata
+
+        cleaned = strip_metadata(self.exif_image())
+
+        cleaned.seek(0)
+        self.assertFalse(piexif.load(cleaned.read()).get("0th"))
+
+    def test_the_pixels_are_preserved(self):
+        from .services.sanitise import strip_metadata
+
+        source = make_image("chest.png")
+        with Image.open(source) as before:
+            expected = list(before.convert("L").getdata())
+        source.seek(0)
+
+        with Image.open(strip_metadata(source)) as after:
+            self.assertEqual(list(after.convert("L").getdata()), expected)
+
+    def test_a_file_that_cannot_be_decoded_is_returned_unchanged(self):
+        """Failing here would replace a specific message with a generic error."""
+        from .services.sanitise import strip_metadata
+
+        broken = SimpleUploadedFile("notes.txt", b"not an image", "text/plain")
+
+        self.assertIs(strip_metadata(broken), broken)

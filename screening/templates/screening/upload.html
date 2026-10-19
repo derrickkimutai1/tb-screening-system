@@ -59,9 +59,20 @@
             {% for error in form.xray_image.errors %}
               <p class="field-hint" style="color: var(--triage-high);">{{ error }}</p>
             {% endfor %}
+
+            <!-- Filled in by the script at the foot of this page. The user sees
+                 what they picked, and can drop a wrong file, before anything is
+                 uploaded or screened. -->
+            <div id="selection" class="selection" hidden>
+              <div class="selection-head">
+                <span class="micro">Selected</span>
+                <span class="micro" id="selection-count"></span>
+              </div>
+              <ul class="selection-list" id="selection-list"></ul>
+            </div>
           </div>
 
-          <button type="submit" class="btn btn-action">Analyse radiograph</button>
+          <button type="submit" class="btn btn-action" id="analyse">Analyse radiograph</button>
         </form>
 
       </div>
@@ -121,4 +132,105 @@
 
   </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // Preview the chosen radiographs before they are sent.
+  //
+  // The file input is the browser's own and cannot have entries removed from
+  // it directly, so the selection is held here as a list and written back with
+  // DataTransfer whenever one is dropped. Without that, "Remove" would change
+  // the thumbnails and still upload the file.
+  //
+  // Everything here is a convenience. The server validates the same things
+  // again: a check that only runs in the browser is not a check.
+  (function () {
+    const input = document.getElementById("{{ form.xray_image.id_for_label }}");
+    const panel = document.getElementById("selection");
+    const list = document.getElementById("selection-list");
+    const count = document.getElementById("selection-count");
+    const submit = document.getElementById("analyse");
+    if (!input || !panel) return;
+
+    const limit = {{ max_batch|default:20 }};
+    const maxBytes = {{ max_upload_mb|default:20 }} * 1024 * 1024;
+    let chosen = [];
+
+    input.addEventListener("change", () => {
+      chosen = Array.from(input.files);
+      render();
+    });
+
+    function write() {
+      const transfer = new DataTransfer();
+      chosen.forEach((file) => transfer.items.add(file));
+      input.files = transfer.files;
+    }
+
+    function readable(bytes) {
+      const mb = bytes / (1024 * 1024);
+      return mb < 1 ? `${Math.round(bytes / 1024)} KB` : `${mb.toFixed(1)} MB`;
+    }
+
+    function render() {
+      list.textContent = "";
+      panel.hidden = chosen.length === 0;
+      if (!chosen.length) {
+        submit.disabled = false;
+        return;
+      }
+
+      const tooMany = chosen.length > limit;
+      count.textContent = tooMany
+        ? `${chosen.length} selected, limit ${limit}`
+        : `${chosen.length} of ${limit}`;
+      count.style.color = tooMany ? "var(--triage-high)" : "";
+
+      chosen.forEach((file, index) => {
+        const item = document.createElement("li");
+        item.className = "selection-item";
+
+        const image = document.createElement("img");
+        image.className = "selection-thumb";
+        image.alt = "";
+        image.src = URL.createObjectURL(file);
+        image.addEventListener("load", () => URL.revokeObjectURL(image.src));
+
+        const body = document.createElement("div");
+        body.className = "selection-body";
+
+        const name = document.createElement("span");
+        name.className = "selection-name";
+        name.textContent = file.name;
+
+        const meta = document.createElement("span");
+        meta.className = "selection-meta";
+        const oversize = file.size > maxBytes;
+        meta.textContent = oversize
+          ? `${readable(file.size)} — over the limit, this will be rejected`
+          : readable(file.size);
+        if (oversize) meta.style.color = "var(--triage-high)";
+
+        body.append(name, meta);
+
+        const drop = document.createElement("button");
+        drop.type = "button";
+        drop.className = "selection-drop";
+        drop.textContent = "Remove";
+        drop.setAttribute("aria-label", `Remove ${file.name}`);
+        drop.addEventListener("click", () => {
+          chosen.splice(index, 1);
+          write();
+          render();
+        });
+
+        item.append(image, body, drop);
+        list.append(item);
+      });
+
+      submit.disabled = tooMany;
+    }
+  })();
+</script>
 {% endblock %}

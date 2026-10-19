@@ -29,15 +29,21 @@ from .models import PredictionRecord, ReviewNote
 from .services.gradcam import ExplanationUnavailable, GradCAMGenerator
 from .services.predict import ModelUnavailable, PredictionEngine
 from .services.quality import ImageQualityChecker
+from .services.sanitise import strip_metadata
 
 logger = logging.getLogger(__name__)
 
 
 def store_upload(case_id, uploaded):
-    """Write the upload to media storage and return its stored name."""
+    """Write the upload to media storage and return its stored name.
+
+    The file is stripped of metadata on the way in, so nothing the system was
+    not given is kept, and it is stored under the case id rather than under the
+    name it arrived with.
+    """
     suffix = Path(uploaded.name).suffix.lower() or ".png"
     name = f"uploads/{timezone.now():%Y/%m}/{case_id}{suffix}"
-    return default_storage.save(name, uploaded)
+    return default_storage.save(name, strip_metadata(uploaded))
 
 
 def screen(case_id, image_path):

@@ -8,4 +8,7 @@ matplotlib==3.10.*
 seaborn==0.13.*
 ipykernel==6.*
 ruff==0.14.*
+# Writes EXIF into a test fixture, so the stripping can be shown to work
+# rather than asserted. Not needed to run the application.
+piexif==1.1.*
 pre-commit==4.*

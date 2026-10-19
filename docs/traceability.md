@@ -141,7 +141,7 @@ lungs reduces the model to near chance.
 
 | | |
 |---|---|
-| **Implemented in** | `screening/services/quality.py` |
+| **Implemented in** | `screening/services/quality.py`, previewed before upload by `screening/templates/screening/upload.html` |
 | **Tested by** | `QualityCheckerTests` (6 tests) |
 | **Result** | Blur, under- and over-exposure and undecodable files are detected. Thresholds calibrated against 559 training images. Unusable images are rejected with a specific reason; degraded but usable images are screened with a warning. |
 | **Status** | **Met.** |
@@ -183,7 +183,7 @@ because the proposal governs.
 | | |
 |---|---|
 | **Implemented in** | `screening/tests.py` |
-| **Result** | **67 tests**, covering valid and invalid uploads, oversized files, unsupported types, batch behaviour, quality thresholds, triage boundaries, preprocessing equivalence, authentication, the allowlist, role permissions and review attribution. |
+| **Result** | **71 tests**, covering valid and invalid uploads, oversized files, unsupported types, batch behaviour, quality thresholds, triage boundaries, preprocessing equivalence, authentication, the allowlist, role permissions and review attribution. |
 | **Automation** | GitHub Actions runs lint, formatting, migration checks and the suite against PostgreSQL on every push. |
 | **Record** | `docs/sprint-2-test-record.md` |
 | **Status** | **Met for functional testing. Not met for usability testing** — see below. |
@@ -202,8 +202,6 @@ Stated here rather than left to be discovered.
 | **Grad-CAM lift at chance** | SO3 names explainability as a gap this project addresses. The heatmap does not localise reliably. | Reported as a limitation. The occlusion evidence carries the explainability claim instead. |
 | **WHO specificity target not reachable** | SO1's requirement is not fully satisfiable by this model on this data. | Reported as a finding. |
 | **Score is not calibrated** | 4b displays a raw score, not a probability. | Labelled honestly as a model score. Calibration is future work. |
-| **No image preview before inference** | Course guidance asks that an AI interface preview the submitted input. | Small interface change, not yet made. |
-| **Uploads retain EXIF metadata** | Guidance asks that unnecessary location metadata be removed. | Not yet implemented. |
 | **Any signed-in user can open any case** | There is no per-case ownership check. Defensible for shared clinical records, but it is a decision that has not been written down or agreed. | Confirm with the supervisor whether case access should be restricted by facility. |
 
 ---

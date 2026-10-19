@@ -984,3 +984,100 @@ td.numeric {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* ---- Upload selection preview --------------------------------------------
+   What the user picked, shown before anything is sent. The thumbnails are read
+   from the files in the browser, so nothing has been uploaded at this point. */
+
+.selection {
+  margin-top: 1rem;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.selection-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.selection-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 17rem;
+  overflow-y: auto;
+}
+
+.selection-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.selection-item:last-child {
+  border-bottom: 0;
+}
+
+/* Radiographs are read on black, here as well as on the result page. */
+.selection-thumb {
+  width: 44px;
+  height: 44px;
+  flex: none;
+  object-fit: cover;
+  background: var(--well);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+}
+
+.selection-body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.selection-name {
+  font-size: 0.8125rem;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.selection-meta {
+  font-family: var(--mono);
+  font-size: 0.625rem;
+  letter-spacing: 0.08em;
+  color: var(--ink-dim);
+}
+
+.selection-drop {
+  flex: none;
+  background: transparent;
+  border: 1px solid var(--line-bright);
+  border-radius: var(--r);
+  color: var(--ink-muted);
+  font-family: var(--mono);
+  font-size: 0.625rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 0.3125rem 0.625rem;
+  cursor: pointer;
+  transition: color 0.3s var(--ease), border-color 0.3s var(--ease);
+}
+
+.selection-drop:hover {
+  color: var(--triage-high);
+  border-color: var(--triage-high);
+}
+
+.selection-drop:focus-visible {
+  outline: 2px solid var(--acid);
+  outline-offset: 2px;
+}
