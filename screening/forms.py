@@ -2,11 +2,12 @@
 
 from pathlib import Path
 
+from allauth.socialaccount.forms import SignupForm as SocialAccountSignupForm
 from django import forms
 from django.conf import settings
 from django.template.defaultfilters import filesizeformat
 
-from .models import PredictionRecord, Profile
+from .models import PredictionRecord, Profile, profile_for
 
 ACCEPTED_SUFFIXES = {".png", ".jpg", ".jpeg"}
 
@@ -142,3 +143,73 @@ class ReviewForm(forms.Form):
     note = forms.CharField(
         widget=forms.Textarea(attrs={"class": "form-control", "rows": 3}),
     )
+
+
+class SocialSignupForm(SocialAccountSignupForm):
+    """Completes a new account on its first Google sign-in.
+
+    Google supplies an identity and an email address. It does not know which
+    clinic this person works at, and it has no opinion about what they are
+    allowed to do here, so the first sign-in asks for the one and explains the
+    other.
+
+    Role is not on this form. A new user choosing their own role would be
+    choosing whether they may record clinical reviews, which is the
+    administrator's decision. Everyone starts as a radiographer and the form
+    says so rather than leaving it to be discovered.
+
+    There is no username field either. ACCOUNT_SIGNUP_FIELDS already limits
+    allauth to the email address, so allauth derives a username itself and a
+    clinician is never asked to invent one.
+    """
+
+    first_name = forms.CharField(
+        max_length=150,
+        label="First name",
+        widget=forms.TextInput(attrs={"class": "form-control", "autocomplete": "given-name"}),
+    )
+    last_name = forms.CharField(
+        max_length=150,
+        label="Surname",
+        widget=forms.TextInput(attrs={"class": "form-control", "autocomplete": "family-name"}),
+    )
+    facility = forms.CharField(
+        max_length=120,
+        required=False,
+        label="Clinic or hospital",
+        help_text="Optional. You can set this later from your profile.",
+        widget=forms.TextInput(
+            attrs={"class": "form-control", "placeholder": "Kenyatta National Hospital"}
+        ),
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        # Google has already supplied these and verified the address, so they
+        # are shown as confirmation rather than asked for again. The email
+        # field stays disabled: editing it here would claim an address Google
+        # never vouched for.
+        if "email" in self.fields:
+            self.fields["email"].widget.attrs.update(
+                {"class": "form-control", "readonly": True}
+            )
+        for name in ("first_name", "last_name"):
+            initial = self.initial.get(name) or ""
+            if initial:
+                self.fields[name].initial = initial
+
+    def save(self, request):
+        user = super().save(request)
+
+        user.first_name = self.cleaned_data["first_name"].strip()
+        user.last_name = self.cleaned_data["last_name"].strip()
+        user.save(update_fields=["first_name", "last_name"])
+
+        # The signal has already created the profile by this point, so this
+        # fills it in rather than creating a second one.
+        profile = profile_for(user)
+        profile.facility = self.cleaned_data.get("facility", "").strip()
+        profile.save(update_fields=["facility", "updated_at"])
+
+        return user

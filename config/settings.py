@@ -225,7 +225,11 @@ ACCOUNT_LOGOUT_ON_GET = False
 # again by email would add a step without adding assurance.
 SOCIALACCOUNT_EMAIL_VERIFICATION = "none"
 SOCIALACCOUNT_EMAIL_REQUIRED = True
-SOCIALACCOUNT_AUTO_SIGNUP = True
+# False so the first Google sign-in stops at a form. Google supplies an
+# identity; it cannot say which clinic the person works at, and this is the
+# moment to ask and to explain what their role permits.
+SOCIALACCOUNT_AUTO_SIGNUP = False
+SOCIALACCOUNT_FORMS = {"signup": "screening.forms.SocialSignupForm"}
 SOCIALACCOUNT_LOGIN_ON_GET = False
 SOCIALACCOUNT_STORE_TOKENS = False
 

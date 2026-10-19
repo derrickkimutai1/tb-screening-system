@@ -1035,3 +1035,100 @@ class ProfileWithoutSignalTests(TestCase):
         response = self.client.get(reverse("screening:case_detail", args=[record.case_id]))
 
         self.assertEqual(response.status_code, 200)
+
+
+class SocialSignupFormTests(TestCase):
+    """The form a new user meets on their first Google sign-in.
+
+    Exercised directly rather than through a Google round trip, because the
+    round trip needs Google. What matters here is what the form accepts, what
+    it refuses and what it writes.
+    """
+
+    def build(self, **data):
+        """The form as allauth constructs it, part way through a Google sign-in.
+
+        A real SocialLogin is built rather than mocked: the form reads the
+        address and name Google returned, so a stand-in would test the stand-in.
+        """
+        from allauth.socialaccount.models import SocialAccount, SocialLogin
+
+        from .forms import SocialSignupForm
+
+        fields = {
+            "first_name": "Juliet",
+            "last_name": "Kirui",
+            "email": "juliet@strathmore.edu",
+            "facility": "Kenyatta National Hospital",
+        }
+        fields.update(data)
+
+        pending = get_user_model()(
+            email="juliet@strathmore.edu", first_name="Juliet", last_name="Kirui"
+        )
+        account = SocialAccount(
+            provider="google",
+            uid="1234567890",
+            extra_data={"email": "juliet@strathmore.edu", "name": "Juliet Kirui"},
+        )
+        return SocialSignupForm(
+            data=fields, sociallogin=SocialLogin(user=pending, account=account)
+        )
+
+    def test_a_username_is_not_asked_for(self):
+        """Nothing shows a username, so a clinician is never asked to invent one."""
+        form = self.build()
+
+        self.assertNotIn("username", form.fields)
+
+    def test_the_email_cannot_be_edited(self):
+        """Editing it would claim an address Google never vouched for."""
+        form = self.build()
+
+        self.assertTrue(form.fields["email"].widget.attrs.get("readonly"))
+
+    def test_a_role_cannot_be_chosen(self):
+        """Choosing a role would be choosing whether you may review."""
+        form = self.build()
+
+        self.assertNotIn("role", form.fields)
+
+    def test_a_name_is_required(self):
+        form = self.build(first_name="", last_name="")
+
+        self.assertFalse(form.is_valid())
+        self.assertIn("first_name", form.errors)
+        self.assertIn("last_name", form.errors)
+
+    def test_a_facility_is_optional(self):
+        """It can be set later from the profile page, so it must not block sign-in."""
+        form = self.build(facility="")
+
+        self.assertNotIn("facility", form.errors)
+
+
+class SocialSignupPageTests(TestCase):
+    """The page itself, reached only part way through a sign-in."""
+
+    def test_it_redirects_when_no_sign_in_is_in_progress(self):
+        """Opening it directly is not a route into the system."""
+        response = self.client.get(reverse("socialaccount_signup"))
+
+        self.assertEqual(response.status_code, 302)
+
+    def test_the_project_template_is_the_one_configured(self):
+        """allauth ships a plain version; the gate-styled one must win."""
+        from django.template.loader import get_template
+
+        template = get_template("socialaccount/signup.html")
+
+        self.assertIn("screening", template.origin.name.replace("\\", "/"))
+
+    def test_automatic_signup_is_off(self):
+        """Otherwise allauth creates the account and the form is never shown."""
+        from django.conf import settings
+
+        self.assertFalse(settings.SOCIALACCOUNT_AUTO_SIGNUP)
+        self.assertEqual(
+            settings.SOCIALACCOUNT_FORMS["signup"], "screening.forms.SocialSignupForm"
+        )

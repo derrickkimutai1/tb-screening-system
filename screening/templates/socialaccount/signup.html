@@ -1,0 +1,97 @@
+{% extends "account/base_auth.html" %}
+
+{% block title %}Complete your account{% endblock %}
+
+{% block content %}
+
+<section class="gate-plate">
+  <p class="micro micro-acid">First sign-in</p>
+  <h1 class="display display-lg gate-wordmark">Almost&nbsp;there</h1>
+  <p class="gate-qualifier">Complete your account</p>
+
+  <dl class="gate-spec">
+    <div>
+      <dt>Signed in as</dt>
+      <dd>{{ account.extra_data.email|default:"your Google account" }}</dd>
+    </div>
+    <div><dt>Verified by</dt><dd>Google</dd></div>
+    <div><dt>Starting role</dt><dd>Radiographer</dd></div>
+  </dl>
+
+  <p class="gate-note">
+    Google has confirmed who you are. It cannot say where you work or what you
+    are permitted to do here, so the system asks once and an administrator sets
+    the rest.
+  </p>
+</section>
+
+<section class="gate-action">
+  <div class="gate-action-head">
+    <span class="micro">Your details</span>
+    <span class="micro gate-state gate-state-ready">Verified</span>
+  </div>
+
+  {% if form.non_field_errors %}
+    <div class="notice notice-caution mb-3">{{ form.non_field_errors }}</div>
+  {% endif %}
+
+  <form method="post" action="{% url 'socialaccount_signup' %}" novalidate>
+    {% csrf_token %}
+
+    <div class="mb-3">
+      <label class="field-label" for="{{ form.first_name.id_for_label }}">
+        {{ form.first_name.label }}
+      </label>
+      {{ form.first_name }}
+      {% for error in form.first_name.errors %}
+        <p class="field-hint" style="color: var(--triage-high);">{{ error }}</p>
+      {% endfor %}
+    </div>
+
+    <div class="mb-3">
+      <label class="field-label" for="{{ form.last_name.id_for_label }}">
+        {{ form.last_name.label }}
+      </label>
+      {{ form.last_name }}
+      {% for error in form.last_name.errors %}
+        <p class="field-hint" style="color: var(--triage-high);">{{ error }}</p>
+      {% endfor %}
+    </div>
+
+    <div class="mb-3">
+      <label class="field-label" for="{{ form.email.id_for_label }}">Email address</label>
+      {{ form.email }}
+      <p class="field-hint">Confirmed by Google. This cannot be changed here.</p>
+      {% for error in form.email.errors %}
+        <p class="field-hint" style="color: var(--triage-high);">{{ error }}</p>
+      {% endfor %}
+    </div>
+
+    <div class="mb-4">
+      <label class="field-label" for="{{ form.facility.id_for_label }}">
+        {{ form.facility.label }}
+      </label>
+      {{ form.facility }}
+      <p class="field-hint">{{ form.facility.help_text }}</p>
+      {% for error in form.facility.errors %}
+        <p class="field-hint" style="color: var(--triage-high);">{{ error }}</p>
+      {% endfor %}
+    </div>
+
+    <div class="notice notice-boundary mb-3">
+      You will start as a <strong>radiographer</strong>: you can screen radiographs
+      and read cases, but recording a clinical review needs a clinician. An
+      administrator can change your role.
+    </div>
+
+    <button type="submit" class="btn btn-action">Create account</button>
+    <a class="btn btn-quiet ms-2" href="{% url 'account_login' %}">Cancel</a>
+  </form>
+
+  <p class="gate-fineprint">
+    The system stores your name, email address and the clinic you enter. It never
+    receives your Google password.
+  </p>
+</section>
+
+{% endblock %}
