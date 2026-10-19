@@ -118,7 +118,15 @@ def screen_one(uploaded, reference):
             "reason": report.message,
         }
 
-    fields = screen(case_id, image_path)
+    # The file is on disk before the model is asked for anything, so a failure
+    # from here on has to remove it. Without this a screening that could not
+    # run leaves an image in storage with no record pointing at it, which is
+    # both clutter and a radiograph the system is holding for no reason.
+    try:
+        fields = screen(case_id, image_path)
+    except Exception:
+        default_storage.delete(stored)
+        raise
 
     with transaction.atomic():
         record = PredictionRecord.objects.create(

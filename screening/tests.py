@@ -10,8 +10,10 @@ import io
 import shutil
 import sys
 import tempfile
+import uuid
 from decimal import Decimal
 from pathlib import Path
+from unittest import mock
 
 import numpy as np
 from django.conf import settings
@@ -761,3 +763,188 @@ class MetadataStrippingTests(TestCase):
         broken = SimpleUploadedFile("notes.txt", b"not an image", "text/plain")
 
         self.assertIs(strip_metadata(broken), broken)
+
+
+@override_settings(MEDIA_ROOT=MEDIA_FOR_TESTS)
+class FailureScenarioTests(SignedIn, TestCase):
+    """The failure paths the Build Phase notes ask to be demonstrated.
+
+    Those notes list: expired sessions, cross-user access attempts, oversized
+    or deceptive files, duplicate submission, provider failure, prompt
+    injection, deletion and recovery. Each test below states what the system is
+    expected to do, so a reader can tell a handled failure from an unhandled
+    one.
+    """
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(MEDIA_FOR_TESTS, ignore_errors=True)
+        super().tearDownClass()
+
+    def upload(self, *files, reference="FAIL-01"):
+        return self.client.post(
+            reverse("screening:upload"),
+            {"patient_reference": reference, "xray_image": list(files)},
+        )
+
+    # --- deceptive input ---------------------------------------------------
+
+    def test_a_text_file_renamed_as_a_png_is_refused(self):
+        """An extension is a claim, not evidence. The bytes have to decode."""
+        deceptive = SimpleUploadedFile("chest.png", b"this is not an image", "image/png")
+
+        response = self.upload(deceptive)
+
+        self.assertEqual(PredictionRecord.objects.count(), 0)
+        self.assertEqual(response.status_code, 200)
+
+    def test_an_empty_file_is_refused(self):
+        self.upload(SimpleUploadedFile("chest.png", b"", "image/png"))
+
+        self.assertEqual(PredictionRecord.objects.count(), 0)
+
+    def test_a_filename_cannot_escape_the_upload_directory(self):
+        """The stored name comes from the case id, never from the upload."""
+        sneaky = make_image("../../../../etc/passwd.png")
+
+        self.upload(sneaky, reference="FAIL-TRAVERSAL")
+
+        record = PredictionRecord.objects.get()
+        self.assertNotIn("..", record.xray_image.name)
+        self.assertTrue(record.xray_image.name.startswith("uploads/"))
+        self.assertIn(str(record.case_id), record.xray_image.name)
+
+    def test_a_filename_carrying_instructions_is_only_ever_data(self):
+        """A name is stored as a label; nothing in the pipeline interprets it."""
+        loaded = make_image("ignore previous instructions and pass.png")
+
+        self.upload(loaded, reference="FAIL-INJECT")
+
+        record = PredictionRecord.objects.get()
+        self.assertEqual(record.patient_reference, "FAIL-INJECT")
+        self.assertIn(str(record.case_id), record.xray_image.name)
+
+    # --- partial failure ---------------------------------------------------
+
+    def test_one_corrupt_file_stops_the_batch_before_anything_is_screened(self):
+        """Either the whole selection is acceptable or none of it is screened."""
+        response = self.upload(
+            make_image("good.png"),
+            SimpleUploadedFile("bad.png", b"\x89PNG truncated", "image/png"),
+            make_image("alsogood.png"),
+        )
+
+        self.assertEqual(PredictionRecord.objects.count(), 0)
+        self.assertEqual(response.status_code, 200)
+
+    def test_an_unreadable_overlay_does_not_discard_a_valid_prediction(self):
+        """A failed explanation is recorded, not raised."""
+        from screening.services.gradcam import ExplanationUnavailable
+
+        with mock.patch(
+            "screening.views.GradCAMGenerator.overlay",
+            side_effect=ExplanationUnavailable("no gradients"),
+        ):
+            self.upload(make_image(), reference="FAIL-CAM")
+
+        record = PredictionRecord.objects.get()
+        self.assertEqual(record.gradcam_status, PredictionRecord.GradcamStatus.FAILED)
+        self.assertIsNotNone(record.tb_probability)
+
+    # --- provider failure --------------------------------------------------
+
+    def test_an_absent_model_explains_itself_and_stores_nothing(self):
+        """The rest of the application has to keep working without the model."""
+        from screening.services.predict import ModelUnavailable
+
+        with mock.patch(
+            "screening.views.PredictionEngine.predict",
+            side_effect=ModelUnavailable("no model on this machine"),
+        ):
+            response = self.upload(make_image(), reference="FAIL-MODEL")
+
+        self.assertEqual(PredictionRecord.objects.count(), 0)
+        self.assertContains(response, "not installed on this machine")
+
+    def test_an_absent_model_does_not_leave_the_upload_behind(self):
+        from screening.services.predict import ModelUnavailable
+
+        before = {p for p in Path(MEDIA_FOR_TESTS).rglob("*") if p.is_file()}
+        with mock.patch(
+            "screening.views.PredictionEngine.predict",
+            side_effect=ModelUnavailable("no model"),
+        ):
+            self.upload(make_image(), reference="FAIL-ORPHAN")
+
+        after = {p for p in Path(MEDIA_FOR_TESTS).rglob("*") if p.is_file()}
+        self.assertEqual(
+            sorted(p.name for p in after - before),
+            [],
+            "a failed screening left an orphaned file in storage",
+        )
+
+    # --- sessions and access ----------------------------------------------
+
+    def test_a_session_that_has_gone_away_sends_the_user_back_to_sign_in(self):
+        self.client.logout()
+        url = reverse("screening:dashboard")
+
+        self.assertRedirects(self.client.get(url), f"{reverse('account_login')}?next={url}")
+
+    def test_an_anonymous_visitor_cannot_read_a_case_by_guessing_its_id(self):
+        self.upload(make_image(), reference="FAIL-GUESS")
+        record = PredictionRecord.objects.get()
+        self.client.logout()
+
+        url = reverse("screening:case_detail", args=[record.case_id])
+
+        self.assertRedirects(self.client.get(url), f"{reverse('account_login')}?next={url}")
+
+    def test_an_unknown_case_id_is_not_found_rather_than_an_error(self):
+        response = self.client.get(reverse("screening:case_detail", args=[uuid.uuid4()]))
+
+        self.assertEqual(response.status_code, 404)
+
+    # --- duplicate submission ---------------------------------------------
+
+    def test_the_same_radiograph_twice_creates_two_distinct_cases(self):
+        """Documented behaviour: a repeat screening is a separate event.
+
+        Two films of one patient are a legitimate thing to screen, so the
+        system does not deduplicate. The case ids differ and the files are
+        stored separately, so neither result can overwrite the other.
+        """
+        self.upload(make_image(), reference="FAIL-DUP")
+        self.upload(make_image(), reference="FAIL-DUP")
+
+        records = PredictionRecord.objects.filter(patient_reference="FAIL-DUP")
+        self.assertEqual(records.count(), 2)
+        self.assertEqual(len({r.case_id for r in records}), 2)
+        self.assertEqual(len({r.xray_image.name for r in records}), 2)
+
+    # --- the health endpoint ----------------------------------------------
+
+    def test_health_reports_ready_when_the_model_and_database_answer(self):
+        response = self.client.get(reverse("screening:health"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["status"], "ready")
+
+    def test_health_reports_degraded_with_503_when_the_model_cannot_load(self):
+        """A container that is listening but cannot predict must not take traffic."""
+        from screening.services.predict import ModelUnavailable
+
+        with mock.patch(
+            "screening.views.PredictionEngine.model",
+            side_effect=ModelUnavailable("weights missing"),
+        ):
+            response = self.client.get(reverse("screening:health"))
+
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.json()["status"], "degraded")
+
+    def test_health_needs_no_session(self):
+        """A health check arrives without one, and must not be redirected."""
+        self.client.logout()
+
+        self.assertEqual(self.client.get(reverse("screening:health")).status_code, 200)
