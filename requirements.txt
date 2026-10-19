@@ -2,6 +2,12 @@
 Django==5.2.*
 psycopg[binary]==3.2.*
 python-dotenv==1.*
+# Serves static files from the application process, so a deployed
+# container needs no separate web server in front of it.
+whitenoise==6.*
+# WSGI server for the deployed container; the development server is
+# not suitable and says so.
+gunicorn==23.*
 django-allauth[socialaccount]==65.*
 Pillow==11.*
 numpy==2.*

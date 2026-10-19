@@ -18,9 +18,10 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.core.files.storage import default_storage
 from django.core.paginator import Paginator
-from django.db import transaction
+from django.db import connections, transaction
 from django.db.models import Count
 from django.db.models.functions import TruncDate
+from django.db.utils import OperationalError
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
@@ -351,4 +352,41 @@ def dashboard(request):
             "latest": records[:8],
             "active": "dashboard",
         },
+    )
+
+
+def health(request):
+    """Report whether this instance can actually serve a prediction.
+
+    The deployment guidance asks for a lightweight health endpoint that reports
+    readiness only after the model has loaded. A container that is listening
+    but cannot answer is worse than one that is still starting, because a load
+    balancer will send it traffic.
+
+    Deliberately outside the sign-in gate: a health check has no session, and
+    the response says nothing a visitor could not learn by using the site.
+    """
+    from django.http import JsonResponse
+
+    checks = {}
+    ok = True
+
+    try:
+        connections["default"].cursor().close()
+        checks["database"] = "ok"
+    except OperationalError as error:
+        checks["database"] = f"unavailable: {error.__class__.__name__}"
+        ok = False
+
+    try:
+        engine = PredictionEngine()
+        engine.model()
+        checks["model"] = engine.metadata().get("model_version", "loaded")
+    except (ModelUnavailable, OSError) as error:
+        checks["model"] = f"unavailable: {error.__class__.__name__}"
+        ok = False
+
+    return JsonResponse(
+        {"status": "ready" if ok else "degraded", "checks": checks},
+        status=200 if ok else 503,
     )

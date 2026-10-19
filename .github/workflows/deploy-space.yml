@@ -1,0 +1,120 @@
+# Publish the application to its Hugging Face Space.
+#
+# The course guidance is explicit that "a GitHub main change reaches the Space
+# only if you configure and verify a sync workflow". This is that workflow.
+#
+# It runs only after the test workflow has passed on main, so a broken commit
+# cannot reach the deployment. It is also runnable by hand, which is what makes
+# a rollback possible: dispatch it against an earlier commit.
+name: deploy to hugging face
+
+on:
+  workflow_run:
+    workflows: ["checks"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  # One deployment at a time. Two pushes racing each other would leave the
+  # Space on whichever finished last rather than whichever is newer.
+  group: huggingface-space
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    # On a workflow_run this is only reached when CI succeeded. A manual
+    # dispatch has no such result and is allowed through deliberately.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out the commit being deployed
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.ref }}
+
+      - name: Fail early if the Space is not configured
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_SPACE: ${{ vars.HF_SPACE }}
+        run: |
+          if [ -z "$HF_TOKEN" ] || [ -z "$HF_SPACE" ]; then
+            echo "::error::Set the HF_TOKEN secret and the HF_SPACE variable."
+            echo "HF_SPACE looks like: your-username/tb-screening-system"
+            exit 1
+          fi
+
+      - name: Build the Space tree
+        run: |
+          set -euo pipefail
+          mkdir -p ../space
+          # Everything except the repository's own history and the files the
+          # container has no use for. Kept in step with .dockerignore.
+          rsync -a --delete \
+            --exclude '.git/' \
+            --exclude '.venv/' \
+            --exclude 'data/' \
+            --exclude 'media/' \
+            --exclude 'staticfiles/' \
+            --exclude 'gradcam_samples/' \
+            --exclude 'ml/models/checkpoints/' \
+            ./ ../space/
+          # A Space is configured by YAML at the top of its README, which the
+          # project README must not carry.
+          cat deploy/space-header.md ../space/README.md > ../space/README.tmp
+          mv ../space/README.tmp ../space/README.md
+
+      - name: Push to the Space
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+          HF_SPACE: ${{ vars.HF_SPACE }}
+          SOURCE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+        run: |
+          set -euo pipefail
+          cd ../space
+          git init -q
+          git lfs install --local
+          # Hugging Face requires anything over 10 MB to be stored with LFS,
+          # and the trained model is about 26 MB. Tracked here rather than in
+          # the GitHub repository, so the source repository stays plain.
+          git lfs track "*.keras" "*.png" "*.zip"
+          git add .gitattributes
+          git config user.email "derrick.kimutai@strathmore.edu"
+          git config user.name "DERRICK KIMUTAI"
+          git add -A
+          # The Space keeps no history of its own; it mirrors a commit of the
+          # source repository, and the message records which one.
+          git commit -q -m "Deploy ${SOURCE_SHA}"
+          git push -q --force \
+            "https://user:${HF_TOKEN}@huggingface.co/spaces/${HF_SPACE}" \
+            HEAD:refs/heads/main
+          echo "Pushed ${SOURCE_SHA} to https://huggingface.co/spaces/${HF_SPACE}"
+
+      - name: Wait for the Space to report itself ready
+        env:
+          HF_SPACE: ${{ vars.HF_SPACE }}
+        run: |
+          set -uo pipefail
+          # A push starts a rebuild; the image installs TensorFlow, so the
+          # first one is slow. A deployment that is never checked is not a
+          # deployment, so this polls the health endpoint the container
+          # exposes rather than assuming the push was enough.
+          host="$(echo "$HF_SPACE" | tr '/' '-' | tr '[:upper:]' '[:lower:]')"
+          url="https://${host}.hf.space/health/"
+          echo "polling ${url}"
+          for attempt in $(seq 1 60); do
+            code="$(curl -s -o /tmp/health.json -w '%{http_code}' "$url" || true)"
+            if [ "$code" = "200" ]; then
+              echo "ready after ${attempt} attempts"
+              cat /tmp/health.json
+              exit 0
+            fi
+            echo "  attempt ${attempt}: HTTP ${code:-no response}"
+            sleep 20
+          done
+          echo "::warning::The Space did not report ready within 20 minutes."
+          echo "::warning::Check the build logs at https://huggingface.co/spaces/${HF_SPACE}"
+          cat /tmp/health.json 2>/dev/null || true

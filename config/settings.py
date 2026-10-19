@@ -7,7 +7,9 @@ committed. See .env.example for the expected keys.
 
 import os
 from pathlib import Path
+from urllib.parse import parse_qs, unquote, urlparse
 
+from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -53,6 +55,9 @@ SITE_ID = 1
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    # Directly after SecurityMiddleware, which is where WhiteNoise has to sit
+    # to serve static files without a separate web server.
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -86,16 +91,55 @@ TEMPLATES = [
 WSGI_APPLICATION = "config.wsgi.application"
 
 
-DATABASES = {
-    "default": {
+def database_from_url(url):
+    """Turn a postgres:// connection string into Django's settings dict.
+
+    Hosted databases hand out one URL rather than five separate values, so a
+    deployment can be configured with a single secret. Parsed here rather than
+    with a dependency, because it is a dozen lines and the alternative is one
+    more package to keep current.
+    """
+    parsed = urlparse(url)
+    if parsed.scheme not in {"postgres", "postgresql"}:
+        raise ImproperlyConfigured(
+            f"DATABASE_URL must be a postgres URL, got {parsed.scheme!r}"
+        )
+
+    options = {}
+    # Managed providers require TLS and will refuse a plain connection, so the
+    # mode travels in the query string rather than being assumed here.
+    query = parse_qs(parsed.query)
+    if "sslmode" in query:
+        options["sslmode"] = query["sslmode"][0]
+
+    return {
         "ENGINE": "django.db.backends.postgresql",
-        "NAME": os.environ["DB_NAME"],
-        "USER": os.environ["DB_USER"],
-        "PASSWORD": os.environ["DB_PASSWORD"],
-        "HOST": os.environ.get("DB_HOST", "localhost"),
-        "PORT": os.environ.get("DB_PORT", "5432"),
+        "NAME": unquote(parsed.path.lstrip("/")),
+        "USER": unquote(parsed.username or ""),
+        "PASSWORD": unquote(parsed.password or ""),
+        "HOST": parsed.hostname or "",
+        "PORT": str(parsed.port or 5432),
+        "OPTIONS": options,
+        # A hosted database is reached over the network, so reusing a
+        # connection for a few minutes avoids paying the handshake on every
+        # request. Left at 0 locally, where the cost is negligible.
+        "CONN_MAX_AGE": int(os.environ.get("DB_CONN_MAX_AGE", "60")),
     }
-}
+
+
+if os.environ.get("DATABASE_URL"):
+    DATABASES = {"default": database_from_url(os.environ["DATABASE_URL"])}
+else:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.postgresql",
+            "NAME": os.environ["DB_NAME"],
+            "USER": os.environ["DB_USER"],
+            "PASSWORD": os.environ["DB_PASSWORD"],
+            "HOST": os.environ.get("DB_HOST", "localhost"),
+            "PORT": os.environ.get("DB_PORT", "5432"),
+        }
+    }
 
 
 AUTH_PASSWORD_VALIDATORS = [
@@ -116,6 +160,14 @@ USE_TZ = True
 
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
+
+# Served by WhiteNoise rather than by a separate web server. The deployed
+# container runs one process; adding nginx in front of it to serve a handful of
+# files would be more to configure and more to go wrong.
+STORAGES = {
+    "default": {"BACKEND": "django.core.files.storage.FileSystemStorage"},
+    "staticfiles": {"BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage"},
+}
 
 # Uploaded X-rays and generated heatmap overlays. Only the paths are stored in
 # PostgreSQL; the image data itself stays on disk.
@@ -212,3 +264,38 @@ if GOOGLE_SIGN_IN_CONFIGURED:
     }
 else:
     SOCIALACCOUNT_PROVIDERS = {}
+
+
+# ---------------------------------------------------------------------------
+# Running behind a proxy
+#
+# A hosted deployment terminates TLS at a load balancer and forwards plain HTTP
+# to the container. Without the header below Django believes every request is
+# insecure, which breaks the OAuth callback: it builds an http:// redirect URI,
+# Google compares it to the https:// one registered in the console, and the
+# sign-in fails with redirect_uri_mismatch.
+#
+# The header is only trusted when the deployment sets it, because a client can
+# send X-Forwarded-Proto itself and must not be able to claim its own request
+# was secure.
+# ---------------------------------------------------------------------------
+
+if env_flag("DJANGO_BEHIND_PROXY"):
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+    USE_X_FORWARDED_HOST = True
+
+# Django 4 onwards checks the Origin header on unsafe requests against this
+# list, so the deployed host has to appear here as well as in ALLOWED_HOSTS.
+CSRF_TRUSTED_ORIGINS = [
+    origin.strip()
+    for origin in os.environ.get("DJANGO_CSRF_TRUSTED_ORIGINS", "").split(",")
+    if origin.strip()
+]
+
+if not DEBUG:
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SESSION_COOKIE_HTTPONLY = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    SECURE_REFERRER_POLICY = "same-origin"
+    X_FRAME_OPTIONS = "DENY"
