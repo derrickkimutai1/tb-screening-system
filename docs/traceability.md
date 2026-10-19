@@ -88,11 +88,19 @@ asserts that equivalence.
 | **Status** | **Met, with a deliberate deviation from the proposal's wording.** |
 
 The proposal says "confidence score". The interface says **model score**. The
-deviation is intentional: a sigmoid output is not a calibrated probability, and the
-course guidance is explicit that a raw score should not be labelled as confidence.
-Calling 0.0032 a "0.3% confidence" would assert a calibration that has never been
-measured. The figure is shown as what it is, with the threshold it is compared
-against, and calibration is listed under future work.
+deviation is intentional, and it is now measured rather than assumed.
+
+`ml/scripts/evaluate_calibration.py` on the validation split: **expected
+calibration error 0.1018**, worst populated bin off by **0.3498**. The model is
+systematically **underconfident** — images scoring around 0.24 are actually TB
+56% of the time, and every one of the ten bins below 0.5 understates the true
+rate. Brier score 0.1302 against 0.2500 for predicting the base rate alone, so
+the score is informative; it is simply not a probability.
+
+Calling 0.0032 a "0.3% confidence" would therefore have been wrong by a
+measurable margin, not merely imprecise. Evidence:
+`ml/artifacts/calibration.json`, `calibration.png`. Calibrating the score, by
+Platt scaling or isotonic regression fitted on validation, is future work.
 
 ### 4c — Triage level
 
@@ -176,6 +184,7 @@ because the proposal governs.
 | Cross-dataset generalisation | Changing hospital costs **0.071 AUC** (0.9336 → 0.8625) | `cross_dataset.json` |
 | Shortcut and occlusion testing | Source AUC 1.000 available, occlusion cost 0.021, lungs 0.788 vs surroundings 0.545 | `shortcut_tests.json` / `.png` |
 | Explanation quality | Lift 1.00 against lung masks | `gradcam_evaluation.json` |
+| Score calibration | ECE 0.1018, underconfident; not a probability | `calibration.json` / `.png` |
 | Overfitting diagnosis | Mild, AUC gap 0.057 | `model_report_reg-both.md` |
 
 ### System testing
@@ -201,7 +210,7 @@ Stated here rather than left to be discovered.
 | **Chapters 5 and 6 not written** | Required for submission. | Evidence exists for every claim; the writing does not. |
 | **Grad-CAM lift at chance** | SO3 names explainability as a gap this project addresses. The heatmap does not localise reliably. | Reported as a limitation. The occlusion evidence carries the explainability claim instead. |
 | **WHO specificity target not reachable** | SO1's requirement is not fully satisfiable by this model on this data. | Reported as a finding. |
-| **Score is not calibrated** | 4b displays a raw score, not a probability. | Labelled honestly as a model score. Calibration is future work. |
+| **Score is not calibrated** | 4b displays a raw score, not a probability. Now measured: ECE 0.1018, underconfident. | Labelled honestly as a model score. Platt or isotonic calibration is future work. |
 | **Any signed-in user can open any case** | There is no per-case ownership check. Defensible for shared clinical records, but it is a decision that has not been written down or agreed. | Confirm with the supervisor whether case access should be restricted by facility. |
 
 ---

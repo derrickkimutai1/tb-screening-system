@@ -1,0 +1,105 @@
+{
+  "model_version": "tb_mobilenetv2_v1",
+  "split": "validation",
+  "images": 121,
+  "bins": 10,
+  "base_rate": 0.4959,
+  "brier_score": 0.1302,
+  "brier_score_base_rate_only": 0.25,
+  "expected_calibration_error": 0.1018,
+  "maximum_calibration_error": 0.3498,
+  "interpretation": "The score is not calibrated: ECE 0.1018 and a worst bin off by 0.3498. Displaying it as a percentage would assert an accuracy it does not have, which is why the interface labels it a model score and reports AUC instead. Calibrating it, by Platt scaling or isotonic regression fitted on validation, is recorded as future work.",
+  "note": "Measured on the validation split. The test split was deliberately not used: it has been consulted three times already, and calibration is something to know before deciding whether to show a percentage to a clinician rather than a final result to report.",
+  "bins_detail": [
+    {
+      "bin": 0,
+      "lower": 0.0,
+      "upper": 0.1,
+      "count": 43,
+      "mean_score": 0.0313,
+      "observed_rate": 0.093,
+      "gap": 0.0617
+    },
+    {
+      "bin": 1,
+      "lower": 0.1,
+      "upper": 0.2,
+      "count": 14,
+      "mean_score": 0.1442,
+      "observed_rate": 0.2857,
+      "gap": 0.1415
+    },
+    {
+      "bin": 2,
+      "lower": 0.2,
+      "upper": 0.3,
+      "count": 9,
+      "mean_score": 0.2368,
+      "observed_rate": 0.5556,
+      "gap": 0.3188
+    },
+    {
+      "bin": 3,
+      "lower": 0.3,
+      "upper": 0.4,
+      "count": 3,
+      "mean_score": 0.3453,
+      "observed_rate": 0.3333,
+      "gap": -0.0119
+    },
+    {
+      "bin": 4,
+      "lower": 0.4,
+      "upper": 0.5,
+      "count": 5,
+      "mean_score": 0.4429,
+      "observed_rate": 0.6,
+      "gap": 0.1571
+    },
+    {
+      "bin": 5,
+      "lower": 0.5,
+      "upper": 0.6,
+      "count": 2,
+      "mean_score": 0.5464,
+      "observed_rate": 0.5,
+      "gap": -0.0464
+    },
+    {
+      "bin": 6,
+      "lower": 0.6,
+      "upper": 0.7,
+      "count": 5,
+      "mean_score": 0.6502,
+      "observed_rate": 1.0,
+      "gap": 0.3498
+    },
+    {
+      "bin": 7,
+      "lower": 0.7,
+      "upper": 0.8,
+      "count": 4,
+      "mean_score": 0.7594,
+      "observed_rate": 0.75,
+      "gap": -0.0094
+    },
+    {
+      "bin": 8,
+      "lower": 0.8,
+      "upper": 0.9,
+      "count": 5,
+      "mean_score": 0.842,
+      "observed_rate": 1.0,
+      "gap": 0.158
+    },
+    {
+      "bin": 9,
+      "lower": 0.9,
+      "upper": 1.0,
+      "count": 31,
+      "mean_score": 0.9783,
+      "observed_rate": 0.9355,
+      "gap": -0.0428
+    }
+  ]
+}
