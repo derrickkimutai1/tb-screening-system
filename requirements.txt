@@ -2,6 +2,7 @@
 Django==5.2.*
 psycopg[binary]==3.2.*
 python-dotenv==1.*
+django-allauth[socialaccount]==65.*
 Pillow==11.*
 numpy==2.*
 opencv-python-headless==4.12.*

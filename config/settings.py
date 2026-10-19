@@ -41,8 +41,15 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "django.contrib.sites",
+    "allauth",
+    "allauth.account",
+    "allauth.socialaccount",
+    "allauth.socialaccount.providers.google",
     "screening",
 ]
+
+SITE_ID = 1
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
@@ -52,6 +59,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "allauth.account.middleware.AccountMiddleware",
 ]
 
 ROOT_URLCONF = "config.urls"
@@ -59,13 +67,17 @@ ROOT_URLCONF = "config.urls"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [],
+        # Listed ahead of the application directories so that the sign-in and
+        # sign-out pages in screening/templates/account/ are found before the
+        # plain ones allauth ships with.
+        "DIRS": [BASE_DIR / "screening" / "templates"],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "screening.context_processors.sign_in_state",
             ],
         },
     },
@@ -120,3 +132,83 @@ DATA_UPLOAD_MAX_MEMORY_SIZE = MAX_UPLOAD_BYTES
 ML_DIR = BASE_DIR / "ml"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+
+# ---------------------------------------------------------------------------
+# Sign-in
+#
+# Clinical records should not be readable by an anonymous visitor, so every
+# screening view requires a signed-in user. Accounts are not created in the
+# application: a user signs in with an existing Google account and Google
+# vouches for the address. That removes password storage, password reset and
+# the whole class of credential-handling problems from this codebase.
+#
+# The credentials come from the environment and are never committed. When they
+# are absent the application still runs: the Google provider is simply not
+# registered and the sign-in page says so, which keeps a checkout without a
+# .env usable for the test suite and for continuous integration.
+# ---------------------------------------------------------------------------
+
+AUTHENTICATION_BACKENDS = [
+    # Required for the Django admin and for createsuperuser accounts.
+    "django.contrib.auth.backends.ModelBackend",
+    "allauth.account.auth_backends.AuthenticationBackend",
+]
+
+LOGIN_URL = "account_login"
+LOGIN_REDIRECT_URL = "screening:upload"
+LOGOUT_REDIRECT_URL = "account_login"
+
+# No local registration. The only ways in are Google and a superuser created
+# from the command line, so there is no self-service password to steal.
+ACCOUNT_ADAPTER = "screening.auth.ScreeningAccountAdapter"
+SOCIALACCOUNT_ADAPTER = "screening.auth.ScreeningSocialAccountAdapter"
+
+ACCOUNT_LOGIN_METHODS = {"email"}
+ACCOUNT_SIGNUP_FIELDS = ["email*"]
+ACCOUNT_EMAIL_VERIFICATION = "none"
+ACCOUNT_LOGOUT_ON_GET = False
+
+# Google has already verified the address, so asking the user to confirm it
+# again by email would add a step without adding assurance.
+SOCIALACCOUNT_EMAIL_VERIFICATION = "none"
+SOCIALACCOUNT_EMAIL_REQUIRED = True
+SOCIALACCOUNT_AUTO_SIGNUP = True
+SOCIALACCOUNT_LOGIN_ON_GET = False
+SOCIALACCOUNT_STORE_TOKENS = False
+
+GOOGLE_OAUTH_CLIENT_ID = os.environ.get("GOOGLE_OAUTH_CLIENT_ID", "").strip()
+GOOGLE_OAUTH_CLIENT_SECRET = os.environ.get("GOOGLE_OAUTH_CLIENT_SECRET", "").strip()
+
+GOOGLE_SIGN_IN_CONFIGURED = bool(GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET)
+
+# Who is allowed in. An empty allowlist admits any Google account, which is
+# acceptable for a local demonstration but not for a deployment holding
+# clinical records, so both keys are documented in .env.example.
+SIGN_IN_ALLOWED_DOMAINS = {
+    domain.strip().lower().lstrip("@")
+    for domain in os.environ.get("SIGN_IN_ALLOWED_DOMAINS", "").split(",")
+    if domain.strip()
+}
+SIGN_IN_ALLOWED_EMAILS = {
+    address.strip().lower()
+    for address in os.environ.get("SIGN_IN_ALLOWED_EMAILS", "").split(",")
+    if address.strip()
+}
+
+if GOOGLE_SIGN_IN_CONFIGURED:
+    SOCIALACCOUNT_PROVIDERS = {
+        "google": {
+            "APP": {
+                "client_id": GOOGLE_OAUTH_CLIENT_ID,
+                "secret": GOOGLE_OAUTH_CLIENT_SECRET,
+                "key": "",
+            },
+            "SCOPE": ["profile", "email"],
+            # No refresh token is wanted: the application acts only while the
+            # user is present and never calls Google on their behalf later.
+            "AUTH_PARAMS": {"access_type": "online"},
+        }
+    }
+else:
+    SOCIALACCOUNT_PROVIDERS = {}

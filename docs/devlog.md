@@ -320,3 +320,56 @@ and the record appears in the dashboard, the case history and the Django admin.
 
 **Blockers**
 - None.
+
+---
+
+## 19 October 2026 — Sign-in
+
+The screening views were open to anyone who could reach the port. The brief puts
+login and role management outside the core scope "unless time and requirements
+permit it" (section 118), and the records are clinical, so the gate went in.
+
+**The approach: no passwords in this codebase**
+- Identity comes from Google through `django-allauth`. The application never sees
+  a password, so it has none to store, hash, reset, leak or get wrong.
+- Local registration is closed, `screening/auth.py:ScreeningAccountAdapter`. The
+  only routes in are Google and a `createsuperuser` account for the Django admin.
+- A Google account alone is not a credential for clinical records, so admission
+  is by allowlist on top of it: `SIGN_IN_ALLOWED_EMAILS` and
+  `SIGN_IN_ALLOWED_DOMAINS`. The check runs on every sign-in rather than only at
+  first sign-up, so removing an address locks out a returning user too.
+- An empty allowlist admits any Google account. That is the local-demonstration
+  default and is marked in `.env.example` as unsuitable for deployment.
+
+**Keeping a credential-free checkout runnable**
+- The Google provider is registered only when both credentials are present in the
+  environment. Without them the application still starts, the sign-in page reports
+  the provider as unconfigured, and the test suite and CI run unchanged. This
+  matters because the credentials cannot be committed.
+
+**Other pieces**
+- `screening/migrations/0002_site_domain.py` names the `django.contrib.sites` row
+  from `DJANGO_SITE_DOMAIN`, defaulting to `localhost:8000`. The shipped default
+  of `example.com` would otherwise send a successful sign-in to a domain nobody
+  owns.
+- The sign-in page is its own template at `screening/templates/account/login.html`
+  with no navigation, since there is nowhere to go without a session. `TEMPLATES`
+  now lists `screening/templates` in `DIRS` so it is found ahead of the plain
+  pages allauth ships.
+- The masthead carries the signed-in address, so it is always clear whose session
+  is recording a review.
+
+**Tests**
+- 42 pass, up from 29. The new ones cover redirection of anonymous visitors from
+  all four views including a case record, the closed registration route, the gate
+  rendering without credentials, and eight allowlist cases including a lookalike
+  domain.
+
+**Still to do**
+- Attribute `ReviewNote` to the signed-in user. The model records a reviewer name
+  as free text today; now that there is a session it should be a foreign key.
+- Role separation. Everyone who signs in currently has the same access.
+
+**Blockers**
+- The Google Cloud Console credentials have to be created by hand; the steps are
+  in `docs/google-sign-in-setup.md`.

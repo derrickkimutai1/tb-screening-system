@@ -15,6 +15,7 @@ from pathlib import Path
 
 import numpy as np
 from django.conf import settings
+from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import TestCase, override_settings
 from django.urls import reverse
@@ -37,8 +38,26 @@ def make_image(name="chest.png", size=(64, 64), fmt="PNG"):
     return SimpleUploadedFile(name, buffer.read(), content_type=content_type)
 
 
+class SignedIn:
+    """Puts a signed-in clinician behind the client.
+
+    Every screening view requires a session, so a test exercising one has to
+    establish it first. Sign-in itself goes through Google and is covered
+    separately in SignInTests.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.clinician = get_user_model().objects.create_user(
+            username="clinician",
+            email="clinician@example.org",
+            password="not-used-for-sign-in",
+        )
+        self.client.force_login(self.clinician)
+
+
 @override_settings(MEDIA_ROOT=MEDIA_FOR_TESTS)
-class UploadTests(TestCase):
+class UploadTests(SignedIn, TestCase):
     @classmethod
     def tearDownClass(cls):
         shutil.rmtree(MEDIA_FOR_TESTS, ignore_errors=True)
@@ -132,13 +151,14 @@ class UploadTests(TestCase):
 
 
 @override_settings(MEDIA_ROOT=MEDIA_FOR_TESTS)
-class ReportingTests(TestCase):
+class ReportingTests(SignedIn, TestCase):
     @classmethod
     def tearDownClass(cls):
         shutil.rmtree(MEDIA_FOR_TESTS, ignore_errors=True)
         super().tearDownClass()
 
     def setUp(self):
+        super().setUp()
         for reference in ("DEMO-201", "DEMO-202"):
             self.client.post(
                 reverse("screening:upload"),
@@ -334,3 +354,97 @@ class TriageTests(TestCase):
     def test_every_decision_explains_itself(self):
         for probability in (0.05, 0.5, 0.99):
             self.assertTrue(self.decide(probability).justification)
+
+
+class SignInTests(TestCase):
+    """The gate: who is turned away, who is let through, and what is on offer."""
+
+    def setUp(self):
+        self.protected = [
+            reverse("screening:upload"),
+            reverse("screening:case_list"),
+            reverse("screening:dashboard"),
+        ]
+
+    def test_an_anonymous_visitor_is_sent_to_the_sign_in_page(self):
+        for url in self.protected:
+            with self.subTest(url=url):
+                response = self.client.get(url)
+                self.assertRedirects(response, f"{reverse('account_login')}?next={url}")
+
+    def test_a_case_record_is_not_readable_without_a_session(self):
+        record = PredictionRecord.objects.create(
+            patient_reference="DEMO-900",
+            xray_image="x.png",
+            tb_probability=Decimal("0.5"),
+            triage_level=PredictionRecord.TriageLevel.MEDIUM,
+            model_version="test",
+            decision_threshold=Decimal("0.102"),
+            triage_low_medium_threshold=Decimal("0.102"),
+            triage_medium_high_threshold=Decimal("0.546"),
+        )
+        url = reverse("screening:case_detail", args=[record.case_id])
+
+        response = self.client.get(url)
+
+        self.assertRedirects(response, f"{reverse('account_login')}?next={url}")
+
+    def test_a_signed_in_clinician_reaches_the_screening_page(self):
+        user = get_user_model().objects.create_user(username="c", email="c@example.org")
+        self.client.force_login(user)
+
+        response = self.client.get(reverse("screening:upload"))
+
+        self.assertEqual(response.status_code, 200)
+
+    def test_local_registration_is_closed(self):
+        """There is no password in this system, so there is none to steal."""
+        from screening.auth import ScreeningAccountAdapter
+
+        self.assertFalse(ScreeningAccountAdapter().is_open_for_signup(None))
+
+    @override_settings(GOOGLE_SIGN_IN_CONFIGURED=False)
+    def test_the_gate_still_renders_without_google_credentials(self):
+        """A checkout with no .env must still start, for CI and for marking."""
+        response = self.client.get(reverse("account_login"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "not configured")
+
+
+class AllowlistTests(TestCase):
+    """A Google account on its own is not a credential for clinical records."""
+
+    def check(self, email, emails=(), domains=()):
+        from screening.auth import address_is_allowed
+
+        with override_settings(
+            SIGN_IN_ALLOWED_EMAILS=set(emails),
+            SIGN_IN_ALLOWED_DOMAINS=set(domains),
+        ):
+            return address_is_allowed(email)
+
+    def test_an_empty_allowlist_admits_anyone(self):
+        self.assertTrue(self.check("anyone@gmail.com"))
+
+    def test_a_listed_address_is_admitted(self):
+        self.assertTrue(self.check("juliet@strathmore.edu", emails={"juliet@strathmore.edu"}))
+
+    def test_an_unlisted_address_is_refused(self):
+        self.assertFalse(self.check("stranger@gmail.com", emails={"juliet@strathmore.edu"}))
+
+    def test_a_listed_domain_admits_its_members(self):
+        self.assertTrue(self.check("anyone@strathmore.edu", domains={"strathmore.edu"}))
+
+    def test_a_domain_allowlist_refuses_other_domains(self):
+        self.assertFalse(self.check("anyone@gmail.com", domains={"strathmore.edu"}))
+
+    def test_matching_ignores_case_and_surrounding_space(self):
+        self.assertTrue(self.check("  Juliet@Strathmore.EDU ", domains={"strathmore.edu"}))
+
+    def test_an_account_without_an_address_is_refused(self):
+        self.assertFalse(self.check("", domains={"strathmore.edu"}))
+
+    def test_a_lookalike_domain_is_refused(self):
+        """notstrathmore.edu must not pass a strathmore.edu allowlist."""
+        self.assertFalse(self.check("a@notstrathmore.edu", domains={"strathmore.edu"}))
