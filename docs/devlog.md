@@ -320,3 +320,59 @@ and the record appears in the dashboard, the case history and the Django admin.
 
 **Blockers**
 - None.
+
+---
+
+## 19 October 2026 — Sprint review feedback, and what it exposed
+
+The sprint review went badly. Three things were asked for that the project could
+not answer, and all three were fair.
+
+**1. No architecture was ever compared.** The proposal names MobileNetV2 and
+justifies it by deployment: a clinic without a GPU. Seven runs existed, all of
+them MobileNetV2, differing only in augmentation and regularisation. That is
+hyperparameter tuning, not model selection. The lecturer's own course notes ask
+under "CS Project II: Evidence Students Should Prepare" for "the baseline,
+controlled comparisons ... and computing budget", and page 35 sets an activity
+called "Choose the Better Model" on exactly this trade-off. The project had none
+of it.
+
+`train_model.py` now takes `--architecture`. Four are registered: MobileNetV2,
+ResNet50, EfficientNetB0, and a small convolutional network with no pretrained
+weights as the simpler baseline the checklist asks for. Every run shares the
+splits, the head, the schedule, the regularisation and the seed, so a difference
+is attributable to the architecture. What must differ is the input convention
+each network was pretrained on, so `ml/preprocessing.py` stays the single source
+of truth for reading a file and the conversion happens inside the model.
+
+`compare_architectures.py` writes the comparison and the figure, including
+bootstrap confidence intervals on the difference, because a gap of a few
+hundredths of AUC on 121 validation images may be nothing.
+
+**2. The upload accepted one image at a time.** It now accepts a multiple
+selection, up to 20, screening each separately. A single upload is unchanged.
+A batch turns the reference into a zero-padded prefix and reports what was
+screened and what the quality check turned away.
+
+**3. Grad-CAM was measured, not just described.** See the entry below; the
+7 by 7 map was worse than chance and is now at chance.
+
+**Two bugs the work exposed**
+- `record_experiment` wrote `dropout` and `weight_decay` into a row whose column
+  list omitted both, so any new run would have raised ValueError after training
+  finished. It had never fired because the seven existing runs predate the
+  columns being added to the row. Fixed, and the existing rows were backfilled
+  from each run's own `metadata.json` rather than from memory.
+- The first ResNet50 adapter wrapped `preprocess_input` in a `Lambda`. It trained
+  correctly and could not be deserialised, so the saved model would not load. A
+  one-epoch smoke test caught it before the long run; the adapter is now built
+  from stock layers.
+
+**A correction to the record**
+The Grad-CAM lift of 1.11 recorded on 17 October was measured on the test split
+alone, 21 Montgomery images. Across all 138 the same configuration gives 0.49.
+The earlier figure was flattered by the sample, and the conclusion drawn from it
+was too generous.
+
+**Blockers**
+- None.

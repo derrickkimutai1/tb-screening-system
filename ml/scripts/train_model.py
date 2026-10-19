@@ -37,6 +37,7 @@ import os
 import random
 import shutil
 import sys
+import time
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -58,6 +59,60 @@ EXPERIMENTS = ARTIFACTS / "experiments.csv"
 
 MODEL_VERSION = "tb_mobilenetv2_v1"
 SEED = 42
+
+# Candidate architectures.
+#
+# The proposal names MobileNetV2 and gives a deployment reason: a clinic in a
+# resource-constrained setting runs this on a CPU. That is a reason to prefer a
+# compact network, not evidence that a compact network suffices, so the
+# alternatives here exist to test the claim rather than to replace it.
+#
+# Every one is a pretrained ImageNet feature extractor carrying the same
+# classification head, trained on the same splits with the same schedule and
+# seed, so a difference in validation AUC is attributable to the architecture.
+#
+# They disagree about how pixels should arrive. ml/preprocessing.py stays the
+# single source of truth for turning a file into an array and always produces
+# [-1, 1]; each entry says how to convert that into what its network expects,
+# so preprocessing stays shared and the adaptation stays visible.
+ARCHITECTURES = {
+    "mobilenetv2": {
+        "module": "keras.applications.mobilenet_v2",
+        "callable": "MobileNetV2",
+        # MobileNetV2 is itself trained on [-1, 1]; nothing to convert.
+        "input_range": "signed_unit",
+        "note": "Proposal section 3.2.3. Depthwise separable convolutions.",
+    },
+    "resnet50": {
+        "module": "keras.applications.resnet50",
+        "callable": "ResNet50",
+        # Caffe-style: BGR channel order, zero-centred on the ImageNet mean,
+        # expecting 0-255 rather than [-1, 1].
+        "input_range": "caffe",
+        "note": "Residual connections. The common heavyweight baseline.",
+    },
+    "efficientnetb0": {
+        "module": "keras.applications.efficientnet",
+        "callable": "EfficientNetB0",
+        # Keras EfficientNet normalises inside the model and wants raw 0-255.
+        "input_range": "raw255",
+        "note": "Compound scaling. Compact like MobileNetV2 but deeper.",
+    },
+    "scratch": {
+        # The simpler baseline the CS Project II checklist asks for. A plain
+        # convolutional network with no pretrained weights, so the comparison
+        # answers whether transfer learning was needed at all rather than
+        # assuming it. 559 training images is far too few to fit a network of
+        # this kind from nothing, and the point of the baseline is to show that
+        # rather than to state it.
+        "module": None,
+        "callable": "SmallCNN",
+        "input_range": "signed_unit",
+        "pretrained": False,
+        "note": "No pretrained weights. The control for transfer learning.",
+    },
+}
+DEFAULT_ARCHITECTURE = "mobilenetv2"
 
 # Provisional. `select_thresholds.py` replaces these with values justified from
 # the validation results; every stored prediction records the ones it used.
@@ -126,21 +181,103 @@ def build_augmentation(level):
     return keras.Sequential(layers, name="augmentation")
 
 
-def build_model(augmentation_level, dropout=0.3):
-    """MobileNetV2 with the classification head from proposal section 3.2.3.
+def build_scratch_base(input_shape):
+    """A plain convolutional network, trained from nothing.
+
+    Deliberately conventional: a stride-2 stem, then four blocks of one
+    convolution and a pooling step, each doubling the channels and halving the
+    resolution, ending at 7 by 7 like MobileNetV2 does. Batch normalisation
+    after each convolution keeps it trainable without pretrained statistics to
+    inherit.
+
+    The stem halves the resolution before any full-width convolution runs. The
+    first layers of a network at 224 by 224 dominate its cost, and this is a
+    baseline whose purpose is to be beaten, not to be competitive; a version
+    that took hours to train would answer the same question and delay the
+    comparison it belongs to.
+    """
+    import keras
+
+    inputs = keras.Input(shape=input_shape)
+    x = keras.layers.Conv2D(16, 3, strides=2, padding="same", use_bias=False)(inputs)
+    x = keras.layers.BatchNormalization()(x)
+    x = keras.layers.ReLU()(x)
+
+    for filters in (32, 64, 128, 256):
+        x = keras.layers.Conv2D(filters, 3, padding="same", use_bias=False)(x)
+        x = keras.layers.BatchNormalization()(x)
+        x = keras.layers.ReLU()(x)
+        x = keras.layers.MaxPooling2D(2)(x)
+
+    return keras.Model(inputs, x, name="small_cnn")
+
+
+def build_input_adapter(input_range):
+    """Convert the shared [-1, 1] arrays into what this network was trained on.
+
+    Returns None when no conversion is needed, so the common case adds no layer.
+    """
+    import keras
+
+    if input_range == "signed_unit":
+        return None
+
+    if input_range == "raw255":
+        return keras.layers.Rescaling(127.5, offset=127.5, name="to_raw_255")
+
+    if input_range == "caffe":
+        # Built from stock layers rather than a Lambda wrapping
+        # keras.applications.resnet50.preprocess_input: a Lambda holding a
+        # plain function trains correctly but cannot be deserialised, so the
+        # saved model would not load back. A one-epoch run caught that.
+        #
+        # Caffe preprocessing is two steps: put the channels in BGR order, then
+        # subtract the per-channel ImageNet mean from values in 0-255. The
+        # channel swap is omitted deliberately. ml/preprocessing.py replicates
+        # one intensity channel three times, so the three channels are
+        # identical and reversing them cannot change anything; subtracting the
+        # BGR means in place therefore gives exactly the same array the swap
+        # would have produced.
+        return keras.Sequential(
+            [
+                keras.layers.Rescaling(127.5, offset=127.5),
+                keras.layers.Normalization(
+                    axis=-1,
+                    mean=[103.939, 116.779, 123.68],
+                    variance=[1.0, 1.0, 1.0],
+                ),
+            ],
+            name="to_caffe",
+        )
+
+    raise ValueError(f"Unknown input range: {input_range}")
+
+
+def build_model(augmentation_level, dropout=0.3, architecture=DEFAULT_ARCHITECTURE):
+    """A pretrained base with the classification head from proposal section 3.2.3.
 
     The head is a separate model rather than loose layers so that Grad-CAM can
     later split the network cleanly at the final convolutional layer.
     """
-    import keras
-    from keras.applications import MobileNetV2
+    import importlib
 
-    base = MobileNetV2(
-        weights="imagenet",
-        include_top=False,
-        input_shape=(*preprocessing.INPUT_SIZE, preprocessing.INPUT_CHANNELS),
-    )
-    base.trainable = False
+    import keras
+
+    spec = ARCHITECTURES[architecture]
+    shape = (*preprocessing.INPUT_SIZE, preprocessing.INPUT_CHANNELS)
+    pretrained = spec.get("pretrained", True)
+
+    if pretrained:
+        constructor = getattr(importlib.import_module(spec["module"]), spec["callable"])
+        base = constructor(weights="imagenet", include_top=False, input_shape=shape)
+    else:
+        base = build_scratch_base(shape)
+
+    # A pretrained base starts frozen so the random head cannot wreck it. A
+    # base with nothing to protect trains from the first epoch; freezing it
+    # would leave the head reading random features, which would measure
+    # nothing.
+    base.trainable = not pretrained
 
     head = keras.Sequential(
         [
@@ -158,12 +295,18 @@ def build_model(augmentation_level, dropout=0.3):
     inputs = keras.Input(shape=(*preprocessing.INPUT_SIZE, preprocessing.INPUT_CHANNELS))
     augmentation = build_augmentation(augmentation_level)
     x = augmentation(inputs) if augmentation else inputs
+    # Augmentation runs in the shared [-1, 1] space, so its constant fill value
+    # stays correct for every architecture; conversion happens afterwards.
+    adapter = build_input_adapter(spec["input_range"])
+    if adapter is not None:
+        x = adapter(x)
     # training=False keeps the pretrained batch-normalisation statistics fixed,
     # which is the documented way to fine-tune these models.
     features = base(x, training=False)
     outputs = head(features)
 
-    return keras.Model(inputs, outputs, name=MODEL_VERSION), base
+    name = MODEL_VERSION if architecture == DEFAULT_ARCHITECTURE else f"tb_{architecture}"
+    return keras.Model(inputs, outputs, name=name), base
 
 
 def compile_model(model, learning_rate, weight_decay=0.0):
@@ -208,7 +351,11 @@ def record_experiment(row):
     columns = [
         "tag",
         "run_at",
+        "architecture",
+        "parameters",
         "augmentation",
+        "dropout",
+        "weight_decay",
         "head_epochs",
         "unfreeze",
         "fine_tune_lr",
@@ -242,6 +389,12 @@ def main():
     parser = argparse.ArgumentParser(description="Train the TB classifier.")
     parser.add_argument("--tag", default="baseline", help="name for this run")
     parser.add_argument("--augmentation", choices=list(AUGMENTATION_LEVELS), default="standard")
+    parser.add_argument(
+        "--architecture",
+        choices=list(ARCHITECTURES),
+        default=DEFAULT_ARCHITECTURE,
+        help="pretrained base to build on",
+    )
     parser.add_argument("--epochs", type=int, default=30)
     parser.add_argument("--fine-tune-epochs", type=int, default=15)
     parser.add_argument("--unfreeze", type=int, default=30, help="base layers to unfreeze")
@@ -261,12 +414,19 @@ def main():
         return 0
 
     set_seeds()
-    print(f"run: {args.tag}  (augmentation: {args.augmentation})")
+    print(f"run: {args.tag}  ({args.architecture}, augmentation: {args.augmentation})")
     print("loading images")
     train_x, train_y = load_split("train")
     val_x, val_y = load_split("validation")
 
-    model, base = build_model(args.augmentation, dropout=args.dropout)
+    # Wall-clock cost is part of the comparison: a network that wins on AUC but
+    # cannot be retrained or served on the target hardware has not won.
+    started = time.monotonic()
+    model, base = build_model(
+        args.augmentation, dropout=args.dropout, architecture=args.architecture
+    )
+    total_parameters = model.count_params()
+    print(f"total parameters: {total_parameters:,}")
     trainable = sum(int(np.prod(w.shape)) for w in model.trainable_weights)
     print(f"\ntrainable parameters, stage 1: {trainable:,}")
 
@@ -294,7 +454,13 @@ def main():
 
     stage_kept = "head"
     fine_tuned_from = None
-    if not args.no_fine_tune:
+    pretrained = ARCHITECTURES[args.architecture].get("pretrained", True)
+    if not pretrained:
+        # Nothing is frozen, so there is nothing to unfreeze. Stage 1 already
+        # trained the whole network.
+        print()
+        print("no pretrained weights: the whole network trained in stage 1")
+    if pretrained and not args.no_fine_tune:
         print(f"\nstage 2: fine-tuning the last {args.unfreeze} layers of the base")
         from keras.layers import BatchNormalization
 
@@ -347,7 +513,15 @@ def main():
         "model_version": MODEL_VERSION,
         "run_tag": args.tag,
         "created": datetime.now(UTC).isoformat(timespec="seconds"),
-        "architecture": "MobileNetV2, ImageNet weights, custom classification head",
+        "architecture": {
+            "name": args.architecture,
+            "base": ARCHITECTURES[args.architecture]["callable"],
+            "weights": "imagenet",
+            "input_range": ARCHITECTURES[args.architecture]["input_range"],
+            "note": ARCHITECTURES[args.architecture]["note"],
+            "total_parameters": int(total_parameters),
+            "head": "custom classification head, proposal section 3.2.3",
+        },
         "framework": {"tensorflow": tf.__version__, "keras": keras.__version__},
         "seed": SEED,
         "provenance": provenance.describe(MANIFEST),
@@ -386,6 +560,8 @@ def main():
         {
             "tag": args.tag,
             "run_at": metadata["created"],
+            "architecture": ARCHITECTURES[args.architecture]["callable"],
+            "parameters": int(total_parameters),
             "augmentation": args.augmentation,
             "dropout": args.dropout,
             "weight_decay": args.weight_decay,
@@ -401,7 +577,14 @@ def main():
         }
     )
 
-    print(f"\nmodel    -> {selected.relative_to(ROOT)}")
+    elapsed = time.monotonic() - started
+    metadata["training"]["wall_clock_seconds"] = round(elapsed, 1)
+    (STAGING / f"{args.tag}_metadata.json").write_text(
+        json.dumps(metadata, indent=2), encoding="utf-8"
+    )
+
+    print(f"\nwall clock: {elapsed / 60:.1f} min")
+    print(f"model    -> {selected.relative_to(ROOT)}")
     print(f"record   -> {EXPERIMENTS.relative_to(ROOT)}")
     print("promote the chosen run with: --tag <name> --promote")
     return 0
