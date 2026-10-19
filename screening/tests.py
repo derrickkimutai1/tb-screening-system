@@ -60,6 +60,8 @@ class SignedIn:
 
 @override_settings(MEDIA_ROOT=MEDIA_FOR_TESTS)
 class UploadTests(SignedIn, TestCase):
+    """Screening one radiograph: what is accepted, stored and refused."""
+
     @classmethod
     def tearDownClass(cls):
         shutil.rmtree(MEDIA_FOR_TESTS, ignore_errors=True)
@@ -154,6 +156,8 @@ class UploadTests(SignedIn, TestCase):
 
 @override_settings(MEDIA_ROOT=MEDIA_FOR_TESTS)
 class ReportingTests(SignedIn, TestCase):
+    """Reading stored cases back: the list, the dashboard and review."""
+
     @classmethod
     def tearDownClass(cls):
         shutil.rmtree(MEDIA_FOR_TESTS, ignore_errors=True)

@@ -194,7 +194,7 @@ because the proposal governs.
 | **Implemented in** | `screening/tests.py` |
 | **Result** | **100 tests**, covering valid and invalid uploads, oversized files, unsupported types, batch behaviour, quality thresholds, triage boundaries, preprocessing equivalence, authentication, the allowlist, role permissions, review attribution, metadata stripping, and the fifteen failure scenarios the Build Phase notes enumerate. |
 | **Automation** | GitHub Actions runs lint, formatting, migration checks and the suite against PostgreSQL on every push. |
-| **Record** | `docs/sprint-2-test-record.md` |
+| **Record** | `docs/test-record.md`, generated from the suite by `scripts/build_test_record.py` so it cannot drift. `docs/sprint-2-test-record.md` is kept as the Sprint 2 snapshot. |
 | **Failure paths** | A deceptive file, an empty file, a filename attempting traversal, a filename carrying instructions, a corrupt image inside a batch, a failed heatmap, an absent model, an orphaned upload, a lost session, a guessed case id, an unknown case id, a duplicate submission, and the health endpoint under both outcomes. |
 | **Status** | **Met for functional and failure testing. Not met for usability testing** — see below. |
 
@@ -207,7 +207,7 @@ Stated here rather than left to be discovered.
 | Gap | Effect on the objectives | Plan |
 |---|---|---|
 | **No deployed release over HTTPS** | Sprint III requires a working operational release. The system runs only on a development machine. | The blocker is TensorFlow's memory footprint against free-tier limits. A route has to be chosen and provisioned. |
-| **No usability testing with representative users** | SO5 says "system testing"; Sprint III asks for usability and failure scenarios with real participants. Functional tests do not substitute. | Needs participants and possibly ethics clearance, which has weeks of lead time. Raise with the supervisor now. |
+| **No usability testing with representative users** | SO5 says "system testing"; Sprint III asks for usability and failure scenarios with real participants. Functional tests do not substitute. | The protocol, task list, recording sheet and SUS instrument are ready in `docs/usability-study.md`. What remains is five participants and an answer on ethics clearance, which has weeks of lead time. |
 | **Chapters 5 and 6 not written** | Required for submission. | Evidence exists for every claim; the writing does not. |
 | **Grad-CAM lift at chance** | SO3 names explainability as a gap this project addresses. The heatmap does not localise reliably. | Reported as a limitation. The occlusion evidence carries the explainability claim instead. |
 | **WHO specificity target not reachable** | SO1's requirement is not fully satisfiable by this model on this data. | Reported as a finding. |

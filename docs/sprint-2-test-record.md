@@ -1,5 +1,10 @@
 # Sprint 2 test record
 
+> **This is the Sprint 2 record, kept as it stood at that review.**
+> The current record is `docs/test-record.md`, generated from the suite by
+> `scripts/build_test_record.py`. The suite has grown from 29 tests to 100
+> since this was written.
+
 Tests of the implemented functionality, covering expected behaviour, invalid inputs and
 failure conditions. The automated tests run with:
 
