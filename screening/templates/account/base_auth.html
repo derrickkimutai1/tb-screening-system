@@ -1,0 +1,22 @@
+{% load static %}<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Sign in{% endblock %} &middot; TB Screening</title>
+  <link rel="stylesheet" href="{% static 'screening/vendor/bootstrap.min.css' %}">
+  <link rel="stylesheet" href="{% static 'screening/theme.css' %}">
+</head>
+<body class="gate-body">
+
+<div class="gate">
+  <div class="gate-frame">
+    {% block content %}{% endblock %}
+  </div>
+  <p class="gate-foot">
+    Screening support prototype. Not a diagnostic device and not clinically validated.
+  </p>
+</div>
+
+</body>
+</html>

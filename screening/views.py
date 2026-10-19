@@ -14,6 +14,7 @@ from decimal import Decimal
 from pathlib import Path
 
 from django.conf import settings
+from django.contrib.auth.decorators import login_required
 from django.core.files.storage import default_storage
 from django.core.paginator import Paginator
 from django.db import transaction
@@ -125,6 +126,7 @@ def screen_one(uploaded, reference):
     return record, None
 
 
+@login_required
 def upload(request):
     form = ScreeningUploadForm(request.POST or None, request.FILES or None)
     unavailable = None
@@ -180,6 +182,7 @@ def upload(request):
     )
 
 
+@login_required
 def case_detail(request, case_id):
     record = get_object_or_404(PredictionRecord, case_id=case_id)
 
@@ -211,6 +214,7 @@ def case_detail(request, case_id):
     )
 
 
+@login_required
 def case_list(request):
     records = PredictionRecord.objects.all()
 
@@ -238,6 +242,7 @@ def case_list(request):
     )
 
 
+@login_required
 def dashboard(request):
     records = PredictionRecord.objects.all()
     total = records.count()

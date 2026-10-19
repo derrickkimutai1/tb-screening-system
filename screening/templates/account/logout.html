@@ -1,0 +1,36 @@
+{% extends "account/base_auth.html" %}
+
+{% block title %}Sign out{% endblock %}
+
+{% block content %}
+
+<section class="gate-plate">
+  <p class="micro micro-acid">Session</p>
+  <h1 class="display display-lg gate-wordmark">Sign&nbsp;out</h1>
+  <p class="gate-qualifier">End this session</p>
+  <p class="gate-note">
+    Signing out clears your session on this workstation. Screening records already
+    saved are unaffected.
+  </p>
+</section>
+
+<section class="gate-action">
+  <div class="gate-action-head">
+    <span class="micro">Confirm</span>
+    <span class="micro gate-state">{{ user.email|default:user.get_username }}</span>
+  </div>
+
+  <h2 class="gate-heading">Sign out of TB Screening?</h2>
+  <p class="field-hint gate-lede">You will need to sign in with Google again to continue.</p>
+
+  <form method="post" action="{% url 'account_logout' %}">
+    {% csrf_token %}
+    {% if redirect_field_value %}
+      <input type="hidden" name="{{ redirect_field_name }}" value="{{ redirect_field_value }}">
+    {% endif %}
+    <button type="submit" class="btn btn-action">Sign out</button>
+    <a class="btn btn-quiet ms-2" href="{% url 'screening:upload' %}">Stay signed in</a>
+  </form>
+</section>
+
+{% endblock %}
