@@ -22,7 +22,7 @@ from django.db.models.functions import TruncDate
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
-from .forms import ReviewForm, ScreeningUploadForm
+from .forms import MAX_BATCH_IMAGES, ReviewForm, ScreeningUploadForm
 from .models import PredictionRecord, ReviewNote
 from .services.gradcam import ExplanationUnavailable, GradCAMGenerator
 from .services.predict import ModelUnavailable, PredictionEngine
@@ -76,42 +76,96 @@ def screen(case_id, image_path):
     return fields
 
 
+def reference_for(base, index, total):
+    """Name one image within a batch.
+
+    A single upload keeps the reference exactly as typed, so nothing changes
+    for the common case. A batch needs each image distinguishable, so the
+    reference becomes a prefix and the position is appended.
+    """
+    if total == 1:
+        return base
+    return f"{base}-{index:02d}"
+
+
+def screen_one(uploaded, reference):
+    """Store, quality check and screen one image.
+
+    Returns (record, failure). Exactly one of the two is set. A failure is
+    returned rather than raised so that a batch continues past a rejected
+    image: one unusable film should not discard the work already done on the
+    others, nor stop the ones still queued.
+    """
+    case_id = uuid.uuid4()
+    stored = store_upload(case_id, uploaded)
+    image_path = default_storage.path(stored)
+
+    report = ImageQualityChecker().check(image_path)
+    if not report.is_usable:
+        default_storage.delete(stored)
+        return None, {
+            "filename": uploaded.name,
+            "reference": reference,
+            "reason": report.message,
+        }
+
+    fields = screen(case_id, image_path)
+
+    with transaction.atomic():
+        record = PredictionRecord.objects.create(
+            case_id=case_id,
+            patient_reference=reference,
+            xray_image=stored,
+            quality_status=report.status,
+            quality_message=report.message,
+            blur_score=report.blur_score,
+            brightness_mean=report.brightness_mean,
+            **fields,
+        )
+    return record, None
+
+
 def upload(request):
     form = ScreeningUploadForm(request.POST or None, request.FILES or None)
     unavailable = None
 
     if request.method == "POST" and form.is_valid():
-        case_id = uuid.uuid4()
-        stored = store_upload(case_id, form.cleaned_data["xray_image"])
-        image_path = default_storage.path(stored)
+        images = form.cleaned_data["xray_image"]
+        base = form.cleaned_data["patient_reference"]
+        screened, rejected = [], []
 
-        report = ImageQualityChecker().check(image_path)
-        if not report.is_usable:
-            default_storage.delete(stored)
-            form.add_error("xray_image", report.message)
-        else:
-            try:
-                fields = screen(case_id, image_path)
-            except ModelUnavailable:
-                logger.exception("No trained model available")
-                default_storage.delete(stored)
-                unavailable = (
-                    "The screening model is not installed on this machine, so no "
-                    "prediction can be made. The rest of the application is unaffected."
+        try:
+            for position, uploaded in enumerate(images, start=1):
+                record, failure = screen_one(
+                    uploaded, reference_for(base, position, len(images))
                 )
+                if record is not None:
+                    screened.append(record)
+                else:
+                    rejected.append(failure)
+        except ModelUnavailable:
+            logger.exception("No trained model available")
+            unavailable = (
+                "The screening model is not installed on this machine, so no "
+                "prediction can be made. The rest of the application is unaffected."
+            )
+        else:
+            # One image behaves exactly as it always has.
+            if len(images) == 1 and screened:
+                return redirect("screening:case_detail", case_id=screened[0].case_id)
+            if len(images) == 1 and rejected:
+                form.add_error("xray_image", rejected[0]["reason"])
             else:
-                with transaction.atomic():
-                    record = PredictionRecord.objects.create(
-                        case_id=case_id,
-                        patient_reference=form.cleaned_data["patient_reference"],
-                        xray_image=stored,
-                        quality_status=report.status,
-                        quality_message=report.message,
-                        blur_score=report.blur_score,
-                        brightness_mean=report.brightness_mean,
-                        **fields,
-                    )
-                return redirect("screening:case_detail", case_id=record.case_id)
+                return render(
+                    request,
+                    "screening/batch_result.html",
+                    {
+                        "active": "upload",
+                        "screened": screened,
+                        "rejected": rejected,
+                        "total": len(images),
+                    },
+                )
 
     return render(
         request,
@@ -121,6 +175,7 @@ def upload(request):
             "active": "upload",
             "unavailable": unavailable,
             "max_upload_mb": settings.MAX_UPLOAD_BYTES // (1024 * 1024),
+            "max_batch": MAX_BATCH_IMAGES,
         },
     )
 

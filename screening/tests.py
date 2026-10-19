@@ -334,3 +334,95 @@ class TriageTests(TestCase):
     def test_every_decision_explains_itself(self):
         for probability in (0.05, 0.5, 0.99):
             self.assertTrue(self.decide(probability).justification)
+
+
+@override_settings(MEDIA_ROOT=MEDIA_FOR_TESTS)
+class BatchUploadTests(TestCase):
+    """Several radiographs in one submission, per the examiner's request."""
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(MEDIA_FOR_TESTS, ignore_errors=True)
+        super().tearDownClass()
+
+    def post(self, images, reference="BATCH-01"):
+        return self.client.post(
+            reverse("screening:upload"),
+            {"patient_reference": reference, "xray_image": images},
+        )
+
+    def test_three_images_create_three_records(self):
+        response = self.post([make_image(f"chest{n}.png") for n in range(3)])
+
+        self.assertEqual(PredictionRecord.objects.count(), 3)
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "screening/batch_result.html")
+
+    def test_each_image_gets_its_own_reference(self):
+        self.post([make_image(f"chest{n}.png") for n in range(3)], reference="WARD-A")
+
+        references = sorted(
+            PredictionRecord.objects.values_list("patient_reference", flat=True)
+        )
+        self.assertEqual(references, ["WARD-A-01", "WARD-A-02", "WARD-A-03"])
+
+    def test_a_single_image_keeps_the_reference_exactly_as_typed(self):
+        """The common case must not acquire a suffix it never had."""
+        self.post([make_image()], reference="DEMO-500")
+
+        record = PredictionRecord.objects.get()
+        self.assertEqual(record.patient_reference, "DEMO-500")
+
+    def test_a_single_image_still_redirects_to_its_case(self):
+        response = self.post([make_image()], reference="DEMO-501")
+
+        record = PredictionRecord.objects.get()
+        self.assertRedirects(response, reverse("screening:case_detail", args=[record.case_id]))
+
+    def test_each_image_is_stored_separately(self):
+        self.post([make_image(f"chest{n}.png") for n in range(3)])
+
+        stored = set(PredictionRecord.objects.values_list("xray_image", flat=True))
+        self.assertEqual(len(stored), 3)
+
+    def test_one_unreadable_file_rejects_the_whole_batch_before_screening(self):
+        """Nothing is screened until every file in the selection is acceptable."""
+        response = self.post(
+            [make_image(), SimpleUploadedFile("notes.txt", b"not an image", "text/plain")]
+        )
+
+        self.assertEqual(PredictionRecord.objects.count(), 0)
+        self.assertEqual(response.status_code, 200)
+
+    def test_a_batch_over_the_cap_is_refused(self):
+        from .forms import MAX_BATCH_IMAGES
+
+        response = self.post([make_image(f"chest{n}.png") for n in range(MAX_BATCH_IMAGES + 1)])
+
+        self.assertEqual(PredictionRecord.objects.count(), 0)
+        self.assertContains(response, f"at most {MAX_BATCH_IMAGES}")
+
+    def test_the_batch_page_lists_every_screened_case(self):
+        response = self.post([make_image(f"chest{n}.png") for n in range(2)], "WARD-B")
+
+        self.assertContains(response, "WARD-B-01")
+        self.assertContains(response, "WARD-B-02")
+
+
+class BatchReferenceTests(TestCase):
+    """The naming rule on its own, without the cost of running the model."""
+
+    def rename(self, index, total, base="CASE"):
+        from .views import reference_for
+
+        return reference_for(base, index, total)
+
+    def test_a_lone_image_is_not_renamed(self):
+        self.assertEqual(self.rename(1, 1), "CASE")
+
+    def test_a_batch_numbers_from_one(self):
+        self.assertEqual(self.rename(1, 4), "CASE-01")
+
+    def test_numbering_is_zero_padded_so_it_sorts(self):
+        self.assertEqual(self.rename(9, 12), "CASE-09")
+        self.assertEqual(self.rename(10, 12), "CASE-10")

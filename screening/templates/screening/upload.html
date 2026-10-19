@@ -53,6 +53,9 @@
             </label>
             {{ form.xray_image }}
             <p class="field-hint">{{ form.xray_image.help_text }}</p>
+            <p class="field-hint">
+              Hold Ctrl, or Shift, while selecting to choose several at once.
+            </p>
             {% for error in form.xray_image.errors %}
               <p class="field-hint" style="color: var(--triage-high);">{{ error }}</p>
             {% endfor %}

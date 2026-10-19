@@ -1,0 +1,89 @@
+{% extends "screening/base.html" %}
+
+{% block title %}Batch screening result{% endblock %}
+
+{% block pagehead %}
+<div class="pagehead">
+  <span class="micro micro-acid">Step 02 / Batch</span>
+  <h1 class="display display-xl mt-2">{{ total }} radiograph{{ total|pluralize }}<br>screened</h1>
+  <p class="field-hint" style="max-width: 34rem;">
+    Each image was stored, quality checked and scored separately. An image the quality
+    check rejected is listed below with its reason and was not scored.
+  </p>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+
+  <div class="col-lg-8">
+    <div class="panel panel-lead rise">
+      <div class="panel-head">
+        <h2 class="panel-title">Screened</h2>
+        <span class="micro">{{ screened|length }} of {{ total }}</span>
+      </div>
+      <div class="panel-body p-0">
+        {% if screened %}
+          <table class="table mb-0">
+            <thead>
+              <tr>
+                <th>Case reference</th>
+                <th>Result</th>
+                <th class="text-end">Score</th>
+                <th>Triage</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for record in screened %}
+                <tr>
+                  <td>
+                    <a href="{% url 'screening:case_detail' record.case_id %}">
+                      {{ record.patient_reference }}
+                    </a>
+                  </td>
+                  <td>{{ record.get_predicted_label_display|default:record.predicted_label }}</td>
+                  <td class="text-end numeric">{{ record.tb_probability|floatformat:4 }}</td>
+                  <td>
+                    <span class="triage {{ record.triage_css_class }}">
+                      {{ record.get_triage_level_display }}
+                    </span>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        {% else %}
+          <p class="field-hint m-3">No image in this batch could be screened.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-4">
+    <div class="panel rise">
+      <div class="panel-head">
+        <h2 class="panel-title">Not screened</h2>
+        <span class="micro">{{ rejected|length }}</span>
+      </div>
+      <div class="panel-body">
+        {% if rejected %}
+          {% for failure in rejected %}
+            <div class="notice notice-caution mb-2">
+              <strong>{{ failure.filename }}</strong><br>
+              {{ failure.reason }}
+            </div>
+          {% endfor %}
+        {% else %}
+          <p class="field-hint mb-0">Every image passed the quality check.</p>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="mt-3">
+      <a class="btn btn-action" href="{% url 'screening:upload' %}">Screen more</a>
+      <a class="btn btn-quiet ms-2" href="{% url 'screening:case_list' %}">All cases</a>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
