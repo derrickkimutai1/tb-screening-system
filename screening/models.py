@@ -227,6 +227,22 @@ class ReviewNote(models.Model):
         return self.reviewer_name or "Unnamed reviewer"
 
 
+def profile_for(user):
+    """The user's profile, creating it if somehow it is missing.
+
+    A signal creates a profile when an account is created, which covers every
+    account the application makes itself. It does not cover an account that
+    arrived another way: loaddata, bulk_create and a database restore all skip
+    signals, and so did every account that existed before profiles were added.
+
+    Reaching for user.profile directly raises RelatedObjectDoesNotExist in
+    those cases, which is a 500 on a page that had no need to fail. This is the
+    one place that absence is handled, so no view has to think about it.
+    """
+    profile, _ = Profile.objects.get_or_create(user=user)
+    return profile
+
+
 class Profile(models.Model):
     """What the system knows about a signed-in member of staff.
 

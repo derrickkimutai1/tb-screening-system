@@ -948,3 +948,90 @@ class FailureScenarioTests(SignedIn, TestCase):
         self.client.logout()
 
         self.assertEqual(self.client.get(reverse("screening:health")).status_code, 200)
+
+
+class ProfileWithoutSignalTests(TestCase):
+    """An account that never fired the creation signal must still work.
+
+    loaddata, bulk_create, a database restore and every account that existed
+    before profiles were added all skip post_save. One of those broke the
+    profile page with RelatedObjectDoesNotExist, so the absence is handled in
+    one place and asserted here.
+    """
+
+    def make_user_without_a_profile(self):
+        from .models import Profile
+
+        user = get_user_model().objects.create_user(
+            username="legacy", email="legacy@strathmore.edu"
+        )
+        # Simulates an account that predates the model rather than mocking the
+        # signal, so the test exercises the real absence.
+        Profile.objects.filter(user=user).delete()
+        user.refresh_from_db()
+        return user
+
+    def test_the_fixture_really_has_no_profile(self):
+        """Otherwise the tests below would pass for the wrong reason."""
+        from django.core.exceptions import ObjectDoesNotExist
+
+        user = self.make_user_without_a_profile()
+
+        with self.assertRaises(ObjectDoesNotExist):
+            _ = user.profile
+
+    def test_the_accessor_creates_the_missing_profile(self):
+        from .models import profile_for
+
+        user = self.make_user_without_a_profile()
+
+        profile = profile_for(user)
+
+        self.assertIsNotNone(profile.pk)
+        self.assertEqual(profile.user, user)
+
+    def test_the_accessor_does_not_create_a_second_one(self):
+        from .models import Profile, profile_for
+
+        user = self.make_user_without_a_profile()
+
+        profile_for(user)
+        profile_for(user)
+
+        self.assertEqual(Profile.objects.filter(user=user).count(), 1)
+
+    def test_a_legacy_account_defaults_to_the_least_privileged_role(self):
+        from .models import Profile, profile_for
+
+        user = self.make_user_without_a_profile()
+
+        self.assertEqual(profile_for(user).role, Profile.Role.RADIOGRAPHER)
+        self.assertFalse(profile_for(user).may_review)
+
+    def test_the_profile_page_opens_for_a_legacy_account(self):
+        """This is the page that raised RelatedObjectDoesNotExist."""
+        user = self.make_user_without_a_profile()
+        self.client.force_login(user)
+
+        response = self.client.get(reverse("screening:profile"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "legacy@strathmore.edu")
+
+    def test_a_case_page_opens_for_a_legacy_account(self):
+        user = self.make_user_without_a_profile()
+        self.client.force_login(user)
+        record = PredictionRecord.objects.create(
+            patient_reference="LEGACY-01",
+            xray_image="x.png",
+            tb_probability=Decimal("0.5"),
+            triage_level=PredictionRecord.TriageLevel.MEDIUM,
+            model_version="test",
+            decision_threshold=Decimal("0.102"),
+            triage_low_medium_threshold=Decimal("0.102"),
+            triage_medium_high_threshold=Decimal("0.546"),
+        )
+
+        response = self.client.get(reverse("screening:case_detail", args=[record.case_id]))
+
+        self.assertEqual(response.status_code, 200)

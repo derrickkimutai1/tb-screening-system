@@ -26,7 +26,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
 from .forms import MAX_BATCH_IMAGES, ProfileForm, ReviewForm, ScreeningUploadForm
-from .models import PredictionRecord, ReviewNote
+from .models import PredictionRecord, ReviewNote, profile_for
 from .services.gradcam import ExplanationUnavailable, GradCAMGenerator
 from .services.predict import ModelUnavailable, PredictionEngine
 from .services.quality import ImageQualityChecker
@@ -205,7 +205,8 @@ def case_detail(request, case_id):
     # Confirming or dismissing a case is a clinical judgement, so the form is
     # only offered to the roles that may make one. The check is repeated on the
     # POST because a hidden form is not an access control.
-    may_review = request.user.profile.may_review
+    viewer = profile_for(request.user)
+    may_review = viewer.may_review
 
     if request.method == "POST":
         if not may_review:
@@ -219,7 +220,7 @@ def case_detail(request, case_id):
                     reviewer=request.user,
                     # Kept as well as the link, so the note still reads
                     # correctly if the account is later removed.
-                    reviewer_name=request.user.profile.display_name,
+                    reviewer_name=viewer.display_name,
                     note=review_form.cleaned_data["note"],
                     status_set=review_form.cleaned_data["status_set"],
                 )
@@ -245,7 +246,7 @@ def case_detail(request, case_id):
 @login_required
 def profile(request):
     """The signed-in user's own details, and what they have screened."""
-    profile = request.user.profile
+    profile = profile_for(request.user)
 
     if request.method == "POST":
         form = ProfileForm(request.POST, instance=profile)
