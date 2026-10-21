@@ -7,6 +7,7 @@ so nothing here asserts anything about model accuracy.
 """
 
 import io
+import re
 import shutil
 import sys
 import tempfile
@@ -505,13 +506,20 @@ class SignInTests(TestCase):
 
         self.assertFalse(ScreeningAccountAdapter().is_open_for_signup(None))
 
-    @override_settings(GOOGLE_SIGN_IN_CONFIGURED=False)
-    def test_the_gate_still_renders_without_google_credentials(self):
+    @override_settings(GOOGLE_SIGN_IN_CONFIGURED=False, MICROSOFT_SIGN_IN_CONFIGURED=False)
+    def test_the_gate_still_renders_without_any_provider(self):
         """A checkout with no .env must still start, for CI and for marking."""
         response = self.client.get(reverse("account_login"))
 
         self.assertEqual(response.status_code, 200)
-        self.assertContains(response, "not configured")
+        self.assertContains(response, "No identity provider is configured")
+
+    @override_settings(GOOGLE_SIGN_IN_CONFIGURED=False, MICROSOFT_SIGN_IN_CONFIGURED=False)
+    def test_the_email_route_is_offered_even_with_no_provider(self):
+        """It is the way in when a provider is down or absent."""
+        response = self.client.get(reverse("account_login"))
+
+        self.assertContains(response, reverse("account_request_login_code"))
 
 
 class AllowlistTests(TestCase):
@@ -1136,3 +1144,210 @@ class SocialSignupPageTests(TestCase):
         self.assertEqual(
             settings.SOCIALACCOUNT_FORMS["signup"], "screening.forms.SocialSignupForm"
         )
+
+
+class EmailCodeSignInTests(TestCase):
+    """Signing in with a one-time code, for when a provider is absent or down.
+
+    The whole exchange is walked here rather than asserted piecemeal: request a
+    code, read it out of the message actually sent, and spend it. A test that
+    only checks the page renders would not notice a code that never arrives.
+
+    The rate limit counter lives in the cache, which outlives a test: without
+    clearing it the fourth test in this class is refused rather than run, and
+    reports a failure that is really the limit working. The limits themselves
+    stay at their configured values so these tests exercise the real
+    configuration, and are tested directly in EmailCodeRateLimitTests.
+    """
+
+    def setUp(self):
+        from allauth.account.models import EmailAddress
+        from django.core.cache import cache
+
+        cache.clear()
+        self.user = get_user_model().objects.create_user(
+            username="coded", email="coded@strathmore.edu"
+        )
+        # allauth sends a code to a known address, so the address has to be
+        # registered against the account the way a sign-in would leave it.
+        EmailAddress.objects.create(
+            user=self.user, email=self.user.email, primary=True, verified=True
+        )
+
+    def request_code(self, email=None):
+        return self.client.post(
+            reverse("account_request_login_code"),
+            {"email": email or self.user.email},
+            follow=True,
+        )
+
+    def code_from_outbox(self):
+        from django.core import mail
+
+        self.assertTrue(mail.outbox, "no message was sent")
+        found = re.search(r"\b(\d{6})\b", mail.outbox[-1].body)
+        self.assertIsNotNone(found, f"no six-digit code in: {mail.outbox[-1].body!r}")
+        return found.group(1)
+
+    def test_the_request_page_is_reachable_without_a_session(self):
+        response = self.client.get(reverse("account_request_login_code"))
+
+        self.assertEqual(response.status_code, 200)
+
+    def test_requesting_a_code_sends_exactly_one_message(self):
+        from django.core import mail
+
+        self.request_code()
+
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertIn(self.user.email, mail.outbox[0].to)
+
+    def test_the_message_carries_a_six_digit_code(self):
+        self.request_code()
+
+        self.assertRegex(self.code_from_outbox(), r"^\d{6}$")
+
+    def test_the_subject_identifies_the_system(self):
+        from django.core import mail
+
+        self.request_code()
+
+        self.assertIn("TB Screening", mail.outbox[0].subject)
+
+    def test_a_valid_code_signs_the_user_in(self):
+        self.request_code()
+
+        response = self.client.post(
+            reverse("account_confirm_login_code"),
+            {"code": self.code_from_outbox()},
+            follow=True,
+        )
+
+        self.assertTrue(response.context["user"].is_authenticated)
+        self.assertEqual(response.context["user"], self.user)
+
+    def test_a_wrong_code_does_not_sign_the_user_in(self):
+        self.request_code()
+
+        response = self.client.post(
+            reverse("account_confirm_login_code"), {"code": "000000"}, follow=True
+        )
+
+        self.assertFalse(response.context["user"].is_authenticated)
+
+    def test_a_code_cannot_be_spent_twice(self):
+        """Otherwise a code read from a forwarded message stays usable."""
+        self.request_code()
+        code = self.code_from_outbox()
+        self.client.post(reverse("account_confirm_login_code"), {"code": code})
+        self.client.logout()
+
+        response = self.client.post(
+            reverse("account_confirm_login_code"), {"code": code}, follow=True
+        )
+
+        self.assertFalse(response.context["user"].is_authenticated)
+
+    def test_an_unknown_address_yields_no_usable_code(self):
+        """The page must not become an account checker.
+
+        allauth answers an unknown address exactly as it answers a known one,
+        and sends a message saying no account exists rather than staying
+        silent, so that neither the page nor the inbox reveals which addresses
+        are registered. What matters is that nothing in it signs anyone in.
+        """
+        from django.core import mail
+
+        self.request_code("stranger@example.com")
+
+        body = mail.outbox[-1].body if mail.outbox else ""
+        self.assertIsNone(re.search(r"\d{6}", body), "a code was sent to an unknown address")
+
+    def test_an_unknown_address_looks_the_same_as_a_known_one(self):
+        known = self.request_code()
+        self.client.logout()
+        from django.core.cache import cache
+
+        cache.clear()
+        unknown = self.request_code("stranger@example.com")
+
+        self.assertEqual(known.status_code, unknown.status_code)
+        self.assertEqual(
+            [step[0] for step in known.redirect_chain],
+            [step[0] for step in unknown.redirect_chain],
+        )
+
+    def test_signing_in_by_code_still_lands_on_the_screening_page(self):
+        self.request_code()
+
+        response = self.client.post(
+            reverse("account_confirm_login_code"),
+            {"code": self.code_from_outbox()},
+            follow=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "screening/upload.html")
+
+    def test_the_code_route_does_not_bypass_the_allowlist(self):
+        """A code only reaches an account that already exists, and local
+        registration is closed, so this cannot create one."""
+        from screening.auth import ScreeningAccountAdapter
+
+        self.assertFalse(ScreeningAccountAdapter().is_open_for_signup(None))
+
+    def test_the_attempt_cap_is_configured(self):
+        """A six-digit code is guessable in a way a password is not."""
+        from django.conf import settings
+
+        self.assertEqual(settings.ACCOUNT_LOGIN_BY_CODE_MAX_ATTEMPTS, 3)
+        self.assertEqual(settings.ACCOUNT_LOGIN_BY_CODE_TIMEOUT, 300)
+
+
+class EmailCodeRateLimitTests(TestCase):
+    """The limit that stops a code being requested or guessed at leisure."""
+
+    def setUp(self):
+        from allauth.account.models import EmailAddress
+        from django.core.cache import cache
+
+        # allauth counts requests in the cache, so a count left by another test
+        # would decide this one.
+        cache.clear()
+        self.user = get_user_model().objects.create_user(
+            username="limited", email="limited@strathmore.edu"
+        )
+        EmailAddress.objects.create(
+            user=self.user, email=self.user.email, primary=True, verified=True
+        )
+
+    def request_code(self):
+        return self.client.post(
+            reverse("account_request_login_code"), {"email": self.user.email}
+        )
+
+    def test_repeated_requests_are_refused(self):
+        """Three in five minutes, per the configured limit."""
+        from django.core import mail
+
+        for _ in range(3):
+            self.request_code()
+
+        sent_before = len(mail.outbox)
+        allowed = self.client.post(
+            reverse("account_request_login_code"), {"email": "someone@strathmore.edu"}
+        )
+        refused = self.request_code()
+
+        self.assertEqual(len(mail.outbox), sent_before, "a fourth code was sent")
+        # The refusal has to be indistinguishable from the allowed request, or
+        # the limit itself tells an attacker which addresses are real.
+        self.assertEqual(refused.status_code, allowed.status_code)
+
+    def test_the_limits_name_both_steps(self):
+        from django.conf import settings
+
+        limits = settings.ACCOUNT_RATE_LIMITS
+
+        self.assertIn("request_login_code", limits)
+        self.assertIn("confirm_login_code", limits)

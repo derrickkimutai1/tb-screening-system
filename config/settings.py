@@ -48,6 +48,7 @@ INSTALLED_APPS = [
     "allauth.account",
     "allauth.socialaccount",
     "allauth.socialaccount.providers.google",
+    "allauth.socialaccount.providers.microsoft",
     "screening",
 ]
 
@@ -221,6 +222,38 @@ ACCOUNT_SIGNUP_FIELDS = ["email*"]
 ACCOUNT_EMAIL_VERIFICATION = "none"
 ACCOUNT_LOGOUT_ON_GET = False
 
+# A second way in, for a user whose institutional account is not one of the
+# providers above, or when a provider is unreachable. A six-digit code is sent
+# to the address and exchanged for a session; no password is involved, so the
+# reason there are none in this codebase still holds.
+#
+# Because local registration is closed, this can only sign in an account that
+# already exists. It is not a route around the allowlist.
+ACCOUNT_LOGIN_BY_CODE_ENABLED = True
+ACCOUNT_LOGIN_BY_CODE_TIMEOUT = 300
+ACCOUNT_LOGIN_BY_CODE_MAX_ATTEMPTS = 3
+
+# Six digits rather than allauth's default letter groups. A numeric code is
+# what a phone recognises as a one-time code and offers to fill in, and it is
+# easier to read off a screen and retype.
+#
+# Six digits is a million combinations. On its own that is not much, which is
+# why it expires in five minutes, allows three attempts, and is rate limited
+# below; the strength is in the narrow window, not in the code.
+ACCOUNT_LOGIN_BY_CODE_FORMAT = {"numeric": True, "length": 6, "dashed": False}
+
+# A code sent by email is guessable in a way a password is not, so the attempts
+# are capped above and the requests are capped here. Without this, an address
+# could be enumerated or a code brute-forced at leisure.
+ACCOUNT_RATE_LIMITS = {
+    "login": "10/m/ip,5/5m/key",
+    "login_failed": "5/5m/ip,3/5m/key",
+    "request_login_code": "3/5m/key,10/h/ip",
+    "confirm_login_code": "5/5m/key",
+    "signup": "5/h/ip",
+    "reset_password": "3/h/ip",
+}
+
 # Google has already verified the address, so asking the user to confirm it
 # again by email would add a step without adding assurance.
 SOCIALACCOUNT_EMAIL_VERIFICATION = "none"
@@ -252,22 +285,43 @@ SIGN_IN_ALLOWED_EMAILS = {
     if address.strip()
 }
 
+SOCIALACCOUNT_PROVIDERS = {}
+
 if GOOGLE_SIGN_IN_CONFIGURED:
-    SOCIALACCOUNT_PROVIDERS = {
-        "google": {
-            "APP": {
-                "client_id": GOOGLE_OAUTH_CLIENT_ID,
-                "secret": GOOGLE_OAUTH_CLIENT_SECRET,
-                "key": "",
-            },
-            "SCOPE": ["profile", "email"],
-            # No refresh token is wanted: the application acts only while the
-            # user is present and never calls Google on their behalf later.
-            "AUTH_PARAMS": {"access_type": "online"},
-        }
+    SOCIALACCOUNT_PROVIDERS["google"] = {
+        "APP": {
+            "client_id": GOOGLE_OAUTH_CLIENT_ID,
+            "secret": GOOGLE_OAUTH_CLIENT_SECRET,
+            "key": "",
+        },
+        "SCOPE": ["profile", "email"],
+        # No refresh token is wanted: the application acts only while the user
+        # is present and never calls Google on their behalf later.
+        "AUTH_PARAMS": {"access_type": "online"},
     }
-else:
-    SOCIALACCOUNT_PROVIDERS = {}
+
+# Microsoft, because a Kenyan university or hospital issuing @strathmore.edu
+# addresses is most likely running Microsoft 365, and a clinician should be
+# able to use the account their employer already gave them. Registered on the
+# same terms as Google: only when its credentials are present.
+MICROSOFT_OAUTH_CLIENT_ID = os.environ.get("MICROSOFT_OAUTH_CLIENT_ID", "").strip()
+MICROSOFT_OAUTH_CLIENT_SECRET = os.environ.get("MICROSOFT_OAUTH_CLIENT_SECRET", "").strip()
+# "common" admits both work or school and personal Microsoft accounts. A single
+# tenant id here would restrict sign-in to one organisation, which is the right
+# setting for a real deployment and the wrong one for a demonstration.
+MICROSOFT_TENANT = os.environ.get("MICROSOFT_TENANT", "common").strip() or "common"
+
+MICROSOFT_SIGN_IN_CONFIGURED = bool(MICROSOFT_OAUTH_CLIENT_ID and MICROSOFT_OAUTH_CLIENT_SECRET)
+
+if MICROSOFT_SIGN_IN_CONFIGURED:
+    SOCIALACCOUNT_PROVIDERS["microsoft"] = {
+        "APP": {
+            "client_id": MICROSOFT_OAUTH_CLIENT_ID,
+            "secret": MICROSOFT_OAUTH_CLIENT_SECRET,
+            "key": "",
+        },
+        "TENANT": MICROSOFT_TENANT,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -303,3 +357,37 @@ if not DEBUG:
     SECURE_CONTENT_TYPE_NOSNIFF = True
     SECURE_REFERRER_POLICY = "same-origin"
     X_FRAME_OPTIONS = "DENY"
+
+
+# ---------------------------------------------------------------------------
+# Email
+#
+# Sign-in codes are sent by email, so without a working backend that route
+# fails silently from the user's point of view: they ask for a code and none
+# arrives.
+#
+# In development the console backend prints the message to the terminal, which
+# is enough to sign in and avoids needing a mail account to work on the
+# project. A deployment sets EMAIL_HOST and the rest; the absence of a host is
+# what selects the console, so a deployment that forgets to configure mail
+# prints to its logs rather than pretending to have sent something.
+# ---------------------------------------------------------------------------
+
+EMAIL_HOST = os.environ.get("EMAIL_HOST", "").strip()
+
+if EMAIL_HOST:
+    EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+    EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "587"))
+    EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
+    EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
+    EMAIL_USE_TLS = env_flag("EMAIL_USE_TLS", default=True)
+    EMAIL_TIMEOUT = 10
+else:
+    EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+
+DEFAULT_FROM_EMAIL = os.environ.get(
+    "DEFAULT_FROM_EMAIL", "TB Screening <no-reply@tb-screening.local>"
+)
+
+# Prefixes the subject of every message allauth sends.
+ACCOUNT_EMAIL_SUBJECT_PREFIX = "[TB Screening] "

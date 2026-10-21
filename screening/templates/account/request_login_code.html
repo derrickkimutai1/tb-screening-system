@@ -1,0 +1,83 @@
+{% extends "account/base_auth.html" %}
+
+{% block title %}Email sign-in{% endblock %}
+
+{% block content %}
+
+<section class="gate-plate">
+  <p class="micro micro-acid">Sign in by email</p>
+  <h1 class="display display-lg gate-wordmark">Check&nbsp;your<br>inbox</h1>
+  <p class="gate-qualifier">A code, not a password</p>
+
+  <dl class="gate-spec">
+    <div><dt>Code length</dt><dd>6 digits</dd></div>
+    <div><dt>Valid for</dt><dd>5 minutes</dd></div>
+    <div><dt>Attempts</dt><dd>3</dd></div>
+  </dl>
+
+  <p class="gate-note">
+    The system sends a one-time code to an address it already knows. Nothing is
+    stored that could be reused, and there is still no password anywhere in this
+    system.
+  </p>
+</section>
+
+<section class="gate-action">
+  <div class="gate-action-head">
+    <span class="micro">Step 1 of 2</span>
+    <span class="micro">Your address</span>
+  </div>
+
+  {% if form.errors %}
+    {% for field, errors in form.errors.items %}
+      {% for error in errors %}
+        <div class="notice notice-caution mb-3">{{ error }}</div>
+      {% endfor %}
+    {% endfor %}
+  {% endif %}
+
+  <h2 class="gate-heading">Where should the code go?</h2>
+  <p class="field-hint gate-lede">
+    Enter the address your account uses. If it is not one this system recognises,
+    no code is sent.
+  </p>
+
+  <form method="post" action="{% url 'account_request_login_code' %}" data-pending novalidate>
+    {% csrf_token %}
+    {% if redirect_field_value %}
+      <input type="hidden" name="{{ redirect_field_name }}" value="{{ redirect_field_value }}">
+    {% endif %}
+
+    <div class="mb-4">
+      <label class="field-label" for="{{ form.email.id_for_label }}">Email address</label>
+      <input type="email" name="email" id="{{ form.email.id_for_label }}"
+             class="form-control" autocomplete="email" autofocus required
+             placeholder="you@strathmore.edu"
+             value="{{ form.email.value|default:'' }}">
+    </div>
+
+    <button type="submit" class="btn btn-action"><span data-label>Send the code</span></button>
+    <a class="btn btn-quiet ms-2" href="{% url 'account_login' %}">Back</a>
+  </form>
+
+  <p class="gate-fineprint">
+    Requests are rate limited. Asking repeatedly will not produce more codes, and
+    an address that has no account here is treated the same as one that does.
+  </p>
+</section>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+  document.querySelectorAll("form[data-pending]").forEach((form) => {
+    form.addEventListener("submit", () => {
+      const button = form.querySelector("button[type=submit]");
+      const label = button && button.querySelector("[data-label]");
+      if (!button || button.disabled) return;
+      button.disabled = true;
+      if (label) label.textContent = "Sending\u2026";
+    });
+  });
+</script>
+{% endblock %}

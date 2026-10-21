@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="TB Screening">
+  <!-- The masthead mark: an acid slash on the interface's own ground. -->
+  <rect width="32" height="32" rx="6" fill="#1b1e17"/>
+  <path d="M12.5 7h7.5l-6.5 18H6z" fill="#d7f225"/>
+</svg>

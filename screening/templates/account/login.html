@@ -25,8 +25,8 @@
 <section class="gate-action">
   <div class="gate-action-head">
     <span class="micro">Authentication</span>
-    <span class="micro gate-state {% if google_sign_in_configured %}gate-state-ready{% endif %}">
-      {% if google_sign_in_configured %}Ready{% else %}Unconfigured{% endif %}
+    <span class="micro gate-state {% if google_sign_in_configured or microsoft_sign_in_configured %}gate-state-ready{% endif %}">
+      {% if google_sign_in_configured or microsoft_sign_in_configured %}Ready{% else %}Unconfigured{% endif %}
     </span>
   </div>
 
@@ -38,41 +38,87 @@
 
   <h2 class="gate-heading">Sign in to continue</h2>
   <p class="field-hint gate-lede">
-    Identity is confirmed by Google. This system never sees or stores your password.
+    Use an account you already have. This system never sees or stores your password.
   </p>
 
   {% if google_sign_in_configured %}
-    <form method="post" action="{% provider_login_url 'google' process='login' %}">
+    <form method="post" action="{% url 'google_login' %}" data-pending>
       {% csrf_token %}
       {% if redirect_field_value %}
         <input type="hidden" name="{{ redirect_field_name }}" value="{{ redirect_field_value }}">
       {% endif %}
-      <button type="submit" class="gate-google">
-        <svg class="gate-google-mark" viewBox="0 0 18 18" aria-hidden="true" focusable="false">
+      <button type="submit" class="gate-provider gate-provider-light">
+        <svg class="gate-provider-mark" viewBox="0 0 18 18" aria-hidden="true" focusable="false">
           <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z"/>
           <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.92-2.26c-.81.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 0 0 9 18z"/>
           <path fill="#FBBC05" d="M3.97 10.72a5.4 5.4 0 0 1 0-3.44V4.95H.96a9 9 0 0 0 0 8.1l3.01-2.33z"/>
           <path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.59C13.46.9 11.43 0 9 0A9 9 0 0 0 .96 4.95l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58z"/>
         </svg>
-        <span>Continue with Google</span>
+        <span data-label>Continue with Google</span>
       </button>
     </form>
-  {% else %}
+  {% endif %}
+
+  {% if microsoft_sign_in_configured %}
+    <form method="post" action="{% url 'microsoft_login' %}" data-pending>
+      {% csrf_token %}
+      {% if redirect_field_value %}
+        <input type="hidden" name="{{ redirect_field_name }}" value="{{ redirect_field_value }}">
+      {% endif %}
+      <button type="submit" class="gate-provider gate-provider-dark">
+        <svg class="gate-provider-mark" viewBox="0 0 18 18" aria-hidden="true" focusable="false">
+          <path fill="#F25022" d="M0 0h8.5v8.5H0z"/>
+          <path fill="#7FBA00" d="M9.5 0H18v8.5H9.5z"/>
+          <path fill="#00A4EF" d="M0 9.5h8.5V18H0z"/>
+          <path fill="#FFB900" d="M9.5 9.5H18V18H9.5z"/>
+        </svg>
+        <span data-label>Continue with Microsoft</span>
+      </button>
+    </form>
+  {% endif %}
+
+  {% if not google_sign_in_configured and not microsoft_sign_in_configured %}
     <div class="notice notice-caution">
-      Google sign-in is not configured on this installation.
-      <code>GOOGLE_OAUTH_CLIENT_ID</code> and <code>GOOGLE_OAUTH_CLIENT_SECRET</code>
-      are absent from the environment.
+      No identity provider is configured on this installation.
+      <code>GOOGLE_OAUTH_CLIENT_ID</code> and its secret are absent from the
+      environment.
     </div>
-    <p class="field-hint">
-      An administrator can still reach the system through
-      <a href="{% url 'admin:index' %}">the Django admin</a>.
-    </p>
+  {% endif %}
+
+  {% if login_by_code_enabled %}
+    <div class="gate-divider"><span>or</span></div>
+
+    <a class="gate-provider gate-provider-quiet" href="{% url 'account_request_login_code' %}{% if redirect_field_value %}?{{ redirect_field_name }}={{ redirect_field_value|urlencode }}{% endif %}">
+      <svg class="gate-provider-mark" viewBox="0 0 18 18" aria-hidden="true" focusable="false">
+        <path fill="none" stroke="currentColor" stroke-width="1.4" d="M1.7 4.2h14.6v9.6H1.7z"/>
+        <path fill="none" stroke="currentColor" stroke-width="1.4" d="m1.7 4.9 7.3 4.6 7.3-4.6"/>
+      </svg>
+      <span>Email me a sign-in code</span>
+    </a>
   {% endif %}
 
   <p class="gate-fineprint">
-    Accounts are not created here. Only addresses on the approved list are admitted,
-    and the system requests your name and email address only.
+    Accounts are not created here. Only addresses on the approved list are
+    admitted, and the system requests your name and email address only.
   </p>
 </section>
 
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // Show that a click did something. Signing in with a provider means a full
+  // page navigation that can take a couple of seconds, and a button that looks
+  // untouched invites a second click.
+  document.querySelectorAll("form[data-pending]").forEach((form) => {
+    form.addEventListener("submit", () => {
+      const button = form.querySelector("button");
+      if (!button || button.disabled) return;
+      const label = button.querySelector("[data-label]");
+      button.disabled = true;
+      button.classList.add("is-pending");
+      if (label) label.textContent = "Redirecting…";
+    });
+  });
+</script>
 {% endblock %}

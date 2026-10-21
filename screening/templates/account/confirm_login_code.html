@@ -1,0 +1,87 @@
+{% extends "account/base_auth.html" %}
+
+{% block title %}Enter your code{% endblock %}
+
+{% block content %}
+
+<section class="gate-plate">
+  <p class="micro micro-acid">Sign in by email</p>
+  <h1 class="display display-lg gate-wordmark">Enter&nbsp;the<br>code</h1>
+  <p class="gate-qualifier">Sent to your inbox</p>
+
+  <dl class="gate-spec">
+    <div><dt>Code length</dt><dd>6 digits</dd></div>
+    <div><dt>Valid for</dt><dd>5 minutes</dd></div>
+    <div><dt>Attempts</dt><dd>3</dd></div>
+  </dl>
+
+  <p class="gate-note">
+    If nothing arrives, check the spam folder. A code that has expired cannot be
+    reused; request another from the previous step.
+  </p>
+</section>
+
+<section class="gate-action">
+  <div class="gate-action-head">
+    <span class="micro">Step 2 of 2</span>
+    <span class="micro gate-state gate-state-ready">Code sent</span>
+  </div>
+
+  {% if form.errors %}
+    {% for field, errors in form.errors.items %}
+      {% for error in errors %}
+        <div class="notice notice-caution mb-3">{{ error }}</div>
+      {% endfor %}
+    {% endfor %}
+  {% endif %}
+
+  <h2 class="gate-heading">Six digits, please</h2>
+  <p class="field-hint gate-lede">
+    Type the code from the email. It is valid for five minutes.
+  </p>
+
+  <form method="post" action="{% url 'account_confirm_login_code' %}" data-pending novalidate>
+    {% csrf_token %}
+
+    <div class="mb-4">
+      <label class="field-label" for="{{ form.code.id_for_label }}">Sign-in code</label>
+      <input type="text" name="code" id="{{ form.code.id_for_label }}"
+             class="form-control gate-code" inputmode="numeric" autocomplete="one-time-code"
+             pattern="[0-9]*" maxlength="6" autofocus required placeholder="000000">
+    </div>
+
+    <button type="submit" class="btn btn-action"><span data-label>Sign in</span></button>
+    <a class="btn btn-quiet ms-2" href="{% url 'account_request_login_code' %}">Send another</a>
+  </form>
+
+  <p class="gate-fineprint">
+    After three wrong attempts the code is discarded and you will need a new one.
+  </p>
+</section>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // autocomplete="one-time-code" lets a phone offer the code from its messages.
+  // Submitting as soon as six digits are present saves a tap and matches what
+  // people expect from this kind of field.
+  const field = document.querySelector(".gate-code");
+  if (field) {
+    field.addEventListener("input", () => {
+      field.value = field.value.replace(/\D/g, "").slice(0, 6);
+      if (field.value.length === 6) field.form.requestSubmit();
+    });
+  }
+
+  document.querySelectorAll("form[data-pending]").forEach((form) => {
+    form.addEventListener("submit", () => {
+      const button = form.querySelector("button[type=submit]");
+      const label = button && button.querySelector("[data-label]");
+      if (!button || button.disabled) return;
+      button.disabled = true;
+      if (label) label.textContent = "Checking\u2026";
+    });
+  });
+</script>
+{% endblock %}

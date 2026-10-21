@@ -894,43 +894,118 @@ td.numeric {
   max-width: 24rem;
 }
 
-/* Google asks that the mark keep its own colours on a plain surface, so this
-   button steps outside the acid palette deliberately. */
-.gate-google {
-  display: inline-flex;
+/* A provider button. Google and Microsoft both require their marks keep their
+   own colours on a plain surface, so these step outside the acid palette
+   deliberately. The email route is quieter, because it is the fallback. */
+
+.gate-provider {
+  display: flex;
   align-items: center;
+  justify-content: center;
   gap: 0.75rem;
   width: 100%;
-  justify-content: center;
   padding: 0.8125rem 1.25rem;
-  background: var(--ink);
-  border: 1px solid var(--ink);
+  margin-bottom: 0.625rem;
   border-radius: var(--r);
-  color: #171a12;
   font-family: var(--mono);
   font-size: 0.6875rem;
   font-weight: 500;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   cursor: pointer;
-  transition: transform 0.3s var(--ease), background 0.3s var(--ease);
+  text-decoration: none;
+  transition: transform 0.3s var(--ease), background 0.3s var(--ease),
+    border-color 0.3s var(--ease), opacity 0.2s var(--ease);
 }
 
-.gate-google:hover {
+.gate-provider-light {
+  background: var(--ink);
+  border: 1px solid var(--ink);
+  color: #171a12;
+}
+
+.gate-provider-light:hover {
   background: #ffffff;
   border-color: #ffffff;
+  color: #171a12;
   transform: translateY(-2px);
 }
 
-.gate-google:focus-visible {
+.gate-provider-dark {
+  background: var(--surface-lift);
+  border: 1px solid var(--line-bright);
+  color: var(--ink);
+}
+
+.gate-provider-dark:hover {
+  background: #343a30;
+  border-color: var(--ink-dim);
+  color: var(--ink);
+  transform: translateY(-2px);
+}
+
+.gate-provider-quiet {
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--ink-muted);
+}
+
+.gate-provider-quiet:hover {
+  border-color: var(--line-bright);
+  color: var(--ink);
+  transform: translateY(-2px);
+}
+
+.gate-provider:focus-visible {
   outline: 2px solid var(--acid);
   outline-offset: 3px;
 }
 
-.gate-google-mark {
+/* A button mid-navigation. It stays legible rather than greying out, because
+   the page is about to be replaced and a flash of dead control looks broken. */
+.gate-provider.is-pending,
+.btn:disabled {
+  opacity: 0.6;
+  transform: none;
+  cursor: wait;
+}
+
+.gate-provider-mark {
   width: 17px;
   height: 17px;
   flex: none;
+}
+
+/* Separates the providers from the fallback, so neither looks like the only
+   way in. */
+.gate-divider {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 1.25rem 0;
+  color: var(--ink-dim);
+  font-family: var(--mono);
+  font-size: 0.625rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.gate-divider::before,
+.gate-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
+/* The six-digit field. Monospaced and widely spaced, so a code is read back
+   digit by digit rather than as a number. */
+.gate-code {
+  font-family: var(--mono) !important;
+  font-size: 1.5rem !important;
+  letter-spacing: 0.4em;
+  text-align: center;
+  padding: 0.75rem !important;
 }
 
 .gate-fineprint {
