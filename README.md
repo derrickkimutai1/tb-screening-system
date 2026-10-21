@@ -65,6 +65,36 @@ Apply migrations and start the development server:
 .venv/Scripts/python.exe manage.py runserver
 ```
 
+### Signing in
+
+Every screening page requires a session. There are three ways to get one, and
+none of them involves a password: this system stores none, so it has none to
+leak or reset.
+
+| Route | Needs | Set up in |
+|---|---|---|
+| Google | OAuth credentials | `docs/google-sign-in-setup.md` |
+| Microsoft | An Azure app registration | optional, same pattern |
+| A six-digit code by email | A mail provider | `docs/deployment.md`, step 1b |
+
+With none of them configured the application still starts and the sign-in page
+says which routes are missing, so a fresh clone runs and the tests pass without
+any credentials at all.
+
+**Working without a mail provider.** With no `EMAIL_HOST`, messages go to the
+server console rather than an inbox, and the confirmation page shows the code
+it would have sent. That only happens while `DEBUG` is on *and* mail is going
+to the console; see `screening/services/devmail.py`.
+
+**Who may sign in.** `SIGN_IN_OPEN_REGISTRATION` decides whether a visitor can
+create an account with any address they can read mail at. `SIGN_IN_ALLOWED_EMAILS`
+and `SIGN_IN_ALLOWED_DOMAINS` restrict admission independently. A deployment
+holding real patient records should close the first and set the second.
+
+**Roles.** A new account is a radiographer: it can screen and read cases but not
+record a clinical review. Clinician and administrator can. Roles are assigned in
+the Django admin, never by the user.
+
 Run the tests with:
 
 ```bash
@@ -165,6 +195,9 @@ ml/
 data/            Datasets, downloaded rather than tracked
 media/           Uploaded X-rays and generated heatmap overlays
 docs/            Development log and project documentation
+deploy/          Container entry point and Hugging Face Space configuration
+scripts/         Backup to Drive, and the test-record generator
+Dockerfile       The deployable image, built in two stages
 ```
 
 Training code is kept separate from the web application. Preprocessing lives in a single
@@ -182,7 +215,45 @@ These collections were gathered in the United States and China. Radiological pre
 image acquisition and patient demographics differ from Kenyan health facilities, which
 limits how far the results generalise. This is measured and reported rather than assumed.
 
+## Documentation
+
+| Document | What it covers |
+|---|---|
+| `docs/traceability.md` | Each objective traced to its component, test, result and evidence, and what is not met |
+| `docs/test-record.md` | Generated from the suite by `scripts/build_test_record.py` |
+| `docs/deployment.md` | Deploying to a Hugging Face Space, and configuring mail |
+| `docs/usability-study.md` | Protocol and recording sheet for the usability evaluation |
+| `docs/devlog.md` | Development log, decisions and the reasoning behind them |
+| `docs/google-sign-in-setup.md` | Creating the Google OAuth credentials |
+| `ml/artifacts/OPERATING_POINT.md` | What each stored metric describes, and what it does not |
+| `ml/artifacts/architecture_comparison.md` | Why MobileNetV2, measured against three alternatives |
+
 ## Status
 
-In development. The Django application, database schema and environment are in place.
-Model training, Grad-CAM and the screening interface are in progress.
+The application is complete and runs: sign-in, screening of single images and
+batches, quality checking, triage, Grad-CAM, review with role separation,
+reporting, and a health endpoint. 134 tests pass, and the same suite runs on
+every push.
+
+**Headline results.** Test AUC 0.9291 [0.878, 0.970]. Decision threshold 0.102,
+chosen on validation against the WHO target product profile. Changing hospital
+costs 0.071 of AUC. Occlusion shows the model reads the lungs: 0.788 with lungs
+alone against 0.545 with everything else.
+
+**Not finished.** No deployed release yet; the container and its workflow are
+ready and need an account to push to. No usability study yet; the instrument is
+written and needs participants. Chapters 5 and 6 are outstanding.
+
+**Known limitations**, each measured rather than assumed:
+
+- **No threshold meets both WHO targets.** The best specificity at or above 90%
+  sensitivity is 0.689 against the 0.70 asked for.
+- **The Grad-CAM heatmap does not localise reliably.** Lift over chance is 1.00.
+  It should not be presented as evidence of where the model looked; the
+  occlusion tests carry that claim instead.
+- **The score is not a calibrated probability.** Expected calibration error
+  0.1018, systematically underconfident, which is why the interface calls it a
+  model score and reports AUC.
+- **Uploaded images are not access-controlled per case.** Any signed-in user can
+  open any record.
+- **The datasets are American and Chinese**, not Kenyan. See Data above.
