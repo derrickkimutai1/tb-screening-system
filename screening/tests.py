@@ -1150,6 +1150,18 @@ class SocialSignupPageTests(TestCase):
 
         self.assertIn("screening", template.origin.name.replace("\\", "/"))
 
+    def test_a_provider_signup_is_not_asked_to_verify_its_address_again(self):
+        """Opening local registration must not add a step to the Google route.
+
+        Local sign-up now requires a code, because anyone can claim any
+        address. A provider has already proved the address, so asking again
+        would be a second verification of the same fact.
+        """
+        from django.conf import settings
+
+        self.assertEqual(settings.SOCIALACCOUNT_EMAIL_VERIFICATION, "none")
+        self.assertEqual(settings.ACCOUNT_EMAIL_VERIFICATION, "mandatory")
+
     def test_automatic_signup_is_off(self):
         """Otherwise allauth creates the account and the form is never shown."""
         from django.conf import settings

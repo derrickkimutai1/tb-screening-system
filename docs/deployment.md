@@ -54,6 +54,66 @@ five separate `DB_*` variables otherwise, so your local setup is unaffected.
 
 ---
 
+## Step 1b — Somewhere to send the sign-in codes
+
+Registration is open: anyone enters an address and receives a six-digit code.
+Without a mail provider nothing is delivered, so **no one but you can create an
+account**. In development the code appears on the confirmation page instead,
+which is enough to work with and is switched off the moment either `DEBUG` is
+off or `EMAIL_HOST` is set.
+
+Pick one. Both are free at this volume.
+
+### Gmail, about three minutes
+
+Only works if your Google account has 2-Step Verification on; Google stopped
+accepting account passwords for SMTP.
+
+1. <https://myaccount.google.com/security> → turn on **2-Step Verification** if
+   it is off.
+2. <https://myaccount.google.com/apppasswords> → create one named
+   `TB Screening`. Google shows sixteen characters. Copy them.
+3. Set these:
+
+   ```
+   EMAIL_HOST=smtp.gmail.com
+   EMAIL_PORT=587
+   EMAIL_HOST_USER=derrick.kim46@gmail.com
+   EMAIL_HOST_PASSWORD=the sixteen characters, spaces removed
+   EMAIL_USE_TLS=True
+   DEFAULT_FROM_EMAIL=TB Screening <derrick.kim46@gmail.com>
+   ```
+
+An app password is not your Google password and can be revoked on its own. It
+still grants access to send as you, so it belongs in `.env` and in the Space's
+secrets, never in the repository.
+
+Gmail allows roughly 500 messages a day, which is far more than this needs.
+Messages may land in spam, because they come from a personal address with no
+sending reputation.
+
+### Brevo or Resend, about five minutes
+
+Better if you want mail that is less likely to be filtered, and it does not
+attach your personal Google account to the project.
+
+1. Sign up at <https://www.brevo.com> or <https://resend.com>.
+2. Create an SMTP key.
+3. Use the host, port and credentials they give you, with the same five
+   variables above.
+
+### Checking it works
+
+```bash
+.venv/Scripts/python.exe manage.py shell -c "from django.core.mail import send_mail; send_mail('TB Screening test', 'If you are reading this, mail works.', None, ['your.address@example.com']); print('sent')"
+```
+
+If that arrives, the sign-in codes will too. If it raises, the error names the
+problem: authentication failures mean the app password is wrong, timeouts mean
+the port or TLS setting is.
+
+---
+
 ## Step 2 — Create the Space
 
 1. Open <https://huggingface.co> and sign up, or sign in.
@@ -105,6 +165,7 @@ Add these as **secrets**:
 | `DATABASE_URL` | The Neon connection string from step 1. |
 | `GOOGLE_OAUTH_CLIENT_ID` | From your Google Cloud console. |
 | `GOOGLE_OAUTH_CLIENT_SECRET` | From your Google Cloud console. |
+| `EMAIL_HOST_PASSWORD` | The app password or SMTP key from step 1b. |
 
 Add these as **variables**, substituting your Space's host:
 
@@ -113,8 +174,12 @@ Add these as **variables**, substituting your Space's host:
 | `DJANGO_ALLOWED_HOSTS` | `owner-tb-screening-system.hf.space` |
 | `DJANGO_CSRF_TRUSTED_ORIGINS` | `https://owner-tb-screening-system.hf.space` |
 | `DJANGO_SITE_DOMAIN` | `owner-tb-screening-system.hf.space` |
-| `SIGN_IN_ALLOWED_DOMAINS` | `strathmore.edu` |
-| `SIGN_IN_ALLOWED_EMAILS` | your own address |
+| `SIGN_IN_ALLOWED_EMAILS` | leave empty to admit anyone |
+| `SIGN_IN_OPEN_REGISTRATION` | `True` to let visitors register, `False` to admit only known addresses |
+| `EMAIL_HOST` | `smtp.gmail.com`, or your provider's |
+| `EMAIL_PORT` | `587` |
+| `EMAIL_HOST_USER` | the sending address |
+| `DEFAULT_FROM_EMAIL` | `TB Screening <your.address@example.com>` |
 
 The host is the Space name with the slash turned into a hyphen and everything
 lowercased. `derrickkimutai1/tb-screening-system` becomes
@@ -177,6 +242,8 @@ Then, in a browser, confirm each of these and keep a screenshot:
 
 - [ ] The sign-in page loads over HTTPS and reports **Ready**.
 - [ ] Google sign-in completes and lands on the screening page.
+- [ ] A new address can register, receives a code **by email**, and gets in.
+- [ ] The development code banner is **absent**, because DEBUG is off there.
 - [ ] An address outside the allowlist is refused with the system's own message.
 - [ ] A radiograph uploads, previews, scores, and stores a record.
 - [ ] A batch of several images screens and reports per-image outcomes.

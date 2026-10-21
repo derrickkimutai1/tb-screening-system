@@ -192,7 +192,7 @@ because the proposal governs.
 | | |
 |---|---|
 | **Implemented in** | `screening/tests.py` |
-| **Result** | **100 tests**, covering valid and invalid uploads, oversized files, unsupported types, batch behaviour, quality thresholds, triage boundaries, preprocessing equivalence, authentication, the allowlist, role permissions, review attribution, metadata stripping, and the fifteen failure scenarios the Build Phase notes enumerate. |
+| **Result** | **134 tests**, covering valid and invalid uploads, oversized files, unsupported types, batch behaviour, quality thresholds, triage boundaries, preprocessing equivalence, authentication, the allowlist, role permissions, review attribution, metadata stripping, and the fifteen failure scenarios the Build Phase notes enumerate. |
 | **Automation** | GitHub Actions runs lint, formatting, migration checks and the suite against PostgreSQL on every push. |
 | **Record** | `docs/test-record.md`, generated from the suite by `scripts/build_test_record.py` so it cannot drift. `docs/sprint-2-test-record.md` is kept as the Sprint 2 snapshot. |
 | **Failure paths** | A deceptive file, an empty file, a filename attempting traversal, a filename carrying instructions, a corrupt image inside a batch, a failed heatmap, an absent model, an orphaned upload, a lost session, a guessed case id, an unknown case id, a duplicate submission, and the health endpoint under both outcomes. |
@@ -212,7 +212,7 @@ Stated here rather than left to be discovered.
 | **Grad-CAM lift at chance** | SO3 names explainability as a gap this project addresses. The heatmap does not localise reliably. | Reported as a limitation. The occlusion evidence carries the explainability claim instead. |
 | **WHO specificity target not reachable** | SO1's requirement is not fully satisfiable by this model on this data. | Reported as a finding. |
 | **Score is not calibrated** | 4b displays a raw score, not a probability. Now measured: ECE 0.1018, underconfident. | Labelled honestly as a model score. Platt or isotonic calibration is future work. |
-| **Any signed-in user can open any case** | There is no per-case ownership check. Defensible for shared clinical records, but it is a decision that has not been written down or agreed. | Confirm with the supervisor whether case access should be restricted by facility. |
+| **Any signed-in user can open any case** | There is no per-case ownership check, and registration is now open, so anyone who can receive email can read every screening record. Defensible while the images are public research datasets; not defensible with real patients. | Agree with the supervisor whether to close registration, restrict case access by facility, or both. `SIGN_IN_OPEN_REGISTRATION=False` closes the first half today. |
 
 ---
 
