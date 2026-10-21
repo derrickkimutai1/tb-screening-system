@@ -97,9 +97,17 @@
     </a>
   {% endif %}
 
+  {% if open_registration %}
+    <p class="gate-newcomer">
+      No account yet?
+      <a href="{% url 'account_signup' %}{% if redirect_field_value %}?{{ redirect_field_name }}={{ redirect_field_value|urlencode }}{% endif %}">Create one</a>
+      with any email address.
+    </p>
+  {% endif %}
+
   <p class="gate-fineprint">
-    Accounts are not created here. Only addresses on the approved list are
-    admitted, and the system requests your name and email address only.
+    The system stores your name and email address only. It never receives a
+    password, because it does not use them.
   </p>
 </section>
 

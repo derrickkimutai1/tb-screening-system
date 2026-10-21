@@ -5,17 +5,20 @@ The application does not create accounts of its own. A clinician signs in with
 a Google account they already have, Google vouches for the address, and this
 module decides whether that address is admitted. Two rules apply:
 
-Local registration is closed
-    There is no username-and-password sign-up form. Without one there is no
-    password for this system to store, leak or reset. Staff accounts for the
-    Django admin are still created from the command line with createsuperuser.
+Registration follows SIGN_IN_OPEN_REGISTRATION
+    Open, anyone who can receive mail at an address may create an account with
+    it; the six-digit code is what proves they control the inbox. Closed, only
+    accounts created in advance can sign in. Which is right depends on whose
+    radiographs are in the database, so both are kept and the setting decides.
+
+    There is no password either way. Identity comes from a provider or from a
+    code, so this system has none to store, leak or reset.
 
 Admission is by allowlist
-    A screening record is clinical data, so a Google account alone is not a
-    credential for reading it. The address must appear in SIGN_IN_ALLOWED_EMAILS
-    or its domain in SIGN_IN_ALLOWED_DOMAINS. An empty allowlist admits any
-    Google account; that is a convenience for a local demonstration and is
-    recorded in .env.example as unsuitable for deployment.
+    Independent of the above. The address must appear in SIGN_IN_ALLOWED_EMAILS
+    or its domain in SIGN_IN_ALLOWED_DOMAINS. An empty allowlist, which is the
+    default, admits anyone. A deployment holding real patient records should
+    set both this and SIGN_IN_OPEN_REGISTRATION.
 """
 
 import logging
@@ -51,10 +54,10 @@ def address_is_allowed(email):
 
 
 class ScreeningAccountAdapter(DefaultAccountAdapter):
-    """Closes the local username-and-password sign-up route."""
+    """Decides whether a new account may be created at all."""
 
     def is_open_for_signup(self, request):
-        return False
+        return getattr(settings, "SIGN_IN_OPEN_REGISTRATION", False)
 
 
 class ScreeningSocialAccountAdapter(DefaultSocialAccountAdapter):

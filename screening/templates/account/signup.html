@@ -1,0 +1,87 @@
+{% extends "account/base_auth.html" %}
+
+{% block title %}Create an account{% endblock %}
+
+{% block content %}
+
+<section class="gate-plate">
+  <p class="micro micro-acid">New account</p>
+  <h1 class="display display-lg gate-wordmark">Create&nbsp;an<br>account</h1>
+  <p class="gate-qualifier">Any email address</p>
+
+  <dl class="gate-spec">
+    <div><dt>Password</dt><dd>None required</dd></div>
+    <div><dt>Verification</dt><dd>6-digit code</dd></div>
+    <div><dt>Starting role</dt><dd>Radiographer</dd></div>
+  </dl>
+
+  <p class="gate-note">
+    Enter an address you can receive mail at. The code proves the inbox is
+    yours, which is the only thing this system needs to know about you.
+  </p>
+</section>
+
+<section class="gate-action">
+  <div class="gate-action-head">
+    <span class="micro">Step 1 of 2</span>
+    <span class="micro">Your address</span>
+  </div>
+
+  {% if form.errors %}
+    {% for field, errors in form.errors.items %}
+      {% for error in errors %}
+        <div class="notice notice-caution mb-3">{{ error }}</div>
+      {% endfor %}
+    {% endfor %}
+  {% endif %}
+
+  <h2 class="gate-heading">What is your email address?</h2>
+  <p class="field-hint gate-lede">
+    No password to choose and none to forget. You will be sent a code.
+  </p>
+
+  <form method="post" action="{% url 'account_signup' %}" data-pending novalidate>
+    {% csrf_token %}
+    {% if redirect_field_value %}
+      <input type="hidden" name="{{ redirect_field_name }}" value="{{ redirect_field_value }}">
+    {% endif %}
+
+    <div class="mb-4">
+      <label class="field-label" for="id_email">Email address</label>
+      <input type="email" name="email" id="id_email" class="form-control"
+             autocomplete="email" autofocus required placeholder="you@example.com"
+             value="{{ form.email.value|default:'' }}">
+    </div>
+
+    {# A field no person sees and no person fills in. Something that fills every
+       field it finds is not a person, and allauth discards the submission. #}
+    <div class="visually-hidden" aria-hidden="true">
+      <label for="id_website">Website</label>
+      <input type="text" name="website" id="id_website" tabindex="-1" autocomplete="off">
+    </div>
+
+    <button type="submit" class="btn btn-action"><span data-label>Send me a code</span></button>
+    <a class="btn btn-quiet ms-2" href="{% url 'account_login' %}">Back</a>
+  </form>
+
+  <p class="gate-fineprint">
+    New accounts can screen radiographs and read cases. Recording a clinical
+    review needs a clinician, which an administrator assigns.
+  </p>
+</section>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+  document.querySelectorAll("form[data-pending]").forEach((form) => {
+    form.addEventListener("submit", () => {
+      const button = form.querySelector("button[type=submit]");
+      if (!button || button.disabled) return;
+      const label = button.querySelector("[data-label]");
+      button.disabled = true;
+      if (label) label.textContent = "Sending\u2026";
+    });
+  });
+</script>
+{% endblock %}

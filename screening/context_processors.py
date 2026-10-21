@@ -15,4 +15,5 @@ def sign_in_state(request):
         "google_sign_in_configured": settings.GOOGLE_SIGN_IN_CONFIGURED,
         "microsoft_sign_in_configured": settings.MICROSOFT_SIGN_IN_CONFIGURED,
         "login_by_code_enabled": settings.ACCOUNT_LOGIN_BY_CODE_ENABLED,
+        "open_registration": settings.SIGN_IN_OPEN_REGISTRATION,
     }

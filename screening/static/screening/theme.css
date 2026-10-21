@@ -1156,3 +1156,49 @@ td.numeric {
   outline: 2px solid var(--acid);
   outline-offset: 2px;
 }
+
+/* The way to an account for someone who has none. Quiet, because most people
+   arriving already have one, but present, because the alternative is a dead
+   end for everyone else. */
+.gate-newcomer {
+  margin: 1.5rem 0 0;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--line);
+  font-size: 0.8125rem;
+  color: var(--ink-muted);
+}
+
+.gate-newcomer a {
+  color: var(--acid);
+}
+
+/* Present to assistive technology, invisible on screen. Used for the honeypot
+   field, which no person should see or fill in. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* A development-only notice. Deliberately unlike the rest of the interface:
+   it should look like scaffolding, not like part of the product, so nobody
+   mistakes it for something a user is meant to see. */
+.notice-dev {
+  border-left-color: #ffb02e;
+  background: rgba(255, 176, 46, 0.08);
+  font-size: 0.8125rem;
+}
+
+.dev-code {
+  font-family: var(--mono);
+  font-size: 1.125rem;
+  letter-spacing: 0.2em;
+  color: var(--acid);
+  padding: 0 0.25rem;
+}

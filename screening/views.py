@@ -13,6 +13,7 @@ from datetime import timedelta
 from decimal import Decimal
 from pathlib import Path
 
+from allauth.account.internal.stagekit import clear_login
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
@@ -24,6 +25,7 @@ from django.db.models.functions import TruncDate
 from django.db.utils import OperationalError
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
+from django.views.decorators.http import require_POST
 
 from .forms import MAX_BATCH_IMAGES, ProfileForm, ReviewForm, ScreeningUploadForm
 from .models import PredictionRecord, ReviewNote, profile_for
@@ -399,3 +401,21 @@ def health(request):
         {"status": "ready" if ok else "degraded", "checks": checks},
         status=200 if ok else 503,
     )
+
+
+@require_POST
+def restart_sign_in(request):
+    """Abandon a half-finished sign-in and go back to the start.
+
+    Asking for a code leaves a verification pending in the session, and while
+    it is pending allauth sends the request page straight to the confirmation
+    page. Someone who typed the wrong address is then looking at a form for a
+    code that will never arrive, with no way back to change it: both the link
+    to request a code and the sign-in page return them to the same screen.
+
+    This clears the pending login so the address can be entered again. POST,
+    because it changes session state, and deliberately outside the sign-in
+    gate, since by definition nobody is signed in when they need it.
+    """
+    clear_login(request)
+    return redirect("account_login")

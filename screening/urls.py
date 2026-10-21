@@ -11,4 +11,5 @@ urlpatterns = [
     path("dashboard/", views.dashboard, name="dashboard"),
     path("profile/", views.profile, name="profile"),
     path("health/", views.health, name="health"),
+    path("restart-sign-in/", views.restart_sign_in, name="restart_sign_in"),
 ]

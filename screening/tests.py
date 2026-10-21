@@ -500,11 +500,25 @@ class SignInTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
 
-    def test_local_registration_is_closed(self):
-        """There is no password in this system, so there is none to steal."""
+    @override_settings(SIGN_IN_OPEN_REGISTRATION=True)
+    def test_registration_follows_the_setting_when_open(self):
+        """A demonstration admits anyone who can receive mail at an address."""
+        from screening.auth import ScreeningAccountAdapter
+
+        self.assertTrue(ScreeningAccountAdapter().is_open_for_signup(None))
+
+    @override_settings(SIGN_IN_OPEN_REGISTRATION=False)
+    def test_registration_follows_the_setting_when_closed(self):
+        """A deployment holding real records admits only accounts made in advance."""
         from screening.auth import ScreeningAccountAdapter
 
         self.assertFalse(ScreeningAccountAdapter().is_open_for_signup(None))
+
+    def test_there_is_no_password_either_way(self):
+        """Identity comes from a provider or a code, so none is ever stored."""
+        from django.conf import settings
+
+        self.assertEqual(settings.ACCOUNT_SIGNUP_FIELDS, ["email*"])
 
     @override_settings(GOOGLE_SIGN_IN_CONFIGURED=False, MICROSOFT_SIGN_IN_CONFIGURED=False)
     def test_the_gate_still_renders_without_any_provider(self):
@@ -1289,12 +1303,15 @@ class EmailCodeSignInTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(response, "screening/upload.html")
 
-    def test_the_code_route_does_not_bypass_the_allowlist(self):
-        """A code only reaches an account that already exists, and local
-        registration is closed, so this cannot create one."""
-        from screening.auth import ScreeningAccountAdapter
+    @override_settings(
+        SIGN_IN_ALLOWED_EMAILS={"allowed@strathmore.edu"}, SIGN_IN_ALLOWED_DOMAINS=set()
+    )
+    def test_the_allowlist_still_governs_when_one_is_configured(self):
+        """Opening registration must not quietly disable the allowlist."""
+        from screening.auth import address_is_allowed
 
-        self.assertFalse(ScreeningAccountAdapter().is_open_for_signup(None))
+        self.assertTrue(address_is_allowed("allowed@strathmore.edu"))
+        self.assertFalse(address_is_allowed("stranger@example.com"))
 
     def test_the_attempt_cap_is_configured(self):
         """A six-digit code is guessable in a way a password is not."""
@@ -1351,3 +1368,186 @@ class EmailCodeRateLimitTests(TestCase):
 
         self.assertIn("request_login_code", limits)
         self.assertIn("confirm_login_code", limits)
+
+
+class DevelopmentCodeTests(TestCase):
+    """The on-page code must exist only where nobody can receive an email.
+
+    Showing a sign-in code to whoever loaded the page is handing out the
+    account. It is guarded on DEBUG and on the development mail backend, and
+    these assert that removing either guard removes the code.
+    """
+
+    DEV_BACKEND = "screening.services.devmail.LastMessageBackend"
+
+    def render(self):
+        from django.template import Context, Template
+
+        return Template(
+            "{% load devmail %}{% development_code as c %}{{ c|default:'none' }}"
+        ).render(Context({}))
+
+    def remember(self, body="Your code is 123456"):
+        from django.core.mail import EmailMessage
+
+        from screening.services.devmail import LastMessageBackend
+
+        LastMessageBackend(stream=io.StringIO()).send_messages(
+            [EmailMessage(subject="s", body=body, to=["someone@example.com"])]
+        )
+
+    @override_settings(DEBUG=True, EMAIL_BACKEND=DEV_BACKEND)
+    def test_the_code_is_shown_in_development(self):
+        self.remember()
+
+        self.assertEqual(self.render(), "123456")
+
+    @override_settings(DEBUG=False, EMAIL_BACKEND=DEV_BACKEND)
+    def test_nothing_is_shown_when_debug_is_off(self):
+        """Which is the case in the container and in every deployment."""
+        self.remember()
+
+        self.assertEqual(self.render(), "none")
+
+    @override_settings(DEBUG=True, EMAIL_BACKEND="django.core.mail.backends.smtp.EmailBackend")
+    def test_nothing_is_shown_once_real_mail_is_configured(self):
+        self.remember()
+
+        self.assertEqual(self.render(), "none")
+
+    @override_settings(DEBUG=True, EMAIL_BACKEND=DEV_BACKEND)
+    def test_a_message_with_no_code_yields_nothing(self):
+        """The unknown-account message has no code and must not render one."""
+        self.remember("We have no record of such an account.")
+
+        self.assertEqual(self.render(), "none")
+
+    @override_settings(DEBUG=True, EMAIL_BACKEND=DEV_BACKEND)
+    def test_the_backend_records_the_recipient(self):
+        from screening.services.devmail import last_recipient
+
+        self.remember()
+
+        self.assertEqual(last_recipient(), "someone@example.com")
+
+
+@override_settings(SIGN_IN_OPEN_REGISTRATION=True)
+class OpenRegistrationTests(TestCase):
+    """Anyone with an address they can read may create an account.
+
+    The whole exchange is walked, because the point is that a person who was
+    never added by hand can get in: submit an address, read the code out of the
+    message, and arrive signed in with a profile.
+    """
+
+    ADDRESS = "newcomer@outlook.com"
+
+    def setUp(self):
+        from django.core.cache import cache
+
+        cache.clear()
+
+    def code_from_outbox(self):
+        from django.core import mail
+
+        self.assertTrue(mail.outbox, "no message was sent")
+        found = re.search(r"\b(\d{6})\b", mail.outbox[-1].body)
+        self.assertIsNotNone(found, f"no code in: {mail.outbox[-1].body!r}")
+        return found.group(1)
+
+    def sign_up(self, address=None):
+        return self.client.post(
+            reverse("account_signup"), {"email": address or self.ADDRESS}, follow=True
+        )
+
+    def test_the_signup_page_is_reachable(self):
+        response = self.client.get(reverse("account_signup"))
+
+        self.assertEqual(response.status_code, 200)
+
+    def test_the_gate_offers_a_way_to_create_an_account(self):
+        response = self.client.get(reverse("account_login"))
+
+        self.assertContains(response, reverse("account_signup"))
+
+    def test_an_unknown_address_can_create_an_account(self):
+        self.sign_up()
+
+        self.assertTrue(
+            get_user_model().objects.filter(email=self.ADDRESS).exists(),
+            "a brand new address could not register",
+        )
+
+    def test_the_account_is_not_usable_until_the_code_is_entered(self):
+        response = self.sign_up()
+
+        self.assertFalse(response.context["user"].is_authenticated)
+
+    def test_entering_the_code_signs_the_newcomer_in(self):
+        self.sign_up()
+
+        response = self.client.post(
+            reverse("account_email_verification_sent"),
+            {"code": self.code_from_outbox()},
+            follow=True,
+        )
+
+        self.assertTrue(response.context["user"].is_authenticated)
+        self.assertEqual(response.context["user"].email, self.ADDRESS)
+
+    def test_a_newcomer_lands_on_the_screening_page(self):
+        self.sign_up()
+
+        response = self.client.post(
+            reverse("account_email_verification_sent"),
+            {"code": self.code_from_outbox()},
+            follow=True,
+        )
+
+        self.assertTemplateUsed(response, "screening/upload.html")
+
+    def test_a_newcomer_gets_a_profile_and_the_least_privileged_role(self):
+        from .models import Profile, profile_for
+
+        self.sign_up()
+        self.client.post(
+            reverse("account_email_verification_sent"),
+            {"code": self.code_from_outbox()},
+        )
+
+        user = get_user_model().objects.get(email=self.ADDRESS)
+        self.assertEqual(profile_for(user).role, Profile.Role.RADIOGRAPHER)
+        self.assertFalse(profile_for(user).may_review)
+
+    def test_a_wrong_code_leaves_the_newcomer_out(self):
+        self.sign_up()
+
+        response = self.client.post(
+            reverse("account_email_verification_sent"),
+            {"code": "000000"},
+            follow=True,
+        )
+
+        self.assertFalse(response.context["user"].is_authenticated)
+
+    @override_settings(SIGN_IN_OPEN_REGISTRATION=False)
+    def test_registration_can_be_closed_for_a_real_deployment(self):
+        """A database of real patients should not admit the whole internet."""
+        from screening.auth import ScreeningAccountAdapter
+
+        self.assertFalse(ScreeningAccountAdapter().is_open_for_signup(None))
+
+    def test_restarting_clears_a_half_finished_sign_in(self):
+        """Someone who typed the wrong address must be able to change it."""
+        self.sign_up()
+
+        self.client.post(reverse("screening:restart_sign_in"))
+        response = self.client.get(reverse("account_request_login_code"))
+
+        self.assertEqual(response.status_code, 200, "still trapped on the confirmation page")
+
+    def test_restarting_refuses_a_get(self):
+        """It changes session state, so it must not be reachable by a link."""
+        response = self.client.get(reverse("screening:restart_sign_in"))
+
+        self.assertEqual(response.status_code, 405)

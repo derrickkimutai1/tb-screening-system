@@ -212,14 +212,30 @@ LOGIN_URL = "account_login"
 LOGIN_REDIRECT_URL = "screening:upload"
 LOGOUT_REDIRECT_URL = "account_login"
 
-# No local registration. The only ways in are Google and a superuser created
-# from the command line, so there is no self-service password to steal.
+# Whether anyone with a working email address may create an account.
+#
+# True is the setting for a demonstration: a visitor signs in with any address
+# they can receive mail at, which is what makes the system usable by someone
+# who was never added by hand. The address is proved by the code, so an account
+# cannot be made for an inbox the person does not control.
+#
+# A deployment holding real patient records would set this False and admit
+# staff through the allowlist instead. Both behaviours are kept, because the
+# right one depends on whose radiographs are in the database.
+SIGN_IN_OPEN_REGISTRATION = env_flag("SIGN_IN_OPEN_REGISTRATION", default=True)
+
 ACCOUNT_ADAPTER = "screening.auth.ScreeningAccountAdapter"
 SOCIALACCOUNT_ADAPTER = "screening.auth.ScreeningSocialAccountAdapter"
 
 ACCOUNT_LOGIN_METHODS = {"email"}
 ACCOUNT_SIGNUP_FIELDS = ["email*"]
-ACCOUNT_EMAIL_VERIFICATION = "none"
+
+# An address has to be proved before it becomes an account, or anyone could
+# register under someone else's. Verification is by the same six-digit code as
+# signing in, rather than a link, so the whole flow stays in one browser tab.
+ACCOUNT_EMAIL_VERIFICATION = "mandatory" if SIGN_IN_OPEN_REGISTRATION else "none"
+ACCOUNT_EMAIL_VERIFICATION_BY_CODE_ENABLED = True
+ACCOUNT_SIGNUP_FORM_HONEYPOT_FIELD = "website"
 ACCOUNT_LOGOUT_ON_GET = False
 
 # A second way in, for a user whose institutional account is not one of the
@@ -240,7 +256,14 @@ ACCOUNT_LOGIN_BY_CODE_MAX_ATTEMPTS = 3
 # Six digits is a million combinations. On its own that is not much, which is
 # why it expires in five minutes, allows three attempts, and is rate limited
 # below; the strength is in the narrow window, not in the code.
-ACCOUNT_LOGIN_BY_CODE_FORMAT = {"numeric": True, "length": 6, "dashed": False}
+#
+# Set at the root rather than per flow, so the code that verifies a new address
+# looks and behaves exactly like the one that signs an existing user in. Two
+# different code formats in one product is the kind of detail that makes a
+# system feel improvised.
+USER_CODE_FORMAT = {"numeric": True, "length": 6, "dashed": False}
+ACCOUNT_LOGIN_BY_CODE_FORMAT = USER_CODE_FORMAT
+ACCOUNT_EMAIL_VERIFICATION_BY_CODE_FORMAT = USER_CODE_FORMAT
 
 # A code sent by email is guessable in a way a password is not, so the attempts
 # are capped above and the requests are capped here. Without this, an address
@@ -383,7 +406,10 @@ if EMAIL_HOST:
     EMAIL_USE_TLS = env_flag("EMAIL_USE_TLS", default=True)
     EMAIL_TIMEOUT = 10
 else:
-    EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+    # Prints like the console backend and keeps the last message, so the
+    # sign-in page can show the code nobody can receive. See
+    # screening/services/devmail.py for why, and for the guards.
+    EMAIL_BACKEND = "screening.services.devmail.LastMessageBackend"
 
 DEFAULT_FROM_EMAIL = os.environ.get(
     "DEFAULT_FROM_EMAIL", "TB Screening <no-reply@tb-screening.local>"
