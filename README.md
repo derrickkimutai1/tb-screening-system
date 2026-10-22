@@ -237,7 +237,7 @@ limits how far the results generalise. This is measured and reported rather than
 
 The application is complete and runs: sign-in, screening of single images and
 batches, quality checking, triage, Grad-CAM, review with role separation,
-reporting, and a health endpoint. 148 tests pass, and the same suite runs on
+reporting, and a health endpoint. 162 tests pass, and the same suite runs on
 every push.
 
 **Headline results.** Test AUC 0.9291 [0.878, 0.970]. Decision threshold 0.102,

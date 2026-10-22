@@ -1,0 +1,48 @@
+{% comment %}
+  Deliberately extends nothing. A 500 means something in the application
+  failed, and a template that pulls in context processors, the database or the
+  model could fail in turn, leaving Django with nothing to render at all. This
+  page needs no context and cannot itself break.
+{% endcomment %}
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Something went wrong &middot; TB Screening</title>
+  <style>
+    :root { color-scheme: dark; }
+    body {
+      margin: 0; min-height: 100vh; display: flex; align-items: center;
+      justify-content: center; padding: 2rem;
+      background: #131610; color: #edf1e2;
+      font-family: "Segoe UI", Arial, sans-serif;
+    }
+    .box { max-width: 34rem; border: 1px solid rgba(233,240,214,.13);
+           border-radius: 6px; background: #232720; padding: 2rem; }
+    .tag { font-family: Consolas, monospace; font-size: .625rem;
+           letter-spacing: .16em; text-transform: uppercase; color: #d7f225; }
+    h1 { font-size: 1.75rem; margin: .75rem 0 1rem; line-height: 1.15; }
+    p { font-size: .875rem; line-height: 1.6; color: #9ba491; }
+    a { display: inline-block; margin-top: 1.25rem; padding: .625rem 1.375rem;
+        background: #d7f225; color: #171a12; border-radius: 4px;
+        text-decoration: none; font-family: Consolas, monospace;
+        font-size: .6875rem; letter-spacing: .14em; text-transform: uppercase; }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <p class="tag">Error 500</p>
+    <h1>Something went wrong at our end</h1>
+    <p>
+      The request could not be completed. Nothing was saved, so a screening you
+      had just submitted may need to be repeated.
+    </p>
+    <p>
+      If it happens again, note what you were doing and tell whoever maintains
+      this installation; the server log records the detail.
+    </p>
+    <a href="/">Back to screening</a>
+  </div>
+</body>
+</html>

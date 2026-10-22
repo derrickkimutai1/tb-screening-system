@@ -1,0 +1,34 @@
+{% extends "screening/base.html" %}
+
+{% block title %}Not permitted{% endblock %}
+
+{% block pagehead %}
+<div class="pagehead">
+  <span class="micro micro-acid">Not permitted</span>
+  <h1 class="display display-xl mt-2">Your role does not<br>allow this</h1>
+  <p class="field-hint" style="max-width: 34rem;">
+    {{ exception|default:"This action is limited to a role your account does not hold." }}
+  </p>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="panel panel-lead rise" style="max-width: 36rem;">
+  <div class="panel-head">
+    <h2 class="panel-title">What you can do</h2>
+    <span class="micro">403</span>
+  </div>
+  <div class="panel-body">
+    <p class="field-hint">
+      Recording a clinical review is limited to clinicians and administrators.
+      Screening radiographs and reading cases are not.
+    </p>
+    <p class="field-hint">
+      Your current role is shown on <a href="{% url 'screening:profile' %}">your
+      profile</a>. An administrator can change it.
+    </p>
+    <a class="btn btn-action mt-2" href="{% url 'screening:upload' %}">Back to screening</a>
+    <a class="btn btn-quiet ms-2 mt-2" href="{% url 'screening:case_list' %}">All cases</a>
+  </div>
+</div>
+{% endblock %}

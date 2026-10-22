@@ -1212,3 +1212,73 @@ td.numeric {
   flex-direction: column;
   gap: 0.5rem;
 }
+
+/* ---- The masthead on a narrow screen --------------------------------------
+   The title, four navigation links and an email address do not fit side by
+   side on a phone: at 375px the row forced the whole page to 780px and the
+   document scrolled sideways. Everything below keeps the masthead inside the
+   viewport without hiding anything behind a menu the user has to discover. */
+
+@media (max-width: 767.98px) {
+  .masthead-inner {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.625rem;
+  }
+
+  /* The qualifier is decoration; the name alone identifies the system. */
+  .masthead-title .qualifier {
+    display: none;
+  }
+
+  .masthead-nav {
+    width: 100%;
+    flex-wrap: wrap;
+    gap: 0.25rem 0.5rem;
+  }
+
+  /* The signed-in address is the longest item and the least urgent, so it
+     takes the whole second row rather than pushing the links off the edge. */
+  .masthead-user {
+    flex-basis: 100%;
+    max-width: 100%;
+    order: 1;
+  }
+
+  /* On the profile page the address is the current page, and the full-width
+     acid bar that marks a current nav item is far too loud for a label. It
+     keeps the accent colour and loses the fill. */
+  .masthead-user.current {
+    background: transparent;
+    color: var(--acid);
+    padding-left: 0;
+  }
+
+  /* A link is also a touch target, so it gets a reachable height. */
+  .masthead-nav a {
+    padding: 0.4375rem 0.5rem;
+  }
+}
+
+/* A table does not shrink: a seven-column case list is wider than a phone, and
+   it dragged the whole document sideways. Each table scrolls inside its own
+   panel instead, so the columns stay reachable rather than being clipped.
+
+   Hiding the overflow on the document was the first attempt and was wrong: it
+   stops the page scrolling by making the far columns unreachable, which is a
+   worse outcome than the scrollbar. */
+.table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.table-scroll > .table {
+  margin-bottom: 0;
+}
+
+/* Keep the columns legible rather than letting them crush together. */
+@media (max-width: 767.98px) {
+  .table-scroll > .table {
+    min-width: 34rem;
+  }
+}

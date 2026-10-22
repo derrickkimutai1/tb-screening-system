@@ -1832,3 +1832,105 @@ class SignupDestinationTests(TestCase):
         self.assertTemplateUsed(response, "screening/upload.html")
         for url, _ in response.redirect_chain:
             self.assertNotIn("example.com", url)
+
+
+class ErrorPageTests(TestCase):
+    """What a user meets when something goes wrong.
+
+    Django's defaults are bare pages with no way back. The course notes ask
+    for "a safe, actionable explanation" instead of a generic message, which
+    means naming what happened and offering somewhere to go.
+    """
+
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(
+            username="erring", email="erring@strathmore.edu"
+        )
+        self.client.force_login(self.user)
+
+    def record(self):
+        return PredictionRecord.objects.create(
+            patient_reference="ERR-01",
+            xray_image="x.png",
+            tb_probability=Decimal("0.5"),
+            triage_level=PredictionRecord.TriageLevel.MEDIUM,
+            model_version="test",
+            decision_threshold=Decimal("0.102"),
+            triage_low_medium_threshold=Decimal("0.102"),
+            triage_medium_high_threshold=Decimal("0.546"),
+        )
+
+    @override_settings(DEBUG=False, ALLOWED_HOSTS=["testserver"])
+    def test_a_missing_case_uses_the_project_404(self):
+        response = self.client.get(reverse("screening:case_detail", args=[uuid.uuid4()]))
+
+        self.assertEqual(response.status_code, 404)
+        self.assertContains(response, "That page", status_code=404)
+        self.assertContains(response, "Search the cases", status_code=404)
+
+    @override_settings(DEBUG=False, ALLOWED_HOSTS=["testserver"])
+    def test_a_refused_review_uses_the_project_403(self):
+        """A radiographer POSTing a review met Django's bare 403."""
+        record = self.record()
+
+        response = self.client.post(
+            reverse("screening:case_detail", args=[record.case_id]),
+            {"status_set": PredictionRecord.ReviewStatus.REVIEWED, "note": "x"},
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertContains(response, "Your role does not", status_code=403)
+        self.assertContains(response, "Back to screening", status_code=403)
+
+    def test_the_500_page_needs_no_context(self):
+        """It must render when the thing that failed is the database or model."""
+        from django.template.loader import render_to_string
+
+        html = render_to_string("500.html")
+
+        self.assertIn("Something went wrong", html)
+        self.assertIn("Back to screening", html)
+
+
+class ResponsiveLayoutTests(TestCase):
+    """The layout rules a phone depends on.
+
+    These assert the stylesheet carries the rules rather than that a browser
+    applied them, which a server-side test cannot see. The measurement that
+    found the defect was taken in a browser at 375 pixels, where the masthead
+    forced every page to 780 and the document scrolled sideways.
+    """
+
+    def stylesheet(self):
+        from django.conf import settings
+
+        return (
+            settings.BASE_DIR / "screening" / "static" / "screening" / "theme.css"
+        ).read_text(encoding="utf-8")
+
+    def test_the_masthead_wraps_on_a_narrow_screen(self):
+        css = self.stylesheet()
+
+        self.assertIn("@media (max-width: 767.98px)", css)
+        self.assertIn(".masthead-nav {", css)
+
+    def test_tables_scroll_inside_their_panel(self):
+        """A seven-column table is wider than a phone and must not drag the page."""
+        css = self.stylesheet()
+
+        self.assertIn(".table-scroll {", css)
+        self.assertIn("overflow-x: auto", css)
+
+    def test_every_table_is_wrapped(self):
+        """An unwrapped one reintroduces the sideways scroll on its own page."""
+        from django.conf import settings
+
+        templates = (settings.BASE_DIR / "screening" / "templates" / "screening").glob("*.html")
+
+        for path in templates:
+            markup = path.read_text(encoding="utf-8")
+            self.assertEqual(
+                markup.count("<table"),
+                markup.count('<div class="table-scroll">'),
+                f"{path.name} has a table outside a scroll wrapper",
+            )

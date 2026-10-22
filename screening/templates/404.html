@@ -1,0 +1,30 @@
+{% extends "screening/base.html" %}
+
+{% block title %}Not found{% endblock %}
+
+{% block pagehead %}
+<div class="pagehead">
+  <span class="micro micro-acid">Not found</span>
+  <h1 class="display display-xl mt-2">That page<br>is not here</h1>
+  <p class="field-hint" style="max-width: 34rem;">
+    The address may be mistyped, or the case may have been removed.
+  </p>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="panel panel-lead rise" style="max-width: 36rem;">
+  <div class="panel-head">
+    <h2 class="panel-title">Where to go instead</h2>
+    <span class="micro">404</span>
+  </div>
+  <div class="panel-body">
+    <p class="field-hint">
+      A case is found by its reference on the case list rather than by guessing
+      its address.
+    </p>
+    <a class="btn btn-action mt-2" href="{% url 'screening:case_list' %}">Search the cases</a>
+    <a class="btn btn-quiet ms-2 mt-2" href="{% url 'screening:upload' %}">Screen a radiograph</a>
+  </div>
+</div>
+{% endblock %}

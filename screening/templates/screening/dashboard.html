@@ -52,16 +52,18 @@
       <div class="panel-body">
         <div class="chart-box"><canvas id="triage-chart"></canvas></div>
       </div>
-      <table class="table">
-        <tbody>
-          {% for label, count in triage_counts %}
-            <tr>
-              <td>{{ label }}</td>
-              <td class="numeric text-end" style="width: 5rem;">{{ count }}</td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+      <div class="table-scroll">
+        <table class="table">
+          <tbody>
+            {% for label, count in triage_counts %}
+              <tr>
+                <td>{{ label }}</td>
+                <td class="numeric text-end" style="width: 5rem;">{{ count }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>
 
@@ -72,34 +74,36 @@
         <a class="micro micro-acid" href="{% url 'screening:case_list' %}"
            style="text-decoration: none;">All cases &rarr;</a>
       </div>
-      <table class="table">
-        <thead>
-          <tr>
-            <th>Case reference</th>
-            <th>Analysed</th>
-            <th>Result</th>
-            <th class="text-end">Score</th>
-            <th>Triage</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for record in latest %}
+      <div class="table-scroll">
+        <table class="table">
+          <thead>
             <tr>
-              <td><a href="{% url 'screening:case_detail' record.case_id %}">{{ record.patient_reference }}</a></td>
-              <td class="numeric">{{ record.created_at|date:"j M H:i" }}</td>
-              <td>{{ record.get_predicted_label_display }}</td>
-              <td class="numeric text-end">{{ record.tb_probability }}</td>
-              <td><span class="triage {{ record.triage_css_class }}">{{ record.get_triage_level_display }}</span></td>
+              <th>Case reference</th>
+              <th>Analysed</th>
+              <th>Result</th>
+              <th class="text-end">Score</th>
+              <th>Triage</th>
             </tr>
-          {% empty %}
-            <tr>
-              <td colspan="5" style="color: var(--ink-muted); padding: 1.5rem 1rem;">
-                No screening records yet.
-              </td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {% for record in latest %}
+              <tr>
+                <td><a href="{% url 'screening:case_detail' record.case_id %}">{{ record.patient_reference }}</a></td>
+                <td class="numeric">{{ record.created_at|date:"j M H:i" }}</td>
+                <td>{{ record.get_predicted_label_display }}</td>
+                <td class="numeric text-end">{{ record.tb_probability }}</td>
+                <td><span class="triage {{ record.triage_css_class }}">{{ record.get_triage_level_display }}</span></td>
+              </tr>
+            {% empty %}
+              <tr>
+                <td colspan="5" style="color: var(--ink-muted); padding: 1.5rem 1rem;">
+                  No screening records yet.
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>
 

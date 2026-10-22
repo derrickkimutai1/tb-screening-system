@@ -24,34 +24,36 @@
       </div>
       <div class="panel-body p-0">
         {% if screened %}
-          <table class="table mb-0">
-            <thead>
-              <tr>
-                <th>Case reference</th>
-                <th>Result</th>
-                <th class="text-end">Score</th>
-                <th>Triage</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for record in screened %}
+          <div class="table-scroll">
+            <table class="table mb-0">
+              <thead>
                 <tr>
-                  <td>
-                    <a href="{% url 'screening:case_detail' record.case_id %}">
-                      {{ record.patient_reference }}
-                    </a>
-                  </td>
-                  <td>{{ record.get_predicted_label_display|default:record.predicted_label }}</td>
-                  <td class="text-end numeric">{{ record.tb_probability|floatformat:4 }}</td>
-                  <td>
-                    <span class="triage {{ record.triage_css_class }}">
-                      {{ record.get_triage_level_display }}
-                    </span>
-                  </td>
+                  <th>Case reference</th>
+                  <th>Result</th>
+                  <th class="text-end">Score</th>
+                  <th>Triage</th>
                 </tr>
-              {% endfor %}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {% for record in screened %}
+                  <tr>
+                    <td>
+                      <a href="{% url 'screening:case_detail' record.case_id %}">
+                        {{ record.patient_reference }}
+                      </a>
+                    </td>
+                    <td>{{ record.get_predicted_label_display|default:record.predicted_label }}</td>
+                    <td class="text-end numeric">{{ record.tb_probability|floatformat:4 }}</td>
+                    <td>
+                      <span class="triage {{ record.triage_css_class }}">
+                        {{ record.get_triage_level_display }}
+                      </span>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
         {% else %}
           <p class="field-hint m-3">No image in this batch could be screened.</p>
         {% endif %}

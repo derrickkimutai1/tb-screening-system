@@ -46,39 +46,41 @@
     </form>
   </div>
 
-  <table class="table">
-    <thead>
-      <tr>
-        <th>Case reference</th>
-        <th>Analysed</th>
-        <th>Result</th>
-        <th class="text-end">Score</th>
-        <th>Triage</th>
-        <th>Quality</th>
-        <th>Review status</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for record in page %}
+  <div class="table-scroll">
+    <table class="table">
+      <thead>
         <tr>
-          <td><a href="{% url 'screening:case_detail' record.case_id %}">{{ record.patient_reference }}</a></td>
-          <td class="numeric">{{ record.created_at|date:"j M Y H:i" }}</td>
-          <td>{{ record.get_predicted_label_display }}</td>
-          <td class="numeric text-end">{{ record.tb_probability }}</td>
-          <td><span class="triage {{ record.triage_css_class }}">{{ record.get_triage_level_display }}</span></td>
-          <td style="color: var(--ink-muted);">{{ record.get_quality_status_display }}</td>
-          <td>{{ record.get_review_status_display }}</td>
+          <th>Case reference</th>
+          <th>Analysed</th>
+          <th>Result</th>
+          <th class="text-end">Score</th>
+          <th>Triage</th>
+          <th>Quality</th>
+          <th>Review status</th>
         </tr>
-      {% empty %}
-        <tr>
-          <td colspan="7" style="color: var(--ink-muted); padding: 1.75rem 1rem;">
-            No screening records yet.
-            <a href="{% url 'screening:upload' %}">Screen a radiograph</a> to create one.
-          </td>
-        </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+      </thead>
+      <tbody>
+        {% for record in page %}
+          <tr>
+            <td><a href="{% url 'screening:case_detail' record.case_id %}">{{ record.patient_reference }}</a></td>
+            <td class="numeric">{{ record.created_at|date:"j M Y H:i" }}</td>
+            <td>{{ record.get_predicted_label_display }}</td>
+            <td class="numeric text-end">{{ record.tb_probability }}</td>
+            <td><span class="triage {{ record.triage_css_class }}">{{ record.get_triage_level_display }}</span></td>
+            <td style="color: var(--ink-muted);">{{ record.get_quality_status_display }}</td>
+            <td>{{ record.get_review_status_display }}</td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="7" style="color: var(--ink-muted); padding: 1.75rem 1rem;">
+              No screening records yet.
+              <a href="{% url 'screening:upload' %}">Screen a radiograph</a> to create one.
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
 
   {% if page.paginator.num_pages > 1 %}
     <div class="panel-body d-flex justify-content-between align-items-center"

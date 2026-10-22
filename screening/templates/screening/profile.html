@@ -25,26 +25,28 @@
         </span>
       </div>
       <div class="panel-body">
-        <table class="table mb-0">
-          <tbody>
-            <tr>
-              <td style="color: var(--ink-muted);">Signed in as</td>
-              <td class="numeric">{{ user.email|default:user.get_username }}</td>
-            </tr>
-            <tr>
-              <td style="color: var(--ink-muted);">Role</td>
-              <td>{{ profile.get_role_display }}</td>
-            </tr>
-            <tr>
-              <td style="color: var(--ink-muted);">May record reviews</td>
-              <td>{% if profile.may_review %}Yes{% else %}No{% endif %}</td>
-            </tr>
-            <tr>
-              <td style="color: var(--ink-muted);">Account created</td>
-              <td class="numeric">{{ profile.created_at|date:"j M Y" }}</td>
-            </tr>
-          </tbody>
-        </table>
+        <div class="table-scroll">
+          <table class="table mb-0">
+            <tbody>
+              <tr>
+                <td style="color: var(--ink-muted);">Signed in as</td>
+                <td class="numeric">{{ user.email|default:user.get_username }}</td>
+              </tr>
+              <tr>
+                <td style="color: var(--ink-muted);">Role</td>
+                <td>{{ profile.get_role_display }}</td>
+              </tr>
+              <tr>
+                <td style="color: var(--ink-muted);">May record reviews</td>
+                <td>{% if profile.may_review %}Yes{% else %}No{% endif %}</td>
+              </tr>
+              <tr>
+                <td style="color: var(--ink-muted);">Account created</td>
+                <td class="numeric">{{ profile.created_at|date:"j M Y" }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
 
         <p class="field-hint mt-3 mb-0">
           Your role is set by an administrator. If you could change it yourself it
@@ -98,25 +100,27 @@
       </div>
       <div class="panel-body p-0">
         {% if recent_reviews %}
-          <table class="table mb-0">
-            <thead>
-              <tr><th>Date</th><th>Case</th><th>Status set</th><th>Note</th></tr>
-            </thead>
-            <tbody>
-              {% for note in recent_reviews %}
-                <tr>
-                  <td class="numeric">{{ note.created_at|date:"j M, H:i" }}</td>
-                  <td>
-                    <a href="{% url 'screening:case_detail' note.record.case_id %}">
-                      {{ note.record.patient_reference }}
-                    </a>
-                  </td>
-                  <td>{{ note.get_status_set_display }}</td>
-                  <td>{{ note.note|truncatechars:70 }}</td>
-                </tr>
-              {% endfor %}
-            </tbody>
-          </table>
+          <div class="table-scroll">
+            <table class="table mb-0">
+              <thead>
+                <tr><th>Date</th><th>Case</th><th>Status set</th><th>Note</th></tr>
+              </thead>
+              <tbody>
+                {% for note in recent_reviews %}
+                  <tr>
+                    <td class="numeric">{{ note.created_at|date:"j M, H:i" }}</td>
+                    <td>
+                      <a href="{% url 'screening:case_detail' note.record.case_id %}">
+                        {{ note.record.patient_reference }}
+                      </a>
+                    </td>
+                    <td>{{ note.get_status_set_display }}</td>
+                    <td>{{ note.note|truncatechars:70 }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
         {% else %}
           <p class="field-hint m-3 mb-0">
             You have not recorded a review yet.

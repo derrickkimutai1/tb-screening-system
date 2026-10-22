@@ -6,7 +6,7 @@ it describes, and this one cannot.
 
 Built 22 October 2026.
 
-**148 of 148 automated tests pass.** The same suite runs on
+**162 of 162 automated tests pass.** The same suite runs on
 every push through GitHub Actions, against PostgreSQL, alongside lint,
 formatting and migration checks.
 
@@ -312,6 +312,48 @@ formatting and migration checks.
 | 146 | A closed system still signs in a known address | Behaves as the condition describes | Pass |
 | 147 | It refuses a get | It sends mail and creates accounts, so it must not be a link. | Pass |
 | 148 | A bare post to the login view is not an error | A keyed rate limit with no key raised ImproperlyConfigured, a 500. | Pass |
+
+### AllauthPageTests
+
+*allauth's own pages must look like the rest of the application.*
+
+| # | Condition | Expected | Outcome |
+|---|---|---|---|
+| 149 | The email page uses the application frame | Behaves as the condition describes | Pass |
+| 150 | The connections page uses the application frame | Behaves as the condition describes | Pass |
+| 151 | Changing a password explains there is none | Offering to change a password this system never stores is a lie. | Pass |
+| 152 | Resetting a password explains there is none | Behaves as the condition describes | Pass |
+| 153 | A signed out visitor is sent to the gate not the profile | Behaves as the condition describes | Pass |
+
+### SignupDestinationTests
+
+*Where a newly registered person actually arrives.*
+
+| # | Condition | Expected | Outcome |
+|---|---|---|---|
+| 154 | A new account lands on the screening page | Not on allauth's email-management form, which is where it went. | Pass |
+| 155 | The page they were heading for is honoured | Behaves as the condition describes | Pass |
+| 156 | An offsite destination is refused | An unchecked next parameter is an open redirect. | Pass |
+
+### ErrorPageTests
+
+*What a user meets when something goes wrong.*
+
+| # | Condition | Expected | Outcome |
+|---|---|---|---|
+| 157 | A missing case uses the project 404 | Behaves as the condition describes | Pass |
+| 158 | A refused review uses the project 403 | A radiographer POSTing a review met Django's bare 403. | Pass |
+| 159 | The 500 page needs no context | It must render when the thing that failed is the database or model. | Pass |
+
+### ResponsiveLayoutTests
+
+*The layout rules a phone depends on.*
+
+| # | Condition | Expected | Outcome |
+|---|---|---|---|
+| 160 | The masthead wraps on a narrow screen | Behaves as the condition describes | Pass |
+| 161 | Tables scroll inside their panel | A seven-column table is wider than a phone and must not drag the page. | Pass |
+| 162 | Every table is wrapped | An unwrapped one reintroduces the sideways scroll on its own page. | Pass |
 
 ---
 
