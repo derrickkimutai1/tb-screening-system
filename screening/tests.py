@@ -1934,3 +1934,226 @@ class ResponsiveLayoutTests(TestCase):
                 markup.count('<div class="table-scroll">'),
                 f"{path.name} has a table outside a scroll wrapper",
             )
+
+
+@override_settings(MEDIA_ROOT=MEDIA_FOR_TESTS)
+class FacilityScopeTests(TestCase):
+    """Who can see which records.
+
+    A clinic shares a caseload, because a radiographer screens and a clinician
+    reviews, so records cannot be private to whoever uploaded them. They are
+    scoped to a facility instead. These check that the sharing stops at the
+    clinic boundary, and that someone with no clinic sees nothing rather than
+    everything.
+    """
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(MEDIA_FOR_TESTS, ignore_errors=True)
+        super().tearDownClass()
+
+    def member_of(self, facility, role=None, username=None):
+        from .models import profile_for
+
+        user = get_user_model().objects.create_user(
+            username=username or f"u{get_user_model().objects.count()}",
+            email=f"{username or 'u'}{get_user_model().objects.count()}@example.org",
+        )
+        profile = profile_for(user)
+        profile.facility = facility
+        if role:
+            profile.role = role
+        profile.save()
+        return user
+
+    def record_at(self, facility, reference, screener=None):
+        return PredictionRecord.objects.create(
+            patient_reference=reference,
+            xray_image="x.png",
+            facility=facility,
+            screened_by=screener,
+            tb_probability=Decimal("0.5"),
+            triage_level=PredictionRecord.TriageLevel.MEDIUM,
+            model_version="test",
+            decision_threshold=Decimal("0.102"),
+            triage_low_medium_threshold=Decimal("0.102"),
+            triage_medium_high_threshold=Decimal("0.546"),
+        )
+
+    def test_a_colleague_at_the_same_clinic_sees_the_case(self):
+        """Without this the review workflow cannot work at all."""
+        radiographer = self.member_of("Kenyatta")
+        clinician = self.member_of("Kenyatta")
+        self.record_at("Kenyatta", "SHARED-01", radiographer)
+
+        visible = PredictionRecord.objects.visible_to(clinician)
+
+        self.assertEqual(visible.count(), 1)
+
+    def test_another_clinic_does_not(self):
+        self.record_at("Kenyatta", "THEIRS-01", self.member_of("Kenyatta"))
+        outsider = self.member_of("Mbagathi")
+
+        self.assertEqual(PredictionRecord.objects.visible_to(outsider).count(), 0)
+
+    def test_someone_with_no_clinic_sees_nothing(self):
+        """A stranger who registers must not inherit a clinic's caseload."""
+        self.record_at("Kenyatta", "THEIRS-02", self.member_of("Kenyatta"))
+        stranger = self.member_of("")
+
+        self.assertEqual(PredictionRecord.objects.visible_to(stranger).count(), 0)
+
+    def test_an_administrator_sees_everything(self):
+        """Somebody has to be able to."""
+        self.record_at("Kenyatta", "A-01")
+        self.record_at("Mbagathi", "A-02")
+        root = get_user_model().objects.create_superuser(
+            username="root", email="root@example.org", password="x"
+        )
+
+        self.assertEqual(PredictionRecord.objects.visible_to(root).count(), 2)
+
+    def test_an_anonymous_visitor_sees_nothing(self):
+        from django.contrib.auth.models import AnonymousUser
+
+        self.record_at("Kenyatta", "ANON-01")
+
+        self.assertEqual(PredictionRecord.objects.visible_to(AnonymousUser()).count(), 0)
+
+    def test_the_case_list_is_scoped(self):
+        self.record_at("Kenyatta", "LIST-MINE", self.member_of("Kenyatta"))
+        self.record_at("Mbagathi", "LIST-THEIRS")
+        self.client.force_login(self.member_of("Kenyatta"))
+
+        response = self.client.get(reverse("screening:case_list"))
+
+        self.assertContains(response, "LIST-MINE")
+        self.assertNotContains(response, "LIST-THEIRS")
+
+    def test_the_dashboard_is_scoped(self):
+        self.record_at("Kenyatta", "DASH-01")
+        self.record_at("Mbagathi", "DASH-02")
+        self.record_at("Mbagathi", "DASH-03")
+        self.client.force_login(self.member_of("Kenyatta"))
+
+        response = self.client.get(reverse("screening:dashboard"))
+
+        self.assertEqual(response.context["total"], 1)
+
+    def test_a_case_at_another_clinic_is_not_found_rather_than_refused(self):
+        """A 403 would confirm the reference exists."""
+        theirs = self.record_at("Mbagathi", "HIDDEN-01")
+        self.client.force_login(self.member_of("Kenyatta"))
+
+        response = self.client.get(reverse("screening:case_detail", args=[theirs.case_id]))
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_screening_stamps_the_record_with_who_and_where(self):
+        user = self.member_of("Kenyatta", username="stamper")
+        self.client.force_login(user)
+
+        self.client.post(
+            reverse("screening:upload"),
+            {"patient_reference": "STAMP-01", "xray_image": [make_image()]},
+        )
+
+        record = PredictionRecord.objects.get(patient_reference="STAMP-01")
+        self.assertEqual(record.screened_by, user)
+        self.assertEqual(record.facility, "Kenyatta")
+
+    def test_a_record_keeps_its_clinic_when_the_screener_moves(self):
+        """The facility is copied, not followed."""
+        from .models import profile_for
+
+        user = self.member_of("Kenyatta", username="mover")
+        self.client.force_login(user)
+        self.client.post(
+            reverse("screening:upload"),
+            {"patient_reference": "MOVE-01", "xray_image": [make_image()]},
+        )
+
+        profile = profile_for(user)
+        profile.facility = "Mbagathi"
+        profile.save()
+
+        record = PredictionRecord.objects.get(patient_reference="MOVE-01")
+        self.assertEqual(record.facility, "Kenyatta")
+
+    def test_a_record_survives_its_screener_being_removed(self):
+        user = self.member_of("Kenyatta", username="leaving")
+        record = self.record_at("Kenyatta", "LEAVE-01", user)
+
+        user.delete()
+
+        record.refresh_from_db()
+        self.assertIsNone(record.screened_by)
+        self.assertEqual(record.facility, "Kenyatta")
+
+    def test_the_profile_counts_what_this_user_screened(self):
+        user = self.member_of("Kenyatta", username="counter")
+        self.record_at("Kenyatta", "COUNT-01", user)
+        self.record_at("Kenyatta", "COUNT-02", user)
+        self.record_at("Kenyatta", "COUNT-03", self.member_of("Kenyatta"))
+        self.client.force_login(user)
+
+        response = self.client.get(reverse("screening:profile"))
+
+        self.assertEqual(response.context["screened_total"], 2)
+
+
+class NoFacilityNoticeTests(TestCase):
+    """A user with no clinic sees nothing, and must be told that is why.
+
+    Scoping fails closed, which is correct and looks identical to a broken
+    installation. The difference has to be stated on the page.
+    """
+
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(
+            username="unplaced", email="unplaced@example.org"
+        )
+        self.client.force_login(self.user)
+
+    def test_the_notice_appears_when_no_clinic_is_set(self):
+        response = self.client.get(reverse("screening:case_list"))
+
+        self.assertContains(response, "No clinic set")
+        self.assertContains(response, reverse("screening:profile"))
+
+    def test_the_notice_goes_once_a_clinic_is_set(self):
+        from .models import profile_for
+
+        profile = profile_for(self.user)
+        profile.facility = "Kenyatta"
+        profile.save()
+
+        response = self.client.get(reverse("screening:case_list"))
+
+        self.assertNotContains(response, "No clinic set")
+
+    def test_a_signed_out_visitor_never_sees_it(self):
+        self.client.logout()
+
+        response = self.client.get(reverse("account_login"))
+
+        self.assertNotContains(response, "No clinic set")
+
+    def test_setting_a_clinic_from_the_profile_joins_the_caseload(self):
+        """The whole point: a record at that clinic becomes visible."""
+        PredictionRecord.objects.create(
+            patient_reference="JOIN-01",
+            xray_image="x.png",
+            facility="Kenyatta",
+            tb_probability=Decimal("0.5"),
+            triage_level=PredictionRecord.TriageLevel.MEDIUM,
+            model_version="test",
+            decision_threshold=Decimal("0.102"),
+            triage_low_medium_threshold=Decimal("0.102"),
+            triage_medium_high_threshold=Decimal("0.546"),
+        )
+        self.assertNotContains(self.client.get(reverse("screening:case_list")), "JOIN-01")
+
+        self.client.post(reverse("screening:profile"), {"facility": "Kenyatta"})
+
+        self.assertContains(self.client.get(reverse("screening:case_list")), "JOIN-01")

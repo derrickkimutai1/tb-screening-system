@@ -27,6 +27,32 @@ def heatmap_upload_path(instance, filename):
     return f"heatmaps/{timezone.now():%Y/%m}/{instance.case_id}.png"
 
 
+class PredictionRecordQuerySet(models.QuerySet):
+    """Visibility rules, in one place rather than repeated in each view."""
+
+    def visible_to(self, user):
+        """The records this user may see.
+
+        Scoped by facility, because that is how a caseload is shared: everyone
+        at a clinic works the same list, which is what makes the review
+        workflow possible at all. Narrowing it to the person who uploaded each
+        record would leave a clinician with nothing to review.
+
+        An administrator sees everything, since somebody has to be able to.
+
+        A user with no facility set sees only records that also have none. That
+        is deliberate: it means someone who registers out of nowhere sees an
+        empty system rather than a clinic's caseload, and it fails closed
+        rather than open.
+        """
+        if not user.is_authenticated:
+            return self.none()
+        if user.is_superuser:
+            return self
+        profile = Profile.objects.filter(user=user).first()
+        return self.filter(facility=(profile.facility if profile else ""))
+
+
 class PredictionRecord(models.Model):
     """A single chest X-ray screening event and its stored outcome."""
 
@@ -53,6 +79,33 @@ class PredictionRecord(models.Model):
         PENDING = "PENDING", "Pending review"
         REVIEWED = "REVIEWED", "Reviewed"
         FOLLOW_UP = "FOLLOW_UP", "Follow-up required"
+
+    # Who screened this, and where
+    #
+    # A clinic shares a caseload: a radiographer screens and a clinician
+    # reviews, so a record cannot belong privately to whoever uploaded it.
+    # What it does belong to is a facility, which is what scopes who may see
+    # it. The person is recorded as well, because "which did I screen" is a
+    # reasonable question and nothing could answer it before.
+    #
+    # Both survive the account being removed. A screening record outliving the
+    # person who took it is normal; losing the record is not.
+    screened_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="screenings",
+    )
+    facility = models.CharField(
+        max_length=120,
+        blank=True,
+        db_index=True,
+        help_text=(
+            "The clinic this screening belongs to, copied from the profile of "
+            "whoever took it. Records are visible to that clinic."
+        ),
+    )
 
     # Identity
     case_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
@@ -116,6 +169,8 @@ class PredictionRecord(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    objects = PredictionRecordQuerySet.as_manager()
 
     class Meta:
         ordering = ["-created_at"]

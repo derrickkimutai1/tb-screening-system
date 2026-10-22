@@ -6,7 +6,7 @@ it describes, and this one cannot.
 
 Built 22 October 2026.
 
-**162 of 162 automated tests pass.** The same suite runs on
+**178 of 178 automated tests pass.** The same suite runs on
 every push through GitHub Actions, against PostgreSQL, alongside lint,
 formatting and migration checks.
 
@@ -354,6 +354,36 @@ formatting and migration checks.
 | 160 | The masthead wraps on a narrow screen | Behaves as the condition describes | Pass |
 | 161 | Tables scroll inside their panel | A seven-column table is wider than a phone and must not drag the page. | Pass |
 | 162 | Every table is wrapped | An unwrapped one reintroduces the sideways scroll on its own page. | Pass |
+
+### FacilityScopeTests
+
+*Who can see which records.*
+
+| # | Condition | Expected | Outcome |
+|---|---|---|---|
+| 163 | A colleague at the same clinic sees the case | Without this the review workflow cannot work at all. | Pass |
+| 164 | Another clinic does not | Behaves as the condition describes | Pass |
+| 165 | Someone with no clinic sees nothing | A stranger who registers must not inherit a clinic's caseload. | Pass |
+| 166 | An administrator sees everything | Somebody has to be able to. | Pass |
+| 167 | An anonymous visitor sees nothing | Behaves as the condition describes | Pass |
+| 168 | The case list is scoped | Behaves as the condition describes | Pass |
+| 169 | The dashboard is scoped | Behaves as the condition describes | Pass |
+| 170 | A case at another clinic is not found rather than refused | A 403 would confirm the reference exists. | Pass |
+| 171 | Screening stamps the record with who and where | Behaves as the condition describes | Pass |
+| 172 | A record keeps its clinic when the screener moves | The facility is copied, not followed. | Pass |
+| 173 | A record survives its screener being removed | Behaves as the condition describes | Pass |
+| 174 | The profile counts what this user screened | Behaves as the condition describes | Pass |
+
+### NoFacilityNoticeTests
+
+*A user with no clinic sees nothing, and must be told that is why.*
+
+| # | Condition | Expected | Outcome |
+|---|---|---|---|
+| 175 | The notice appears when no clinic is set | Behaves as the condition describes | Pass |
+| 176 | The notice goes once a clinic is set | Behaves as the condition describes | Pass |
+| 177 | A signed out visitor never sees it | Behaves as the condition describes | Pass |
+| 178 | Setting a clinic from the profile joins the caseload | The whole point: a record at that clinic becomes visible. | Pass |
 
 ---
 

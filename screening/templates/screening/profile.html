@@ -68,6 +68,10 @@
           </label>
           {{ form.facility }}
           <p class="field-hint">{{ form.facility.help_text }}</p>
+          <p class="field-hint">
+            Cases are shared with everyone at the same clinic. Leave this empty
+            and you will see only records that have no clinic either.
+          </p>
           {% for error in form.facility.errors %}
             <p class="field-hint" style="color: var(--triage-high);">{{ error }}</p>
           {% endfor %}
@@ -79,13 +83,19 @@
 
   <div class="col-lg-7">
     <div class="row g-3">
-      <div class="col-sm-6">
+      <div class="col-sm-4">
+        <div class="readout rise">
+          <span class="readout-label">Radiographs screened</span>
+          <span class="readout-value numeric" data-count="{{ screened_total }}">{{ screened_total }}</span>
+        </div>
+      </div>
+      <div class="col-sm-4">
         <div class="readout rise">
           <span class="readout-label">Cases reviewed</span>
           <span class="readout-value numeric" data-count="{{ cases_reviewed }}">{{ cases_reviewed }}</span>
         </div>
       </div>
-      <div class="col-sm-6">
+      <div class="col-sm-4">
         <div class="readout rise">
           <span class="readout-label">Notes written</span>
           <span class="readout-value numeric" data-count="{{ reviewed_total }}">{{ reviewed_total }}</span>

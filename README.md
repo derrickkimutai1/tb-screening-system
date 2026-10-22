@@ -237,7 +237,7 @@ limits how far the results generalise. This is measured and reported rather than
 
 The application is complete and runs: sign-in, screening of single images and
 batches, quality checking, triage, Grad-CAM, review with role separation,
-reporting, and a health endpoint. 162 tests pass, and the same suite runs on
+reporting, and a health endpoint. 178 tests pass, and the same suite runs on
 every push.
 
 **Headline results.** Test AUC 0.9291 [0.878, 0.970]. Decision threshold 0.102,
@@ -259,6 +259,6 @@ written and needs participants. Chapters 5 and 6 are outstanding.
 - **The score is not a calibrated probability.** Expected calibration error
   0.1018, systematically underconfident, which is why the interface calls it a
   model score and reports AUC.
-- **Uploaded images are not access-controlled per case.** Any signed-in user can
-  open any record.
+- **A clinic is typed, not chosen.** Records are scoped by facility, so two
+  spellings of one clinic make two separate caseloads.
 - **The datasets are American and Chinese**, not Kenyan. See Data above.

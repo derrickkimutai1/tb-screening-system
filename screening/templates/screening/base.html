@@ -49,6 +49,18 @@
     </div>
   {% endif %}
 
+  {% if user.is_authenticated and not viewer_facility %}
+    <div class="message-region">
+      <div class="notice notice-boundary">
+        <strong>No clinic set on your profile.</strong>
+        Records are shared with everyone at the same clinic, so until you set
+        one you will see none.
+        <a href="{% url 'screening:profile' %}">Set your clinic</a> to join a
+        caseload. Anything you screen before then stays visible only to you.
+      </div>
+    </div>
+  {% endif %}
+
   {% block pagehead %}{% endblock %}
   {% block content %}{% endblock %}
 </main>

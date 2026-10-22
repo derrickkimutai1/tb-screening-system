@@ -17,3 +17,20 @@ def sign_in_state(request):
         "login_by_code_enabled": settings.ACCOUNT_LOGIN_BY_CODE_ENABLED,
         "open_registration": settings.SIGN_IN_OPEN_REGISTRATION,
     }
+
+
+def facility_state(request):
+    """Whether the signed-in user has a clinic, and so sees any records.
+
+    Visibility is scoped by facility and fails closed, so someone who has not
+    set one sees nothing. That is the right default and a confusing first
+    impression: an empty system looks broken rather than restricted. This lets
+    the page say which it is.
+    """
+    user = getattr(request, "user", None)
+    if not user or not user.is_authenticated:
+        return {}
+
+    from .models import profile_for
+
+    return {"viewer_facility": profile_for(user).facility}

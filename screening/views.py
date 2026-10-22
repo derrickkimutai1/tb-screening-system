@@ -113,7 +113,7 @@ def reference_for(base, index, total):
     return f"{base}-{index:02d}"
 
 
-def screen_one(uploaded, reference):
+def screen_one(uploaded, reference, screener):
     """Store, quality check and screen one image.
 
     Returns (record, failure). Exactly one of the two is set. A failure is
@@ -149,6 +149,10 @@ def screen_one(uploaded, reference):
             case_id=case_id,
             patient_reference=reference,
             xray_image=stored,
+            screened_by=screener,
+            # Copied rather than followed, so a record stays with the clinic it
+            # was taken at even if the person later moves to another one.
+            facility=profile_for(screener).facility,
             quality_status=report.status,
             quality_message=report.message,
             blur_score=report.blur_score,
@@ -171,7 +175,9 @@ def upload(request):
         try:
             for position, uploaded in enumerate(images, start=1):
                 record, failure = screen_one(
-                    uploaded, reference_for(base, position, len(images))
+                    uploaded,
+                    reference_for(base, position, len(images)),
+                    request.user,
                 )
                 if record is not None:
                     screened.append(record)
@@ -216,7 +222,11 @@ def upload(request):
 
 @login_required
 def case_detail(request, case_id):
-    record = get_object_or_404(PredictionRecord, case_id=case_id)
+    # visible_to rather than a plain lookup, so a case at another clinic is
+    # not found rather than refused: a 403 would confirm the reference exists.
+    record = get_object_or_404(
+        PredictionRecord.objects.visible_to(request.user), case_id=case_id
+    )
 
     # Confirming or dismissing a case is a clinical judgement, so the form is
     # only offered to the roles that may make one. The check is repeated on the
@@ -274,6 +284,7 @@ def profile(request):
 
     reviewed = ReviewNote.objects.filter(reviewer=request.user).select_related("record")
     recent = reviewed[:10]
+    screened = PredictionRecord.objects.filter(screened_by=request.user).count()
 
     return render(
         request,
@@ -283,9 +294,11 @@ def profile(request):
             "form": form,
             "active": "profile",
             "reviewed_total": reviewed.count(),
+            "screened_total": screened,
             "recent_reviews": recent,
             "cases_reviewed": (
-                PredictionRecord.objects.filter(review_notes__reviewer=request.user)
+                PredictionRecord.objects.visible_to(request.user)
+                .filter(review_notes__reviewer=request.user)
                 .distinct()
                 .count()
             ),
@@ -295,7 +308,7 @@ def profile(request):
 
 @login_required
 def case_list(request):
-    records = PredictionRecord.objects.all()
+    records = PredictionRecord.objects.visible_to(request.user)
 
     reference = request.GET.get("reference", "").strip()
     if reference:
@@ -323,7 +336,7 @@ def case_list(request):
 
 @login_required
 def dashboard(request):
-    records = PredictionRecord.objects.all()
+    records = PredictionRecord.objects.visible_to(request.user)
     total = records.count()
 
     by_label = dict(records.values_list("predicted_label").annotate(n=Count("id")).order_by())
