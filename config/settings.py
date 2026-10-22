@@ -212,6 +212,15 @@ LOGIN_URL = "account_login"
 LOGIN_REDIRECT_URL = "screening:upload"
 LOGOUT_REDIRECT_URL = "account_login"
 
+# Where someone lands after confirming their address. allauth's default is its
+# own email-management page, which is an odd first sight of a screening system:
+# a new user finished registering and arrived at a form for adding email
+# addresses. They arrive at the screening page instead, which is what they came
+# for.
+ACCOUNT_SIGNUP_REDIRECT_URL = "screening:upload"
+ACCOUNT_EMAIL_CONFIRMATION_AUTHENTICATED_REDIRECT_URL = "screening:upload"
+ACCOUNT_EMAIL_CONFIRMATION_REDIRECT_URL = "screening:upload"
+
 # Whether anyone with a working email address may create an account.
 #
 # True is the setting for a demonstration: a visitor signs in with any address

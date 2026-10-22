@@ -1,0 +1,9 @@
+{% extends "allauth/layouts/base.html" %}
+
+{% comment %}
+  allauth's management pages fill {% templatetag openblock %} block content {% templatetag closeblock %}, which the base
+  above uses for the page frame. This routes their markup into the panel
+  rather than letting it replace the whole layout.
+{% endcomment %}
+
+{% block inner_content %}{% block content %}{% endblock %}{% endblock %}

@@ -34,6 +34,21 @@
 </header>
 
 <main class="container-xl">
+  {% comment %}
+    Anything set with messages.* appears here. Without this region every such
+    message is discarded silently, which is worse than not setting one: the
+    code believes it told the user something and the user was told nothing.
+  {% endcomment %}
+  {% if messages %}
+    <div class="message-region">
+      {% for message in messages %}
+        <div class="notice {% if message.level >= 30 %}notice-caution{% else %}notice-boundary{% endif %}">
+          {{ message }}
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
   {% block pagehead %}{% endblock %}
   {% block content %}{% endblock %}
 </main>

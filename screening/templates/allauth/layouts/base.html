@@ -1,0 +1,66 @@
+{% extends "screening/base.html" %}
+{% load i18n %}
+
+{% comment %}
+  Every page allauth ships bottoms out here: managing email addresses, account
+  connections, reauthentication. Without this they render as unstyled HTML with
+  their own navigation, which is what a user saw after confirming their address.
+
+  Overriding this one template gives all of them the application's own frame and
+  navigation. allauth's default menu is not reproduced: it offers "Change
+  Password" in a system that has none, and its other entries duplicate the
+  profile page.
+{% endcomment %}
+
+{% block title %}{% block head_title %}Account{% endblock %}{% endblock %}
+
+{% block pagehead %}
+<div class="pagehead">
+  <span class="micro micro-acid">Account</span>
+  <h1 class="display display-lg mt-2">{% block page_heading %}Your account{% endblock %}</h1>
+  <p class="field-hint" style="max-width: 34rem;">
+    Settings held by this system. Your name, role and facility are on
+    <a href="{% url 'screening:profile' %}">your profile</a>.
+  </p>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+  <div class="col-lg-8">
+    <div class="panel panel-lead rise">
+      <div class="panel-head">
+        <h2 class="panel-title">{% block panel_title %}Details{% endblock %}</h2>
+        <span class="micro">Managed here</span>
+      </div>
+      <div class="panel-body allauth-body">
+        {% if messages %}
+          {% for message in messages %}
+            <div class="notice notice-caution mb-3">{{ message }}</div>
+          {% endfor %}
+        {% endif %}
+
+        {% block inner_content %}{% endblock %}
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-4">
+    <div class="panel rise">
+      <div class="panel-head">
+        <h2 class="panel-title">Elsewhere</h2>
+      </div>
+      <div class="panel-body">
+        <p class="field-hint">
+          <a href="{% url 'screening:profile' %}">Your profile</a> holds your role
+          and facility.
+        </p>
+        <p class="field-hint mb-0">
+          There is no password to change. This system authenticates through a
+          provider or a one-time code and stores none.
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

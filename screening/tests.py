@@ -1722,3 +1722,113 @@ class ContinueWithEmailTests(TestCase):
         response = self.client.post(reverse("account_login"), {})
 
         self.assertEqual(response.status_code, 200)
+
+
+class AllauthPageTests(TestCase):
+    """allauth's own pages must look like the rest of the application.
+
+    They render through a layout this project does not otherwise touch, so
+    without an override they arrive as unstyled HTML with their own navigation.
+    That is what a user saw immediately after confirming their address.
+    """
+
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(
+            username="member", email="member@strathmore.edu"
+        )
+        self.client.force_login(self.user)
+
+    def themed(self, url):
+        response = self.client.get(url, follow=True)
+        names = {t.name for t in response.templates if t.name}
+        return response, "screening/base.html" in names
+
+    def test_the_email_page_uses_the_application_frame(self):
+        response, themed = self.themed(reverse("account_email"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(themed, "allauth's email page is unstyled")
+
+    def test_the_connections_page_uses_the_application_frame(self):
+        response, themed = self.themed(reverse("socialaccount_connections"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(themed, "allauth's connections page is unstyled")
+
+    def test_changing_a_password_explains_there_is_none(self):
+        """Offering to change a password this system never stores is a lie."""
+        response = self.client.get(reverse("account_change_password"), follow=True)
+
+        self.assertRedirects(response, reverse("screening:profile"))
+        self.assertContains(response, "no passwords")
+
+    def test_resetting_a_password_explains_there_is_none(self):
+        response = self.client.get(reverse("account_reset_password"), follow=True)
+
+        self.assertRedirects(response, reverse("screening:profile"))
+
+    def test_a_signed_out_visitor_is_sent_to_the_gate_not_the_profile(self):
+        self.client.logout()
+
+        response = self.client.get(reverse("account_change_password"), follow=True)
+
+        self.assertRedirects(response, reverse("account_login"))
+
+
+class SignupDestinationTests(TestCase):
+    """Where a newly registered person actually arrives."""
+
+    def setUp(self):
+        from django.core.cache import cache
+
+        cache.clear()
+
+    def register(self, email="arriving@strathmore.edu"):
+        from django.core import mail
+
+        self.client.post(reverse("screening:continue_with_email"), {"email": email})
+        code = re.search(r"\b(\d{6})\b", mail.outbox[-1].body).group(1)
+        return self.client.post(
+            reverse("account_email_verification_sent"), {"code": code}, follow=True
+        )
+
+    def test_a_new_account_lands_on_the_screening_page(self):
+        """Not on allauth's email-management form, which is where it went."""
+        response = self.register()
+
+        self.assertTemplateUsed(response, "screening/upload.html")
+        self.assertTrue(response.context["user"].is_authenticated)
+
+    def test_the_page_they_were_heading_for_is_honoured(self):
+        from django.core import mail
+
+        destination = reverse("screening:dashboard")
+        self.client.post(
+            reverse("screening:continue_with_email"),
+            {"email": "heading@strathmore.edu", "next": destination},
+        )
+        code = re.search(r"\b(\d{6})\b", mail.outbox[-1].body).group(1)
+
+        response = self.client.post(
+            reverse("account_email_verification_sent"), {"code": code}, follow=True
+        )
+
+        self.assertTemplateUsed(response, "screening/dashboard.html")
+
+    def test_an_offsite_destination_is_refused(self):
+        """An unchecked next parameter is an open redirect."""
+        from django.core import mail
+
+        self.client.post(
+            reverse("screening:continue_with_email"),
+            {"email": "offsite@strathmore.edu", "next": "https://example.com/phish"},
+        )
+        code = re.search(r"\b(\d{6})\b", mail.outbox[-1].body).group(1)
+
+        response = self.client.post(
+            reverse("account_email_verification_sent"), {"code": code}, follow=True
+        )
+
+        self.assertTemplateUsed(response, "screening/upload.html")
+        for url, _ in response.redirect_chain:
+            self.assertNotIn("example.com", url)

@@ -28,7 +28,7 @@ from django.db import connections, transaction
 from django.db.models import Count
 from django.db.models.functions import TruncDate
 from django.db.utils import OperationalError
-from django.shortcuts import get_object_or_404, redirect, render
+from django.shortcuts import get_object_or_404, redirect, render, resolve_url
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
@@ -515,19 +515,58 @@ def continue_with_email(request):
     if response is not None:
         return response
 
+    # success_url is where the person ends up once verification has finished,
+    # not the page that collects the code; allauth routes them to that itself.
+    # Passing the collection page sent a newly registered user to allauth's
+    # email-management screen, which is a strange first sight of a screening
+    # system.
     return complete_signup(
         request,
         user=user,
         email_verification=settings.ACCOUNT_EMAIL_VERIFICATION,
-        success_url=_with_next("account_email_verification_sent", redirect_to),
+        success_url=_safe_next(redirect_to) or resolve_url(settings.LOGIN_REDIRECT_URL),
     )
+
+
+def _safe_next(redirect_to):
+    """The page the user was trying to reach, if it is one of ours.
+
+    An unchecked next parameter is an open redirect: a link to this site that
+    bounces the visitor somewhere else after they sign in.
+    """
+    if redirect_to and url_has_allowed_host_and_scheme(
+        redirect_to,
+        allowed_hosts=set(settings.ALLOWED_HOSTS),
+        require_https=request_is_secure(),
+    ):
+        return redirect_to
+    return None
+
+
+def request_is_secure():
+    """Whether to insist a next URL is https, matching how the site is served."""
+    return not settings.DEBUG
 
 
 def _with_next(name, redirect_to):
     """Carry the page the user was trying to reach through the code exchange."""
     url = reverse(name)
-    if redirect_to and url_has_allowed_host_and_scheme(
-        redirect_to, allowed_hosts={settings.ALLOWED_HOSTS and ""} | set(settings.ALLOWED_HOSTS)
-    ):
-        return f"{url}?next={quote(redirect_to)}"
-    return url
+    destination = _safe_next(redirect_to)
+    return f"{url}?next={quote(destination)}" if destination else url
+
+
+def no_password_here(request):
+    """Explain that there is no password, rather than offering to change one.
+
+    allauth registers password change, set and reset routes whether or not any
+    account has a password. Nothing here does: identity comes from a provider
+    or a one-time code. A page inviting someone to change a password that does
+    not exist is worse than a missing page, so these routes say so and send the
+    user somewhere useful.
+    """
+    messages.info(
+        request,
+        "This system has no passwords. You sign in with Google, Microsoft or a "
+        "one-time code sent to your email address, so there is nothing to change.",
+    )
+    return redirect("screening:profile" if request.user.is_authenticated else "account_login")

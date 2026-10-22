@@ -1202,3 +1202,13 @@ td.numeric {
   color: var(--acid);
   padding: 0 0.25rem;
 }
+
+/* Where messages set anywhere in the application appear. Above the page
+   heading, because a message usually explains why this page is not the one
+   that was asked for. */
+.message-region {
+  margin: 1.5rem 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
