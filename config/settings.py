@@ -268,9 +268,16 @@ ACCOUNT_EMAIL_VERIFICATION_BY_CODE_FORMAT = USER_CODE_FORMAT
 # A code sent by email is guessable in a way a password is not, so the attempts
 # are capped above and the requests are capped here. Without this, an address
 # could be enumerated or a code brute-forced at leisure.
+#
+# The per-key limits are keyed on the address being used. allauth raises
+# ImproperlyConfigured, and the request becomes a 500, if a view consults a
+# keyed limit without a key to hand: that happens on a bare POST to the login
+# view, which carries no address because this interface never posts there.
+# Those two are therefore limited by address only where an address is
+# guaranteed, and by IP otherwise.
 ACCOUNT_RATE_LIMITS = {
-    "login": "10/m/ip,5/5m/key",
-    "login_failed": "5/5m/ip,3/5m/key",
+    "login": "10/m/ip",
+    "login_failed": "5/5m/ip",
     "request_login_code": "3/5m/key,10/h/ip",
     "confirm_login_code": "5/5m/key",
     "signup": "5/h/ip",

@@ -533,7 +533,8 @@ class SignInTests(TestCase):
         """It is the way in when a provider is down or absent."""
         response = self.client.get(reverse("account_login"))
 
-        self.assertContains(response, reverse("account_request_login_code"))
+        self.assertContains(response, reverse("screening:continue_with_email"))
+        self.assertContains(response, 'name="email"')
 
 
 class AllowlistTests(TestCase):
@@ -1477,10 +1478,12 @@ class OpenRegistrationTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
 
-    def test_the_gate_offers_a_way_to_create_an_account(self):
+    def test_the_gate_registers_from_the_same_field_it_signs_in_from(self):
+        """There is no separate "create an account" route to choose."""
         response = self.client.get(reverse("account_login"))
 
-        self.assertContains(response, reverse("account_signup"))
+        self.assertContains(response, reverse("screening:continue_with_email"))
+        self.assertNotContains(response, reverse("account_signup"))
 
     def test_an_unknown_address_can_create_an_account(self):
         self.sign_up()
@@ -1563,3 +1566,159 @@ class OpenRegistrationTests(TestCase):
         response = self.client.get(reverse("screening:restart_sign_in"))
 
         self.assertEqual(response.status_code, 405)
+
+
+class ContinueWithEmailTests(TestCase):
+    """One field on the gate, for both signing in and registering.
+
+    A person should not have to know whether they already have an account
+    before they are allowed to type their address. These check that the same
+    submission does the right thing either way, and that the two cases are
+    not distinguishable from outside.
+    """
+
+    ADDRESS = "someone@outlook.com"
+
+    def setUp(self):
+        from django.core.cache import cache
+
+        cache.clear()
+
+    def submit(self, email=None, **extra):
+        return self.client.post(
+            reverse("screening:continue_with_email"),
+            {"email": email if email is not None else self.ADDRESS, **extra},
+            follow=True,
+        )
+
+    def code_from_outbox(self):
+        from django.core import mail
+
+        self.assertTrue(mail.outbox, "no message was sent")
+        found = re.search(r"\b(\d{6})\b", mail.outbox[-1].body)
+        self.assertIsNotNone(found, f"no code in: {mail.outbox[-1].body!r}")
+        return found.group(1)
+
+    def existing_user(self):
+        from allauth.account.models import EmailAddress
+
+        user = get_user_model().objects.create_user(username="already", email=self.ADDRESS)
+        EmailAddress.objects.create(user=user, email=self.ADDRESS, primary=True, verified=True)
+        return user
+
+    def test_the_gate_carries_the_field_rather_than_a_link(self):
+        """Typing an address should not require visiting another page first."""
+        response = self.client.get(reverse("account_login"))
+
+        self.assertContains(response, 'name="email"')
+        self.assertContains(response, reverse("screening:continue_with_email"))
+
+    def test_a_new_address_is_registered_and_sent_a_code(self):
+        self.submit()
+
+        self.assertTrue(get_user_model().objects.filter(email=self.ADDRESS).exists())
+        self.assertRegex(self.code_from_outbox(), r"^\d{6}$")
+
+    def test_a_new_address_can_finish_and_is_signed_in(self):
+        self.submit()
+
+        response = self.client.post(
+            reverse("account_email_verification_sent"),
+            {"code": self.code_from_outbox()},
+            follow=True,
+        )
+
+        self.assertTrue(response.context["user"].is_authenticated)
+        self.assertEqual(response.context["user"].email, self.ADDRESS)
+
+    def test_an_existing_address_is_sent_a_sign_in_code(self):
+        self.existing_user()
+
+        self.submit()
+
+        response = self.client.post(
+            reverse("account_confirm_login_code"),
+            {"code": self.code_from_outbox()},
+            follow=True,
+        )
+
+        self.assertTrue(response.context["user"].is_authenticated)
+
+    def test_an_existing_address_does_not_create_a_second_account(self):
+        self.existing_user()
+
+        self.submit()
+
+        self.assertEqual(get_user_model().objects.filter(email=self.ADDRESS).count(), 1)
+
+    def test_the_person_is_never_asked_which_case_they_are_in(self):
+        """Both branches end on a page asking for six digits."""
+        self.submit()
+        new = self.client.get(reverse("account_email_verification_sent"))
+
+        self.client.post(reverse("screening:restart_sign_in"))
+        self.submit()
+        existing = self.client.get(reverse("account_confirm_login_code"))
+
+        for page in (new, existing):
+            self.assertContains(page, "Six digits")
+
+    def test_an_invalid_address_is_refused_on_the_gate(self):
+        from django.core import mail
+
+        response = self.submit("not-an-address")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertContains(response, "does not look like an email address", status_code=400)
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_an_empty_address_is_refused(self):
+        response = self.submit("")
+
+        self.assertEqual(response.status_code, 400)
+
+    def test_the_address_is_lowercased(self):
+        self.submit("MiXeD.Case@Outlook.COM")
+
+        self.assertTrue(
+            get_user_model().objects.filter(email="mixed.case@outlook.com").exists()
+        )
+
+    @override_settings(SIGN_IN_ALLOWED_DOMAINS={"strathmore.edu"}, SIGN_IN_ALLOWED_EMAILS=set())
+    def test_the_allowlist_is_applied_before_anything_is_created(self):
+        """A refused address must not become an account or receive a code."""
+        from django.core import mail
+
+        self.submit("outsider@gmail.com")
+
+        self.assertFalse(get_user_model().objects.filter(email="outsider@gmail.com").exists())
+        self.assertEqual(len(mail.outbox), 0)
+
+    @override_settings(SIGN_IN_OPEN_REGISTRATION=False)
+    def test_a_closed_system_refuses_an_unknown_address(self):
+        from django.core import mail
+
+        self.submit()
+
+        self.assertFalse(get_user_model().objects.filter(email=self.ADDRESS).exists())
+        self.assertEqual(len(mail.outbox), 0)
+
+    @override_settings(SIGN_IN_OPEN_REGISTRATION=False)
+    def test_a_closed_system_still_signs_in_a_known_address(self):
+        self.existing_user()
+
+        self.submit()
+
+        self.assertRegex(self.code_from_outbox(), r"^\d{6}$")
+
+    def test_it_refuses_a_get(self):
+        """It sends mail and creates accounts, so it must not be a link."""
+        response = self.client.get(reverse("screening:continue_with_email"))
+
+        self.assertEqual(response.status_code, 405)
+
+    def test_a_bare_post_to_the_login_view_is_not_an_error(self):
+        """A keyed rate limit with no key raised ImproperlyConfigured, a 500."""
+        response = self.client.post(reverse("account_login"), {})
+
+        self.assertEqual(response.status_code, 200)

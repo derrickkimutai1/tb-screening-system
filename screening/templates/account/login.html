@@ -88,20 +88,33 @@
   {% if login_by_code_enabled %}
     <div class="gate-divider"><span>or</span></div>
 
-    <a class="gate-provider gate-provider-quiet" href="{% url 'account_request_login_code' %}{% if redirect_field_value %}?{{ redirect_field_name }}={{ redirect_field_value|urlencode }}{% endif %}">
-      <svg class="gate-provider-mark" viewBox="0 0 18 18" aria-hidden="true" focusable="false">
-        <path fill="none" stroke="currentColor" stroke-width="1.4" d="M1.7 4.2h14.6v9.6H1.7z"/>
-        <path fill="none" stroke="currentColor" stroke-width="1.4" d="m1.7 4.9 7.3 4.6 7.3-4.6"/>
-      </svg>
-      <span>Email me a sign-in code</span>
-    </a>
-  {% endif %}
+    {% comment %}
+      One field for signing in and for registering. Whether this address
+      already has an account is something the server looks up, not something
+      the person is asked to declare.
+    {% endcomment %}
+    <form method="post" action="{% url 'screening:continue_with_email' %}" data-pending novalidate>
+      {% csrf_token %}
+      {% if redirect_field_value %}
+        <input type="hidden" name="next" value="{{ redirect_field_value }}">
+      {% endif %}
 
-  {% if open_registration %}
+      <label class="field-label" for="gate-email">Email address</label>
+      <input type="email" name="email" id="gate-email" class="form-control"
+             autocomplete="email" required placeholder="you@example.com"
+             value="{{ email_value|default:'' }}">
+      {% if email_error %}
+        <p class="field-hint" style="color: var(--triage-high);">{{ email_error }}</p>
+      {% endif %}
+
+      <button type="submit" class="gate-provider gate-provider-quiet mt-3">
+        <span data-label>Continue with email</span>
+      </button>
+    </form>
+
     <p class="gate-newcomer">
-      No account yet?
-      <a href="{% url 'account_signup' %}{% if redirect_field_value %}?{{ redirect_field_name }}={{ redirect_field_value|urlencode }}{% endif %}">Create one</a>
-      with any email address.
+      We will send you a six-digit code. If you have no account yet, one is
+      created when you enter it.
     </p>
   {% endif %}
 

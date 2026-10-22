@@ -77,6 +77,11 @@ leak or reset.
 | Microsoft | An Azure app registration | optional, same pattern |
 | A six-digit code by email | A mail provider | `docs/deployment.md`, step 1b |
 
+The gate asks for an address in one field and works out the rest. An address
+that already has an account is sent a sign-in code; one that does not is
+registered and sent a confirmation code. Nobody is asked to know which case
+they are in before they are allowed to type.
+
 With none of them configured the application still starts and the sign-in page
 says which routes are missing, so a fresh clone runs and the tests pass without
 any credentials at all.
@@ -232,7 +237,7 @@ limits how far the results generalise. This is measured and reported rather than
 
 The application is complete and runs: sign-in, screening of single images and
 batches, quality checking, triage, Grad-CAM, review with role separation,
-reporting, and a health endpoint. 134 tests pass, and the same suite runs on
+reporting, and a health endpoint. 148 tests pass, and the same suite runs on
 every push.
 
 **Headline results.** Test AUC 0.9291 [0.878, 0.970]. Decision threshold 0.102,

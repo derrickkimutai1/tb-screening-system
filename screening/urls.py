@@ -12,4 +12,5 @@ urlpatterns = [
     path("profile/", views.profile, name="profile"),
     path("health/", views.health, name="health"),
     path("restart-sign-in/", views.restart_sign_in, name="restart_sign_in"),
+    path("continue/", views.continue_with_email, name="continue_with_email"),
 ]

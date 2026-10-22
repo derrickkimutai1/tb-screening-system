@@ -213,3 +213,22 @@ class SocialSignupForm(SocialAccountSignupForm):
         profile.save(update_fields=["facility", "updated_at"])
 
         return user
+
+
+class EmailEntryForm(forms.Form):
+    """The single field on the gate.
+
+    Deliberately only an address. Whether it belongs to an existing account is
+    something the system looks up, not something the person is asked to
+    declare, so there is nothing else to fill in here.
+    """
+
+    email = forms.EmailField(
+        error_messages={
+            "required": "Enter your email address.",
+            "invalid": "That does not look like an email address.",
+        }
+    )
+
+    def clean_email(self):
+        return self.cleaned_data["email"].strip().lower()

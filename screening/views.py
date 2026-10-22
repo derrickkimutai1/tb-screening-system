@@ -12,9 +12,14 @@ import uuid
 from datetime import timedelta
 from decimal import Decimal
 from pathlib import Path
+from urllib.parse import quote
 
+from allauth.account.forms import SignupForm
+from allauth.account.internal.flows.login_by_code import LoginCodeVerificationProcess
 from allauth.account.internal.stagekit import clear_login
+from allauth.account.utils import complete_signup, filter_users_by_email
 from django.conf import settings
+from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.core.files.storage import default_storage
@@ -24,10 +29,19 @@ from django.db.models import Count
 from django.db.models.functions import TruncDate
 from django.db.utils import OperationalError
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 
-from .forms import MAX_BATCH_IMAGES, ProfileForm, ReviewForm, ScreeningUploadForm
+from .auth import address_is_allowed
+from .forms import (
+    MAX_BATCH_IMAGES,
+    EmailEntryForm,
+    ProfileForm,
+    ReviewForm,
+    ScreeningUploadForm,
+)
 from .models import PredictionRecord, ReviewNote, profile_for
 from .services.gradcam import ExplanationUnavailable, GradCAMGenerator
 from .services.predict import ModelUnavailable, PredictionEngine
@@ -419,3 +433,101 @@ def restart_sign_in(request):
     """
     clear_login(request)
     return redirect("account_login")
+
+
+@require_POST
+def continue_with_email(request):
+    """One field on the gate, for signing in and for registering alike.
+
+    Asking someone to choose between "sign in" and "create an account" asks
+    them to know something the system can work out: whether that address
+    already has an account. Products people are used to do not ask. They take
+    an address, send a code, and decide afterwards.
+
+    So this is the single entry point. An address that has an account is sent a
+    sign-in code; one that has none is registered and sent a confirmation code.
+    Both land on a page asking for six digits, and the person never had to
+    know which case they were in.
+
+    allauth's own forms and flows do the work, so there is one implementation
+    of creating an account and one of sending a code, not two.
+    """
+    email = (request.POST.get("email") or "").strip()
+    redirect_to = request.POST.get("next") or ""
+
+    form = EmailEntryForm({"email": email})
+    if not form.is_valid():
+        return render(
+            request,
+            "account/login.html",
+            {"email_error": next(iter(form.errors["email"])), "email_value": email},
+            status=400,
+        )
+
+    email = form.cleaned_data["email"]
+
+    # The allowlist decides admission before anything is created or sent, so a
+    # refused address never becomes an account and never receives a code.
+    if not address_is_allowed(email):
+        messages.error(
+            request,
+            "That address is not authorised for this system. "
+            "Contact the administrator to be added.",
+        )
+        return redirect("account_login")
+
+    existing = filter_users_by_email(email, is_active=True, prefer_verified=True)
+
+    if existing:
+        LoginCodeVerificationProcess.initiate(request=request, user=existing[0], email=email)
+        return redirect(_with_next("account_confirm_login_code", redirect_to))
+
+    if not settings.SIGN_IN_OPEN_REGISTRATION:
+        # Deliberately the same message and the same page as an address that
+        # was refused, so this does not become a way to discover which
+        # addresses are registered.
+        messages.error(
+            request,
+            "That address is not authorised for this system. "
+            "Contact the administrator to be added.",
+        )
+        return redirect("account_login")
+
+    signup = SignupForm({"email": email, "email2": email})
+    if not signup.is_valid():
+        return render(
+            request,
+            "account/login.html",
+            {
+                "email_error": " ".join(
+                    str(error) for errors in signup.errors.values() for error in errors
+                ),
+                "email_value": email,
+            },
+            status=400,
+        )
+
+    # try_save and complete_signup are what allauth's own signup view calls.
+    # form.save alone creates the account without starting the verification
+    # that turns it into a usable one, which is a half-registered user and no
+    # code in their inbox.
+    user, response = signup.try_save(request)
+    if response is not None:
+        return response
+
+    return complete_signup(
+        request,
+        user=user,
+        email_verification=settings.ACCOUNT_EMAIL_VERIFICATION,
+        success_url=_with_next("account_email_verification_sent", redirect_to),
+    )
+
+
+def _with_next(name, redirect_to):
+    """Carry the page the user was trying to reach through the code exchange."""
+    url = reverse(name)
+    if redirect_to and url_has_allowed_host_and_scheme(
+        redirect_to, allowed_hosts={settings.ALLOWED_HOSTS and ""} | set(settings.ALLOWED_HOSTS)
+    ):
+        return f"{url}?next={quote(redirect_to)}"
+    return url
