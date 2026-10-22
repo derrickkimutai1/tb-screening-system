@@ -116,6 +116,75 @@
     }
   })();
 </script>
+{% if session_idle_seconds %}
+<div id="idle-warning" class="idle-warning" role="alert" aria-live="polite" hidden>
+  <p class="idle-warning-title">Still there?</p>
+  <p class="idle-warning-body">
+    You will be signed out in <span id="idle-countdown">2:00</span> because the
+    screen has been idle. Anything you have typed but not saved will be lost.
+  </p>
+  <button type="button" class="btn btn-action" id="idle-stay">Stay signed in</button>
+</div>
+
+<script>
+  // Warn before the server ends an idle session.
+  //
+  // The server decides: this only counts the same interval and speaks first,
+  // so a half-written review note can be saved rather than lost to a redirect.
+  // Staying signed in makes a real request, because the session only extends
+  // when the server sees one.
+  (function () {
+    const idleMs = {{ session_idle_seconds }} * 1000;
+    const warnMs = {{ session_warning_seconds }} * 1000;
+    const panel = document.getElementById("idle-warning");
+    const countdown = document.getElementById("idle-countdown");
+    const stay = document.getElementById("idle-stay");
+    if (!panel) return;
+
+    let warnAt, endAt, ticking;
+
+    function reset() {
+      const now = Date.now();
+      warnAt = now + idleMs - warnMs;
+      endAt = now + idleMs;
+      panel.hidden = true;
+      clearInterval(ticking);
+      ticking = setInterval(tick, 1000);
+    }
+
+    function tick() {
+      const now = Date.now();
+      if (now >= endAt) {
+        clearInterval(ticking);
+        // The session has already gone; asking for a page lands on the gate.
+        window.location.reload();
+        return;
+      }
+      if (now >= warnAt) {
+        panel.hidden = false;
+        const left = Math.max(0, Math.round((endAt - now) / 1000));
+        const mins = Math.floor(left / 60);
+        countdown.textContent = `${mins}:${String(left % 60).padStart(2, "0")}`;
+      }
+    }
+
+    // Any real interaction counts as activity, the same as it does server side.
+    ["click", "keydown", "scroll", "pointerdown"].forEach((event) =>
+      window.addEventListener(event, () => { if (panel.hidden) reset(); }, { passive: true })
+    );
+
+    stay.addEventListener("click", async () => {
+      // A HEAD request is enough: the session extends on any request the
+      // server handles, and this one carries no payload.
+      try { await fetch(window.location.href, { method: "HEAD", cache: "no-store" }); } catch (e) {}
+      reset();
+    });
+
+    reset();
+  })();
+</script>
+{% endif %}
+
 {% block scripts %}{% endblock %}
 </body>
 </html>

@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import PredictionRecord, Profile, ReviewNote
+from .models import AccessEvent, PredictionRecord, Profile, ReviewNote
 
 
 class ReviewNoteInline(admin.TabularInline):
@@ -85,3 +85,31 @@ class ProfileAdmin(admin.ModelAdmin):
     @admin.display(description="Name")
     def display_name(self, profile):
         return profile.display_name
+
+
+@admin.register(AccessEvent)
+class AccessEventAdmin(admin.ModelAdmin):
+    """The audit trail, readable and not writable.
+
+    Every field is read-only and neither adding nor changing is permitted, so
+    the log cannot be edited through the interface that displays it. Deleting
+    is left to a superuser, because a retention policy eventually has to remove
+    old rows and that has to happen somewhere.
+    """
+
+    list_display = ["created_at", "actor_label", "action", "facility", "case_id", "ip_address"]
+    list_filter = ["action", "facility", "created_at"]
+    search_fields = ["actor_label", "case_id", "detail", "ip_address"]
+    date_hierarchy = "created_at"
+    readonly_fields = [f.name for f in AccessEvent._meta.fields]
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        # Retention has to be possible, but only for someone who can already
+        # reach everything.
+        return request.user.is_superuser

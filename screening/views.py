@@ -42,7 +42,7 @@ from .forms import (
     ReviewForm,
     ScreeningUploadForm,
 )
-from .models import PredictionRecord, ReviewNote, profile_for
+from .models import AccessEvent, PredictionRecord, ReviewNote, profile_for
 from .services.gradcam import ExplanationUnavailable, GradCAMGenerator
 from .services.predict import ModelUnavailable, PredictionEngine
 from .services.quality import ImageQualityChecker
@@ -181,6 +181,13 @@ def upload(request):
                 )
                 if record is not None:
                     screened.append(record)
+                    AccessEvent.record(
+                        request,
+                        AccessEvent.Action.SCREENED,
+                        case_id=record.case_id,
+                        facility=record.facility,
+                        detail=record.patient_reference,
+                    )
                 else:
                     rejected.append(failure)
         except ModelUnavailable:
@@ -228,6 +235,14 @@ def case_detail(request, case_id):
         PredictionRecord.objects.visible_to(request.user), case_id=case_id
     )
 
+    AccessEvent.record(
+        request,
+        AccessEvent.Action.VIEWED,
+        case_id=record.case_id,
+        facility=record.facility,
+        detail=record.patient_reference,
+    )
+
     # Confirming or dismissing a case is a clinical judgement, so the form is
     # only offered to the roles that may make one. The check is repeated on the
     # POST because a hidden form is not an access control.
@@ -236,6 +251,13 @@ def case_detail(request, case_id):
 
     if request.method == "POST":
         if not may_review:
+            AccessEvent.record(
+                request,
+                AccessEvent.Action.REFUSED,
+                case_id=record.case_id,
+                facility=record.facility,
+                detail="review refused: role is not permitted",
+            )
             raise PermissionDenied("Your role does not permit recording a review.")
 
         review_form = ReviewForm(request.POST)
@@ -252,6 +274,13 @@ def case_detail(request, case_id):
                 )
                 record.review_status = review_form.cleaned_data["status_set"]
                 record.save(update_fields=["review_status", "updated_at"])
+            AccessEvent.record(
+                request,
+                AccessEvent.Action.REVIEWED,
+                case_id=record.case_id,
+                facility=record.facility,
+                detail=f"set to {review_form.cleaned_data['status_set']}",
+            )
             return redirect("screening:case_detail", case_id=record.case_id)
     else:
         review_form = ReviewForm(initial={"status_set": record.review_status})
@@ -311,6 +340,12 @@ def case_list(request):
     records = PredictionRecord.objects.visible_to(request.user)
 
     reference = request.GET.get("reference", "").strip()
+    AccessEvent.record(
+        request,
+        AccessEvent.Action.LISTED,
+        facility=profile_for(request.user).facility,
+        detail=f"search: {reference}" if reference else "",
+    )
     if reference:
         records = records.filter(patient_reference__icontains=reference)
 

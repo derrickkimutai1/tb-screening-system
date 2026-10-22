@@ -2157,3 +2157,240 @@ class NoFacilityNoticeTests(TestCase):
         self.client.post(reverse("screening:profile"), {"facility": "Kenyatta"})
 
         self.assertContains(self.client.get(reverse("screening:case_list")), "JOIN-01")
+
+
+@override_settings(MEDIA_ROOT=MEDIA_FOR_TESTS)
+class AccessTrailTests(TestCase):
+    """The audit trail the certification criteria ask for.
+
+    Who acted, what they did, when, and from where. The sign-in page claimed
+    access was logged before any of this existed, which is a worse position
+    than not claiming it.
+    """
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(MEDIA_FOR_TESTS, ignore_errors=True)
+        super().tearDownClass()
+
+    def setUp(self):
+        from .models import profile_for
+
+        self.user = get_user_model().objects.create_user(
+            username="audited", email="audited@strathmore.edu"
+        )
+        profile = profile_for(self.user)
+        profile.facility = "Kenyatta"
+        profile.save()
+        self.client.force_login(self.user)
+
+    def events(self, action=None):
+        from .models import AccessEvent
+
+        rows = AccessEvent.objects.all()
+        return rows.filter(action=action) if action else rows
+
+    def a_case(self):
+        return PredictionRecord.objects.create(
+            patient_reference="AUD-01",
+            xray_image="x.png",
+            facility="Kenyatta",
+            tb_probability=Decimal("0.5"),
+            triage_level=PredictionRecord.TriageLevel.MEDIUM,
+            model_version="test",
+            decision_threshold=Decimal("0.102"),
+            triage_low_medium_threshold=Decimal("0.102"),
+            triage_medium_high_threshold=Decimal("0.546"),
+        )
+
+    def test_opening_a_case_is_recorded(self):
+        from .models import AccessEvent
+
+        record = self.a_case()
+
+        self.client.get(reverse("screening:case_detail", args=[record.case_id]))
+
+        event = self.events(AccessEvent.Action.VIEWED).first()
+        self.assertIsNotNone(event, "viewing a radiograph left no trace")
+        self.assertEqual(event.case_id, record.case_id)
+        self.assertEqual(event.actor, self.user)
+
+    def test_an_event_records_who_what_when_and_from_where(self):
+        from .models import AccessEvent
+
+        record = self.a_case()
+
+        self.client.get(reverse("screening:case_detail", args=[record.case_id]))
+
+        event = self.events(AccessEvent.Action.VIEWED).first()
+        self.assertEqual(event.actor_label, "audited@strathmore.edu")
+        self.assertEqual(event.action, AccessEvent.Action.VIEWED)
+        self.assertIsNotNone(event.created_at)
+        self.assertIsNotNone(event.ip_address)
+
+    def test_listing_cases_is_recorded_with_the_search_term(self):
+        from .models import AccessEvent
+
+        self.client.get(reverse("screening:case_list"), {"reference": "AUD"})
+
+        event = self.events(AccessEvent.Action.LISTED).first()
+        self.assertIn("AUD", event.detail)
+
+    def test_screening_is_recorded(self):
+        from .models import AccessEvent
+
+        self.client.post(
+            reverse("screening:upload"),
+            {"patient_reference": "AUD-NEW", "xray_image": [make_image()]},
+        )
+
+        self.assertTrue(self.events(AccessEvent.Action.SCREENED).exists())
+
+    def test_a_refused_review_is_recorded(self):
+        """A refusal is the event most worth having."""
+        from .models import AccessEvent
+
+        record = self.a_case()
+
+        self.client.post(
+            reverse("screening:case_detail", args=[record.case_id]),
+            {"status_set": PredictionRecord.ReviewStatus.REVIEWED, "note": "x"},
+        )
+
+        event = self.events(AccessEvent.Action.REFUSED).first()
+        self.assertIsNotNone(event, "a refused review left no trace")
+        self.assertIn("refused", event.detail)
+
+    def test_a_recorded_review_is_recorded(self):
+        from .models import AccessEvent, Profile, profile_for
+
+        profile = profile_for(self.user)
+        profile.role = Profile.Role.CLINICIAN
+        profile.save()
+        record = self.a_case()
+
+        self.client.post(
+            reverse("screening:case_detail", args=[record.case_id]),
+            {"status_set": PredictionRecord.ReviewStatus.REVIEWED, "note": "Seen."},
+        )
+
+        self.assertTrue(self.events(AccessEvent.Action.REVIEWED).exists())
+
+    def test_the_trail_survives_the_account_being_removed(self):
+        """Deleting a user must not erase the evidence of what they did."""
+        record = self.a_case()
+        self.client.get(reverse("screening:case_detail", args=[record.case_id]))
+
+        self.user.delete()
+
+        event = self.events().first()
+        self.assertIsNone(event.actor)
+        self.assertEqual(event.actor_label, "audited@strathmore.edu")
+
+    def test_the_trail_survives_the_case_being_removed(self):
+        record = self.a_case()
+        case_id = record.case_id
+        self.client.get(reverse("screening:case_detail", args=[case_id]))
+
+        record.delete()
+
+        self.assertTrue(self.events().filter(case_id=case_id).exists())
+
+    def test_no_clinical_detail_is_copied_into_the_trail(self):
+        """An audit row that duplicates the record doubles the exposure."""
+        from .models import AccessEvent
+
+        record = self.a_case()
+        self.client.get(reverse("screening:case_detail", args=[record.case_id]))
+
+        fields = {f.name for f in AccessEvent._meta.fields}
+        for leaked in ("tb_probability", "triage_level", "xray_image", "predicted_label"):
+            self.assertNotIn(leaked, fields)
+
+    def test_a_failure_to_log_does_not_break_the_request(self):
+        """A clinician must not lose a screening because the log failed."""
+        from .models import AccessEvent
+
+        record = self.a_case()
+        with mock.patch.object(
+            AccessEvent.objects, "create", side_effect=RuntimeError("log is down")
+        ):
+            response = self.client.get(reverse("screening:case_detail", args=[record.case_id]))
+
+        self.assertEqual(response.status_code, 200)
+
+    def test_the_proxy_header_is_ignored_unless_configured(self):
+        """Otherwise a caller writes whatever address it likes into the trail."""
+        from .models import AccessEvent
+
+        record = self.a_case()
+
+        with override_settings(SECURE_PROXY_SSL_HEADER=None):
+            self.client.get(
+                reverse("screening:case_detail", args=[record.case_id]),
+                HTTP_X_FORWARDED_FOR="203.0.113.9",
+            )
+
+        event = self.events(AccessEvent.Action.VIEWED).first()
+        self.assertNotEqual(event.ip_address, "203.0.113.9")
+
+    def test_the_proxy_header_is_used_when_configured(self):
+        from .models import AccessEvent
+
+        record = self.a_case()
+
+        with override_settings(SECURE_PROXY_SSL_HEADER=("HTTP_X_FORWARDED_PROTO", "https")):
+            self.client.get(
+                reverse("screening:case_detail", args=[record.case_id]),
+                HTTP_X_FORWARDED_FOR="203.0.113.9, 10.0.0.1",
+            )
+
+        event = self.events(AccessEvent.Action.VIEWED).first()
+        self.assertEqual(event.ip_address, "203.0.113.9")
+
+    def test_the_trail_cannot_be_edited_through_the_admin(self):
+        from django.contrib import admin as django_admin
+
+        from .models import AccessEvent
+
+        site = django_admin.site._registry[AccessEvent]
+
+        self.assertFalse(site.has_add_permission(None))
+        self.assertFalse(site.has_change_permission(None))
+
+
+class SessionTimeoutTests(TestCase):
+    """A shared workstation must not keep a session open indefinitely."""
+
+    def test_the_session_expires_after_a_short_idle_period(self):
+        """Django's default of fourteen days is wrong for a clinic."""
+        from django.conf import settings
+
+        self.assertLessEqual(settings.SESSION_COOKIE_AGE, 30 * 60)
+
+    def test_the_window_slides_with_activity(self):
+        """A clinician working through a batch must not be thrown out mid-task."""
+        from django.conf import settings
+
+        self.assertTrue(settings.SESSION_SAVE_EVERY_REQUEST)
+
+    def test_closing_the_browser_ends_the_session(self):
+        from django.conf import settings
+
+        self.assertTrue(settings.SESSION_EXPIRE_AT_BROWSER_CLOSE)
+
+    def test_the_page_warns_before_the_server_acts(self):
+        user = get_user_model().objects.create_user(
+            username="warned", email="warned@strathmore.edu"
+        )
+        self.client.force_login(user)
+
+        response = self.client.get(reverse("screening:upload"))
+
+        self.assertContains(response, "idle-warning")
+        self.assertContains(response, "Stay signed in")
+
+    def test_a_signed_out_visitor_gets_no_countdown(self):
+        response = self.client.get(reverse("account_login"))
+
+        self.assertNotContains(response, "idle-warning")

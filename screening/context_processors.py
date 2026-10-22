@@ -34,3 +34,20 @@ def facility_state(request):
     from .models import profile_for
 
     return {"viewer_facility": profile_for(user).facility}
+
+
+def session_timeout(request):
+    """How long a signed-in session has left, for the idle warning.
+
+    The server ends an idle session whether or not the page says anything.
+    This only lets the page warn first, so work in progress can be saved
+    rather than lost to a redirect.
+    """
+    user = getattr(request, "user", None)
+    if not user or not user.is_authenticated:
+        return {}
+
+    return {
+        "session_idle_seconds": settings.SESSION_COOKIE_AGE,
+        "session_warning_seconds": getattr(settings, "SESSION_WARNING_SECONDS", 120),
+    }

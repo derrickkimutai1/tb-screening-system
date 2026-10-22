@@ -347,3 +347,113 @@ class Profile(models.Model):
     def may_review(self):
         """Whether this user may record a clinical review decision."""
         return self.role in {self.Role.CLINICIAN, self.Role.ADMINISTRATOR}
+
+
+class AccessEvent(models.Model):
+    """One line per thing somebody did to a screening record.
+
+    The certification criteria for health records ask for an audit trail
+    recording who acted, what they did, when, and from where. This project's
+    own sign-in page claimed access was logged before any of it existed, which
+    is a worse position than not claiming it.
+
+    Append-only by intent: nothing in the application updates or deletes a row,
+    and the admin registration forbids both. A log that can be quietly edited
+    answers no question worth asking of it.
+
+    What is deliberately not stored: the radiograph, the score, or anything
+    about the patient. The row says a person opened a case, not what they saw
+    in it. An audit trail that duplicates the record it protects doubles the
+    exposure rather than reducing it.
+    """
+
+    class Action(models.TextChoices):
+        VIEWED = "VIEWED", "Viewed a case"
+        SCREENED = "SCREENED", "Screened a radiograph"
+        REVIEWED = "REVIEWED", "Recorded a review"
+        LISTED = "LISTED", "Listed cases"
+        SIGNED_IN = "SIGNED_IN", "Signed in"
+        SIGNED_OUT = "SIGNED_OUT", "Signed out"
+        REFUSED = "REFUSED", "Refused an action"
+
+    # SET_NULL rather than CASCADE: deleting an account must not erase the
+    # evidence of what it did. actor_label keeps the address as it was.
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="access_events",
+    )
+    actor_label = models.CharField(max_length=254, blank=True)
+    action = models.CharField(max_length=16, choices=Action.choices, db_index=True)
+
+    # The case this concerns, by its public identifier rather than a foreign
+    # key, so the trail survives a record being removed.
+    case_id = models.UUIDField(null=True, blank=True, db_index=True)
+    facility = models.CharField(max_length=120, blank=True, db_index=True)
+
+    # Where from. Truncated user agents are useless and whole ones are long.
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    user_agent = models.CharField(max_length=200, blank=True)
+
+    detail = models.CharField(max_length=200, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "Access event"
+        indexes = [
+            models.Index(fields=["actor", "-created_at"]),
+            models.Index(fields=["case_id", "-created_at"]),
+        ]
+
+    def __str__(self):
+        who = self.actor_label or "anonymous"
+        return f"{who} {self.get_action_display().lower()} at {self.created_at:%Y-%m-%d %H:%M}"
+
+    @classmethod
+    def record(cls, request, action, *, case_id=None, facility="", detail=""):
+        """Write one event. Never raises.
+
+        An audit failure must not take down the thing being audited: a
+        clinician should not lose a screening because the log could not be
+        written. The failure is itself logged, so a trail that has stopped
+        recording is visible rather than silent.
+        """
+        import logging
+
+        user = getattr(request, "user", None)
+        signed_in = bool(user and user.is_authenticated)
+
+        try:
+            return cls.objects.create(
+                actor=user if signed_in else None,
+                actor_label=(user.email or user.get_username()) if signed_in else "",
+                action=action,
+                case_id=case_id,
+                facility=facility,
+                ip_address=cls.client_ip(request),
+                user_agent=(request.META.get("HTTP_USER_AGENT") or "")[:200],
+                detail=detail[:200],
+            )
+        except Exception:
+            logging.getLogger(__name__).exception("Could not write an access event")
+            return None
+
+    @staticmethod
+    def client_ip(request):
+        """The caller's address, trusting the proxy header only when configured.
+
+        X-Forwarded-For is set by the client when nothing strips it, so it is
+        read only where the deployment has said it sits behind a proxy. Taking
+        it otherwise would let a caller write any address it liked into the
+        audit trail.
+        """
+        from django.conf import settings as django_settings
+
+        if getattr(django_settings, "SECURE_PROXY_SSL_HEADER", None):
+            forwarded = request.META.get("HTTP_X_FORWARDED_FOR", "")
+            if forwarded:
+                return forwarded.split(",")[0].strip() or None
+        return request.META.get("REMOTE_ADDR") or None

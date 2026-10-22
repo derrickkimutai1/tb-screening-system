@@ -96,6 +96,14 @@ create an account with any address they can read mail at. `SIGN_IN_ALLOWED_EMAIL
 and `SIGN_IN_ALLOWED_DOMAINS` restrict admission independently. A deployment
 holding real patient records should close the first and set the second.
 
+**Sessions end.** Thirty idle minutes on a shared workstation, sliding with
+activity and ending when the browser closes. The page warns two minutes
+before, so a half-written review note can be saved.
+
+**Access is logged.** Every view, list, screening, review and refusal is
+recorded with who, what, when and from where, readable by an administrator
+and not editable through the interface.
+
 **Roles.** A new account is a radiographer: it can screen and read cases but not
 record a clinical review. Clinician and administrator can. Roles are assigned in
 the Django admin, never by the user.
@@ -237,7 +245,7 @@ limits how far the results generalise. This is measured and reported rather than
 
 The application is complete and runs: sign-in, screening of single images and
 batches, quality checking, triage, Grad-CAM, review with role separation,
-reporting, and a health endpoint. 178 tests pass, and the same suite runs on
+reporting, and a health endpoint. 196 tests pass, and the same suite runs on
 every push.
 
 **Headline results.** Test AUC 0.9291 [0.878, 0.970]. Decision threshold 0.102,

@@ -85,6 +85,7 @@ TEMPLATES = [
                 "django.contrib.messages.context_processors.messages",
                 "screening.context_processors.sign_in_state",
                 "screening.context_processors.facility_state",
+                "screening.context_processors.session_timeout",
             ],
         },
     },
@@ -434,3 +435,26 @@ DEFAULT_FROM_EMAIL = os.environ.get(
 
 # Prefixes the subject of every message allauth sends.
 ACCOUNT_EMAIL_SUBJECT_PREFIX = "[TB Screening] "
+
+
+# ---------------------------------------------------------------------------
+# Sessions
+#
+# A clinic workstation is shared. Django's default session lasts fourteen days
+# and survives the browser closing, so someone who signs in, screens a
+# radiograph and walks away leaves their session open to whoever sits down
+# next. The EHR certification criteria require an automatic log-off after a
+# set period of inactivity for exactly this reason.
+#
+# Thirty minutes, measured from the last request rather than from signing in,
+# which is what SESSION_SAVE_EVERY_REQUEST buys: a clinician working through a
+# morning's films is not thrown out mid-batch, and an abandoned screen is.
+# ---------------------------------------------------------------------------
+
+SESSION_COOKIE_AGE = int(os.environ.get("SESSION_IDLE_MINUTES", "30")) * 60
+SESSION_SAVE_EVERY_REQUEST = True
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True
+
+# How long before the deadline the interface warns, in seconds. Long enough to
+# finish a sentence in a review note and press save.
+SESSION_WARNING_SECONDS = 120

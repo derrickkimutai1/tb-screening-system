@@ -1282,3 +1282,51 @@ td.numeric {
     min-width: 34rem;
   }
 }
+
+/* ---- Idle session warning -------------------------------------------------
+   A clinic workstation is shared, so a session ends after a period without
+   activity. This speaks shortly before it does, because being redirected to
+   the sign-in page mid-sentence loses work without explaining why. */
+
+.idle-warning {
+  position: fixed;
+  right: 1.25rem;
+  bottom: 1.25rem;
+  z-index: 60;
+  max-width: 22rem;
+  padding: 1.125rem 1.25rem;
+  background: var(--surface-lift);
+  border: 1px solid var(--triage-medium);
+  border-left-width: 3px;
+  border-radius: var(--r-lg);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+}
+
+.idle-warning-title {
+  font-family: var(--display);
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--ink);
+  margin: 0 0 0.375rem;
+}
+
+.idle-warning-body {
+  font-size: 0.8125rem;
+  line-height: 1.55;
+  color: var(--ink-muted);
+  margin: 0 0 0.875rem;
+}
+
+#idle-countdown {
+  font-family: var(--mono);
+  color: var(--triage-medium);
+}
+
+@media (max-width: 767.98px) {
+  .idle-warning {
+    right: 1rem;
+    left: 1rem;
+    bottom: 1rem;
+    max-width: none;
+  }
+}

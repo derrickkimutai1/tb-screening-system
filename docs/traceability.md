@@ -192,13 +192,30 @@ because the proposal governs.
 | | |
 |---|---|
 | **Implemented in** | `screening/tests.py` |
-| **Result** | **178 tests**, covering valid and invalid uploads, oversized files, unsupported types, batch behaviour, quality thresholds, triage boundaries, preprocessing equivalence, authentication, the allowlist, role permissions, review attribution, metadata stripping, and the fifteen failure scenarios the Build Phase notes enumerate. |
+| **Result** | **196 tests**, covering valid and invalid uploads, oversized files, unsupported types, batch behaviour, quality thresholds, triage boundaries, preprocessing equivalence, authentication, the allowlist, role permissions, review attribution, metadata stripping, and the fifteen failure scenarios the Build Phase notes enumerate. |
 | **Automation** | GitHub Actions runs lint, formatting, migration checks and the suite against PostgreSQL on every push. |
 | **Record** | `docs/test-record.md`, generated from the suite by `scripts/build_test_record.py` so it cannot drift. `docs/sprint-2-test-record.md` is kept as the Sprint 2 snapshot. |
 | **Failure paths** | A deceptive file, an empty file, a filename attempting traversal, a filename carrying instructions, a corrupt image inside a batch, a failed heatmap, an absent model, an orphaned upload, a lost session, a guessed case id, an unknown case id, a duplicate submission, and the health endpoint under both outcomes. |
 | **Status** | **Met for functional and failure testing. Not met for usability testing** — see below. |
 
 ---
+
+## Measured against clinical software standards
+
+Checked against the ONC/CMS certification criteria for electronic health
+records and Kenya's Data Protection Act 2019, because "professional health
+system" is a claim that has a published meaning.
+
+| Criterion | Status |
+|---|---|
+| Unique identity, role-limited access | **Met.** Email identity verified by a provider or a code; roles enforced on the server, not only hidden in the interface |
+| Automatic log-off after inactivity | **Met.** Thirty idle minutes, sliding with activity, ending when the browser closes. Django's default of fourteen days was wrong for a shared workstation |
+| Audit trail: who, what, when, from where | **Met.** `AccessEvent` records viewing, listing, screening, reviewing, refusals and sessions |
+| Audit trail resists editing | **Partly.** Append-only by construction and locked in the admin, but not cryptographically tamper-evident |
+| Data minimisation | **Met.** Non-identifying case references, EXIF stripped on upload, no clinical detail copied into the audit trail |
+| Breach notification process | **Not met.** A procedure, not software; required of a deployment under the Act |
+| ODPC Certificate of Data Handler | **Not applicable to a capstone.** Required of a health facility processing real patient data |
+| IEC 62304 software lifecycle | **Not applicable.** Governs medical device software; this is a research prototype and says so on every page |
 
 ## Not met, and why
 

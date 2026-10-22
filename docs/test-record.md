@@ -6,7 +6,7 @@ it describes, and this one cannot.
 
 Built 22 October 2026.
 
-**178 of 178 automated tests pass.** The same suite runs on
+**196 of 196 automated tests pass.** The same suite runs on
 every push through GitHub Actions, against PostgreSQL, alongside lint,
 formatting and migration checks.
 
@@ -384,6 +384,38 @@ formatting and migration checks.
 | 176 | The notice goes once a clinic is set | Behaves as the condition describes | Pass |
 | 177 | A signed out visitor never sees it | Behaves as the condition describes | Pass |
 | 178 | Setting a clinic from the profile joins the caseload | The whole point: a record at that clinic becomes visible. | Pass |
+
+### AccessTrailTests
+
+*The audit trail the certification criteria ask for.*
+
+| # | Condition | Expected | Outcome |
+|---|---|---|---|
+| 179 | Opening a case is recorded | Behaves as the condition describes | Pass |
+| 180 | An event records who what when and from where | Behaves as the condition describes | Pass |
+| 181 | Listing cases is recorded with the search term | Behaves as the condition describes | Pass |
+| 182 | Screening is recorded | Behaves as the condition describes | Pass |
+| 183 | A refused review is recorded | A refusal is the event most worth having. | Pass |
+| 184 | A recorded review is recorded | Behaves as the condition describes | Pass |
+| 185 | The trail survives the account being removed | Deleting a user must not erase the evidence of what they did. | Pass |
+| 186 | The trail survives the case being removed | Behaves as the condition describes | Pass |
+| 187 | No clinical detail is copied into the trail | An audit row that duplicates the record doubles the exposure. | Pass |
+| 188 | A failure to log does not break the request | A clinician must not lose a screening because the log failed. | Pass |
+| 189 | The proxy header is ignored unless configured | Otherwise a caller writes whatever address it likes into the trail. | Pass |
+| 190 | The proxy header is used when configured | Behaves as the condition describes | Pass |
+| 191 | The trail cannot be edited through the admin | Behaves as the condition describes | Pass |
+
+### SessionTimeoutTests
+
+*A shared workstation must not keep a session open indefinitely.*
+
+| # | Condition | Expected | Outcome |
+|---|---|---|---|
+| 192 | The session expires after a short idle period | Django's default of fourteen days is wrong for a clinic. | Pass |
+| 193 | The window slides with activity | A clinician working through a batch must not be thrown out mid-task. | Pass |
+| 194 | Closing the browser ends the session | Behaves as the condition describes | Pass |
+| 195 | The page warns before the server acts | Behaves as the condition describes | Pass |
+| 196 | A signed out visitor gets no countdown | Behaves as the condition describes | Pass |
 
 ---
 
