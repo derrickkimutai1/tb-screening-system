@@ -53,8 +53,10 @@
              value="{{ form.email.value|default:'' }}">
     </div>
 
-    {# A field no person sees and no person fills in. Something that fills every
-       field it finds is not a person, and allauth discards the submission. #}
+    {% comment %}
+      A field no person sees and no person fills in. Something that fills every
+      field it finds is not a person, and allauth discards the submission.
+    {% endcomment %}
     <div class="visually-hidden" aria-hidden="true">
       <label for="id_website">Website</label>
       <input type="text" name="website" id="id_website" tabindex="-1" autocomplete="off">

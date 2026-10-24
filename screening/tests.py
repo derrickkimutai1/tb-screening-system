@@ -2998,3 +2998,42 @@ class ClinicalWorkflowTests(TestCase):
         self.client.get(reverse("screening:export_cases"))
 
         self.assertTrue(AccessEvent.objects.filter(detail="exported 1 records as CSV").exists())
+
+
+class TemplateCommentTests(TestCase):
+    """Comments meant for whoever reads the template, not for the clinic.
+
+    {# #} is a single-line tag. Spread one over two lines and Django stops
+    recognising it, so the note is rendered to the page as ordinary text and
+    appears in the interface. It has happened twice, both times only noticed
+    by looking at the screen, which is why it is checked here instead.
+    """
+
+    def templates(self):
+        from django.conf import settings
+
+        root = settings.BASE_DIR / "screening" / "templates"
+        return sorted(root.rglob("*.html"))
+
+    def test_no_inline_comment_runs_past_the_end_of_its_line(self):
+        for path in self.templates():
+            for number, line in enumerate(
+                path.read_text(encoding="utf-8").splitlines(), start=1
+            ):
+                if "{#" in line:
+                    self.assertIn(
+                        "#}",
+                        line,
+                        f"{path.name} line {number}: an unclosed {{# would be "
+                        "rendered to the page. Use {% comment %} for several lines.",
+                    )
+
+    def test_a_template_renders_none_of_its_own_comment_text(self):
+        """The check above reads the file; this one reads what comes out of it."""
+        from django.template import Context, Template
+
+        rendered = Template("{% comment %}\nnot for the page\n{% endcomment %}kept").render(
+            Context({})
+        )
+
+        self.assertEqual(rendered.strip(), "kept")
