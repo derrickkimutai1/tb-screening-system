@@ -20,7 +20,7 @@ import numpy as np
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import TestCase, override_settings
+from django.test import RequestFactory, TestCase, override_settings
 from django.urls import reverse
 from PIL import Image
 
@@ -2555,3 +2555,165 @@ class PackagedSettingsTests(TestCase):
             "DJANGO_STATIC_ROOT", Path("config/settings.py").read_text(encoding="utf-8")
         )
         del os
+
+
+class AuditChainTests(TestCase):
+    """The audit trail detecting its own alteration.
+
+    Append-only by intent is not evidence. Each row hashes its own contents
+    together with the hash of the row before it, so changing or removing one
+    breaks that row and every row after it.
+    """
+
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(
+            username="chained", email="chained@strathmore.edu"
+        )
+
+    def event(self, detail="something"):
+        from .models import AccessEvent
+
+        request = RequestFactory().get("/")
+        request.user = self.user
+        return AccessEvent.record(request, AccessEvent.Action.VIEWED, detail=detail)
+
+    def test_a_row_is_sealed_when_it_is_written(self):
+        event = self.event()
+
+        self.assertTrue(event.entry_hash)
+        self.assertEqual(len(event.entry_hash), 64)
+
+    def test_the_first_row_follows_nothing(self):
+        event = self.event()
+
+        self.assertEqual(event.previous_hash, "")
+
+    def test_each_row_follows_the_one_before_it(self):
+        first = self.event("one")
+        second = self.event("two")
+
+        self.assertEqual(second.previous_hash, first.entry_hash)
+
+    def test_an_untouched_chain_verifies(self):
+        from .models import AccessEvent
+
+        for n in range(5):
+            self.event(f"row {n}")
+
+        checked, problems = AccessEvent.verify_chain()
+
+        self.assertEqual(checked, 5)
+        self.assertEqual(problems, [])
+
+    def test_editing_a_row_is_detected(self):
+        """Edited straight in the database, bypassing the application."""
+        from django.db import connection
+
+        from .models import AccessEvent
+
+        self.event("one")
+        target = self.event("two")
+        self.event("three")
+
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "UPDATE screening_accessevent SET detail = %s WHERE id = %s",
+                ["covered up", target.pk],
+            )
+
+        _, problems = AccessEvent.verify_chain()
+        self.assertTrue(problems, "an edited row went unnoticed")
+        self.assertIn(f"row {target.pk}", problems[0])
+
+    def test_back_dating_a_row_is_detected(self):
+        """The timestamp is in the hash, so moving an event in time shows."""
+        from django.db import connection
+
+        from .models import AccessEvent
+
+        target = self.event("one")
+
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "UPDATE screening_accessevent SET created_at = created_at "
+                "- interval '1 day' WHERE id = %s",
+                [target.pk],
+            )
+
+        _, problems = AccessEvent.verify_chain()
+        self.assertTrue(problems, "a back-dated row went unnoticed")
+
+    def test_removing_a_row_is_detected(self):
+        """The row after it claims to follow something no longer there."""
+        from django.db import connection
+
+        from .models import AccessEvent
+
+        self.event("one")
+        middle = self.event("two")
+        after = self.event("three")
+
+        with connection.cursor() as cursor:
+            cursor.execute("DELETE FROM screening_accessevent WHERE id = %s", [middle.pk])
+
+        _, problems = AccessEvent.verify_chain()
+        self.assertTrue(problems, "a deleted row went unnoticed")
+        self.assertIn(f"row {after.pk}", problems[0])
+
+    def test_the_break_names_where_the_trail_stops_being_trustworthy(self):
+        from django.db import connection
+
+        from .models import AccessEvent
+
+        rows = [self.event(f"row {n}") for n in range(4)]
+
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "UPDATE screening_accessevent SET detail = %s WHERE id = %s",
+                ["changed", rows[2].pk],
+            )
+
+        _, problems = AccessEvent.verify_chain()
+        self.assertIn(f"row {rows[2].pk}", " ".join(problems))
+        self.assertNotIn(f"row {rows[0].pk}:", " ".join(problems))
+
+    def test_resaving_a_row_does_not_reseal_it(self):
+        """Otherwise an edit could launder itself by saving through the ORM."""
+        from .models import AccessEvent
+
+        event = self.event("one")
+        original = event.entry_hash
+
+        event.detail = "changed"
+        event.save()
+
+        self.assertEqual(
+            AccessEvent.objects.get(pk=event.pk).entry_hash,
+            original,
+            "a resave recomputed the hash and hid the change",
+        )
+
+    def test_the_command_reports_an_intact_chain(self):
+        from django.core.management import call_command
+
+        self.event()
+        output = io.StringIO()
+
+        call_command("verifyaudit", stdout=output)
+
+        self.assertIn("intact", output.getvalue())
+
+    def test_the_command_exits_non_zero_when_broken(self):
+        """So it can be run on a schedule and noticed rather than read."""
+        from django.core.management import call_command
+        from django.db import connection
+
+        target = self.event()
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "UPDATE screening_accessevent SET detail = %s WHERE id = %s",
+                ["x", target.pk],
+            )
+
+        with self.assertRaises(SystemExit):
+            call_command("verifyaudit", stdout=io.StringIO())

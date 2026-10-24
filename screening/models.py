@@ -404,6 +404,11 @@ class Profile(models.Model):
         return self.role in {self.Role.CLINICIAN, self.Role.ADMINISTRATOR}
 
 
+# ASCII unit separator. Used to join an audit row's fields before hashing,
+# because no field can contain it.
+FIELD_SEPARATOR = chr(31)
+
+
 class AccessEvent(models.Model):
     """One line per thing somebody did to a screening record.
 
@@ -415,6 +420,19 @@ class AccessEvent(models.Model):
     Append-only by intent: nothing in the application updates or deletes a row,
     and the admin registration forbids both. A log that can be quietly edited
     answers no question worth asking of it.
+
+    Intent is not evidence, though, and the certification criteria ask a log to
+    detect its own alteration. Each row therefore carries a hash of its own
+    contents together with the hash of the row before it. Changing any field of
+    any row, or removing a row, breaks that row's hash and every hash after it,
+    so the damage is visible and its position is known. `manage.py verifyaudit`
+    walks the chain.
+
+    This detects tampering; it does not prevent it. Someone with write access
+    to the database could recompute the whole chain. Preventing that needs the
+    rows signed with a key the database does not hold, or copied somewhere
+    append-only, and neither belongs in a capstone; what belongs is being clear
+    about which of the two this is.
 
     What is deliberately not stored: the radiograph, the score, or anything
     about the patient. The row says a person opened a case, not what they saw
@@ -455,6 +473,10 @@ class AccessEvent(models.Model):
     detail = models.CharField(max_length=200, blank=True)
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
 
+    # The chain. Set once, when the row is written, and never afterwards.
+    previous_hash = models.CharField(max_length=64, blank=True, editable=False)
+    entry_hash = models.CharField(max_length=64, blank=True, editable=False, db_index=True)
+
     class Meta:
         ordering = ["-created_at"]
         verbose_name = "Access event"
@@ -466,6 +488,86 @@ class AccessEvent(models.Model):
     def __str__(self):
         who = self.actor_label or "anonymous"
         return f"{who} {self.get_action_display().lower()} at {self.created_at:%Y-%m-%d %H:%M}"
+
+    # Every field whose alteration the chain should catch. created_at is in it,
+    # so back-dating an event is as detectable as changing what it says.
+    CHAINED_FIELDS = (
+        "actor_id",
+        "actor_label",
+        "action",
+        "case_id",
+        "facility",
+        "ip_address",
+        "user_agent",
+        "detail",
+        "created_at",
+    )
+
+    def save(self, *args, **kwargs):
+        """Link this row to the one before it, once, on the way in."""
+        if self.entry_hash:
+            super().save(*args, **kwargs)
+            return
+
+        previous = (
+            AccessEvent.objects.order_by("-id").values_list("entry_hash", flat=True).first()
+            or ""
+        )
+        # created_at is set by auto_now_add during the insert, so the hash
+        # cannot include it until the row exists. The row is written first and
+        # sealed immediately afterwards.
+        super().save(*args, **kwargs)
+        self.previous_hash = previous
+        self.entry_hash = self.compute_hash(previous)
+        super().save(update_fields=["previous_hash", "entry_hash"])
+
+    def compute_hash(self, previous_hash=""):
+        """This row's hash, given the hash of the row before it.
+
+        The values are joined with a unit separator rather than a comma or a
+        space: it is a control character, so it cannot appear in an address, a
+        clinic name or a user agent, and two different rows cannot be made to
+        produce the same string by moving a character from one field into the
+        next.
+        """
+        import hashlib
+
+        parts = [previous_hash]
+        for name in self.CHAINED_FIELDS:
+            value = getattr(self, name, None)
+            parts.append("" if value is None else str(value))
+        return hashlib.sha256(FIELD_SEPARATOR.join(parts).encode("utf-8")).hexdigest()
+
+    @classmethod
+    def verify_chain(cls):
+        """Walk the log and report the first row that does not add up.
+
+        Returns (checked, problems), where a problem names the row and what is
+        wrong with it. An empty list means every row still hashes to what it
+        did when it was written, and that none has been removed from between
+        two others.
+        """
+        problems = []
+        previous = ""
+        checked = 0
+
+        for event in cls.objects.order_by("id").iterator():
+            checked += 1
+            if event.previous_hash != previous:
+                problems.append(
+                    f"row {event.pk}: expected to follow {previous[:12] or '(start)'}, "
+                    f"claims to follow {event.previous_hash[:12] or '(start)'}: "
+                    "a row before this one was altered or removed"
+                )
+            expected = event.compute_hash(event.previous_hash)
+            if event.entry_hash != expected:
+                problems.append(
+                    f"row {event.pk}: contents do not match its hash; "
+                    "this row was altered after it was written"
+                )
+            previous = event.entry_hash
+
+        return checked, problems
 
     @classmethod
     def record(cls, request, action, *, case_id=None, facility="", detail=""):

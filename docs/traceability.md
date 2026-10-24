@@ -192,7 +192,7 @@ because the proposal governs.
 | | |
 |---|---|
 | **Implemented in** | `screening/tests.py` |
-| **Result** | **196 tests**, covering valid and invalid uploads, oversized files, unsupported types, batch behaviour, quality thresholds, triage boundaries, preprocessing equivalence, authentication, the allowlist, role permissions, review attribution, metadata stripping, and the fifteen failure scenarios the Build Phase notes enumerate. |
+| **Result** | **220 tests**, covering valid and invalid uploads, oversized files, unsupported types, batch behaviour, quality thresholds, triage boundaries, preprocessing equivalence, authentication, the allowlist, role permissions, review attribution, metadata stripping, and the fifteen failure scenarios the Build Phase notes enumerate. |
 | **Automation** | GitHub Actions runs lint, formatting, migration checks and the suite against PostgreSQL on every push. |
 | **Record** | `docs/test-record.md`, generated from the suite by `scripts/build_test_record.py` so it cannot drift. `docs/sprint-2-test-record.md` is kept as the Sprint 2 snapshot. |
 | **Failure paths** | A deceptive file, an empty file, a filename attempting traversal, a filename carrying instructions, a corrupt image inside a batch, a failed heatmap, an absent model, an orphaned upload, a lost session, a guessed case id, an unknown case id, a duplicate submission, and the health endpoint under both outcomes. |
@@ -211,7 +211,7 @@ system" is a claim that has a published meaning.
 | Unique identity, role-limited access | **Met.** Email identity verified by a provider or a code; roles enforced on the server, not only hidden in the interface |
 | Automatic log-off after inactivity | **Met.** Thirty idle minutes, sliding with activity, ending when the browser closes. Django's default of fourteen days was wrong for a shared workstation |
 | Audit trail: who, what, when, from where | **Met.** `AccessEvent` records viewing, listing, screening, reviewing, refusals and sessions |
-| Audit trail resists editing | **Partly.** Append-only by construction and locked in the admin, but not cryptographically tamper-evident |
+| Audit trail resists editing | **Met for detection.** Each row hashes its own contents with the hash of the row before it, so an edit, a back-dating or a deletion breaks every hash after it. `manage.py verifyaudit` walks the chain. It detects tampering rather than preventing it: someone with write access to the database could recompute the whole chain, and preventing that needs the rows signed with a key the database does not hold |
 | Data minimisation | **Met.** Non-identifying case references, EXIF stripped on upload, no clinical detail copied into the audit trail |
 | Breach notification process | **Not met.** A procedure, not software; required of a deployment under the Act |
 | ODPC Certificate of Data Handler | **Not applicable to a capstone.** Required of a health facility processing real patient data |
