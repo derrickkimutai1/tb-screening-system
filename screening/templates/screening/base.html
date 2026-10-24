@@ -19,6 +19,7 @@
       </p>
       <nav class="masthead-nav">
         <a href="{% url 'screening:upload' %}" class="{% if active == 'upload' %}current{% endif %}">Screen</a>
+        <a href="{% url 'screening:worklist' %}" class="{% if active == 'worklist' %}current{% endif %}">Worklist</a>
         <a href="{% url 'screening:case_list' %}" class="{% if active == 'cases' %}current{% endif %}">Cases</a>
         <a href="{% url 'screening:dashboard' %}" class="{% if active == 'dashboard' %}current{% endif %}">Dashboard</a>
         {% if user.is_authenticated %}

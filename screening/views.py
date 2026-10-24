@@ -7,6 +7,7 @@ then storage. The services themselves know nothing about the database; this is
 where their results are persisted.
 """
 
+import csv
 import logging
 import uuid
 from datetime import timedelta
@@ -25,9 +26,10 @@ from django.core.exceptions import PermissionDenied
 from django.core.files.storage import default_storage
 from django.core.paginator import Paginator
 from django.db import connections, transaction
-from django.db.models import Count
+from django.db.models import Count, Q
 from django.db.models.functions import TruncDate
 from django.db.utils import OperationalError
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render, resolve_url
 from django.urls import reverse
 from django.utils import timezone
@@ -299,6 +301,11 @@ def case_detail(request, case_id):
             "review_form": review_form,
             "may_review": may_review,
             "notes": record.review_notes.select_related("reviewer"),
+            "history": (
+                PredictionRecord.objects.visible_to(request.user)
+                .for_patient(record.patient_reference, excluding=record.pk)
+                .order_by("-created_at")[:10]
+            ),
             "active": "cases",
         },
     )
@@ -624,3 +631,160 @@ def no_password_here(request):
         "one-time code sent to your email address, so there is nothing to change.",
     )
     return redirect("screening:profile" if request.user.is_authenticated else "account_login")
+
+
+@login_required
+def worklist(request):
+    """What still needs a clinical decision, most urgent first.
+
+    The case list is an archive: everything ever screened, newest first. That
+    answers "what happened" and not "what do I do now", which is the question
+    someone arriving for a shift actually has. This is the queue.
+    """
+    queue = (
+        PredictionRecord.objects.visible_to(request.user)
+        .awaiting_review()
+        .in_clinical_order()
+        .select_related("screened_by", "facility")
+    )
+
+    AccessEvent.record(
+        request,
+        AccessEvent.Action.LISTED,
+        facility=facility_name(profile_for(request.user).facility),
+        detail="worklist",
+    )
+
+    paginator = Paginator(queue, 25)
+    page = paginator.get_page(request.GET.get("page"))
+
+    counts = queue.aggregate(
+        high=Count("pk", filter=Q(triage_level=PredictionRecord.TriageLevel.HIGH)),
+        medium=Count("pk", filter=Q(triage_level=PredictionRecord.TriageLevel.MEDIUM)),
+        low=Count("pk", filter=Q(triage_level=PredictionRecord.TriageLevel.LOW)),
+    )
+
+    oldest = queue.order_by("created_at").first()
+
+    return render(
+        request,
+        "screening/worklist.html",
+        {
+            "page": page,
+            "counts": counts,
+            "waiting": queue.count(),
+            "oldest_days": oldest.waiting_days if oldest else None,
+            "may_review": profile_for(request.user).may_review,
+            "active": "worklist",
+        },
+    )
+
+
+@login_required
+def case_report(request, case_id):
+    """A one-page account of a screening, laid out for paper.
+
+    A result that cannot leave the system is of limited use: it has to go into
+    a patient's file, travel with a referral, or reach someone who has no
+    account here. This is the printable version, and the browser's own print
+    dialogue turns it into a PDF.
+    """
+    record = get_object_or_404(
+        PredictionRecord.objects.visible_to(request.user).select_related(
+            "screened_by", "facility"
+        ),
+        case_id=case_id,
+    )
+
+    AccessEvent.record(
+        request,
+        AccessEvent.Action.VIEWED,
+        case_id=record.case_id,
+        facility=facility_name(record.facility),
+        detail=f"printed report for {record.patient_reference}",
+    )
+
+    return render(
+        request,
+        "screening/case_report.html",
+        {
+            "record": record,
+            "notes": record.review_notes.select_related("reviewer"),
+            "history": (
+                PredictionRecord.objects.visible_to(request.user)
+                .for_patient(record.patient_reference, excluding=record.pk)
+                .order_by("-created_at")[:10]
+            ),
+            "printed_at": timezone.now(),
+            "printed_by": profile_for(request.user).display_name,
+        },
+    )
+
+
+@login_required
+def export_cases(request):
+    """The visible cases as CSV, for a spreadsheet or a report.
+
+    Scoped exactly as the case list is, so an export cannot reach further than
+    the screen it was taken from, and logged, because a bulk download of
+    clinical records is the access most worth recording.
+    """
+    records = (
+        PredictionRecord.objects.visible_to(request.user)
+        .select_related("screened_by", "facility")
+        .order_by("-created_at")
+    )
+
+    reference = request.GET.get("reference", "").strip()
+    if reference:
+        records = records.filter(patient_reference__icontains=reference)
+    triage = request.GET.get("triage", "")
+    if triage in PredictionRecord.TriageLevel.values:
+        records = records.filter(triage_level=triage)
+
+    AccessEvent.record(
+        request,
+        AccessEvent.Action.LISTED,
+        facility=facility_name(profile_for(request.user).facility),
+        detail=f"exported {records.count()} records as CSV",
+    )
+
+    stamp = timezone.now().strftime("%Y-%m-%d")
+    response = HttpResponse(content_type="text/csv")
+    response["Content-Disposition"] = f'attachment; filename="screenings-{stamp}.csv"'
+
+    writer = csv.writer(response)
+    writer.writerow(
+        [
+            "Case reference",
+            "Case ID",
+            "Screened at",
+            "Clinic",
+            "Screened by",
+            "Result",
+            "Model score",
+            "Decision threshold",
+            "Triage",
+            "Image quality",
+            "Review status",
+            "Model version",
+        ]
+    )
+    for record in records:
+        writer.writerow(
+            [
+                record.patient_reference,
+                record.case_id,
+                record.created_at.strftime("%Y-%m-%d %H:%M"),
+                facility_name(record.facility),
+                record.screened_by.email if record.screened_by else "",
+                record.get_predicted_label_display(),
+                record.tb_probability,
+                record.decision_threshold,
+                record.get_triage_level_display(),
+                record.get_quality_status_display(),
+                record.get_review_status_display(),
+                record.model_version,
+            ]
+        )
+    return response

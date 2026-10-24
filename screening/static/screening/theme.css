@@ -590,6 +590,55 @@ td.numeric {
   margin-top: 0.375rem;
 }
 
+/* A readout on the worklist carries the triage colour of the cases it counts,
+   so the shape of the queue is readable before any number is. */
+
+.readout-high::before {
+  background: var(--triage-high);
+  opacity: 1;
+}
+
+.readout-high .readout-value {
+  color: var(--triage-high);
+}
+
+.readout-medium::before {
+  background: var(--triage-medium);
+  opacity: 1;
+}
+
+.readout-medium .readout-value {
+  color: var(--triage-medium);
+}
+
+/* ---- Queue ------------------------------------------------------------- */
+
+/* A case that has sat unreviewed for a week is the one worth noticing, and a
+   bare number does not say so. */
+.waiting-long {
+  color: var(--triage-medium);
+  font-weight: 600;
+}
+
+/* The per-row action: small enough not to compete with the case reference,
+   which is still the thing to click. */
+.btn-row {
+  padding: 0.3125rem 0.75rem;
+  font-size: 0.6875rem;
+}
+
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+/* Keeps the page number centred when only one of the two buttons is there. */
+.pager > .micro {
+  margin: 0 auto;
+}
+
 /* ---- Notices ------------------------------------------------------------- */
 
 .notice {

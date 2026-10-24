@@ -15,7 +15,12 @@
 <div class="panel panel-lead mb-3 rise">
   <div class="panel-head">
     <h2 class="panel-title">Screening result</h2>
-    <span class="micro numeric">{{ record.model_version }}</span>
+    <span class="d-flex align-items-center gap-3">
+      <span class="micro numeric">{{ record.model_version }}</span>
+      <a class="btn btn-quiet btn-row" href="{% url 'screening:case_report' record.case_id %}">
+        Print report
+      </a>
+    </span>
   </div>
   <div class="panel-body">
     <div class="row g-4 align-items-center">
@@ -203,4 +208,54 @@
   </div>
 
 </div>
+
+{% if history %}
+  <div class="panel mt-3 rise">
+    <div class="panel-head">
+      <h2 class="panel-title">Earlier screenings of {{ record.patient_reference }}</h2>
+      <span class="micro numeric">{{ history|length }} prior</span>
+    </div>
+    <div class="panel-body" style="border-bottom: 1px solid var(--line);">
+      <p class="field-hint mb-0">
+        Same case reference, screened before this one. On a repeat radiograph the
+        question is usually whether the score has moved, which one result cannot
+        answer on its own.
+      </p>
+    </div>
+    <div class="table-scroll">
+      <table class="table mb-0">
+        <thead>
+          <tr>
+            <th>Analysed</th>
+            <th>Result</th>
+            <th class="text-end">Score</th>
+            <th>Triage</th>
+            <th>Review status</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for earlier in history %}
+            <tr>
+              <td class="numeric">{{ earlier.created_at|date:"j M Y, H:i" }}</td>
+              <td>{{ earlier.get_predicted_label_display }}</td>
+              <td class="text-end numeric">{{ earlier.tb_probability|floatformat:4 }}</td>
+              <td>
+                <span class="triage {{ earlier.triage_css_class }}">
+                  {{ earlier.get_triage_level_display }}
+                </span>
+              </td>
+              <td>{{ earlier.get_review_status_display }}</td>
+              <td class="text-end">
+                <a class="btn btn-quiet btn-row" href="{% url 'screening:case_detail' earlier.case_id %}">
+                  Open
+                </a>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+{% endif %}
 {% endblock %}

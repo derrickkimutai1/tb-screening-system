@@ -86,6 +86,41 @@ class PredictionRecordQuerySet(models.QuerySet):
             return self.filter(facility__isnull=True)
         return self.filter(facility=facility)
 
+    def awaiting_review(self):
+        """What still needs a clinical decision.
+
+        The queue a clinician works down, as opposed to the archive of
+        everything ever screened.
+        """
+        return self.filter(review_status=PredictionRecord.ReviewStatus.PENDING)
+
+    def in_clinical_order(self):
+        """Most urgent first, and within that the longest waiting first.
+
+        Ordering by time alone buries a high-suspicion film screened this
+        morning under yesterday's normal ones. Ordering by suspicion alone
+        lets a case sit for a week because something slightly worse keeps
+        arriving. Both together is how a queue is actually worked: deal with
+        the worst, and among equals deal with whoever has waited longest.
+        """
+        return self.annotate(
+            urgency=models.Case(
+                models.When(triage_level=PredictionRecord.TriageLevel.HIGH, then=0),
+                models.When(triage_level=PredictionRecord.TriageLevel.MEDIUM, then=1),
+                default=2,
+                output_field=models.IntegerField(),
+            )
+        ).order_by("urgency", "created_at")
+
+    def for_patient(self, reference, excluding=None):
+        """Other screenings of the same case reference, newest first.
+
+        A repeat radiograph is taken to answer a question about a previous
+        one, so the earlier results are part of reading this one.
+        """
+        rows = self.filter(patient_reference__iexact=reference)
+        return rows.exclude(pk=excluding) if excluding else rows
+
 
 class PredictionRecord(models.Model):
     """A single chest X-ray screening event and its stored outcome."""
@@ -235,6 +270,13 @@ class PredictionRecord(models.Model):
 
     def __str__(self):
         return f"{self.patient_reference} - {self.get_predicted_label_display()}"
+
+    @property
+    def waiting_days(self):
+        """Whole days this case has been awaiting review, or None once done."""
+        if self.review_status != self.ReviewStatus.PENDING:
+            return None
+        return (timezone.now() - self.created_at).days
 
     @property
     def probability_percent(self):

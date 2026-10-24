@@ -12,6 +12,7 @@ import shutil
 import sys
 import tempfile
 import uuid
+from datetime import timedelta
 from decimal import Decimal
 from pathlib import Path
 from unittest import mock
@@ -22,6 +23,7 @@ from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import RequestFactory, TestCase, override_settings
 from django.urls import reverse
+from django.utils import timezone
 from PIL import Image
 
 from .models import PredictionRecord, ReviewNote
@@ -30,6 +32,11 @@ sys.path.insert(0, str(settings.ML_DIR))
 import preprocessing  # noqa: E402
 
 MEDIA_FOR_TESTS = tempfile.mkdtemp()
+
+
+# Templates that are documents rather than pages of the interface: they do not
+# extend base.html and have no access to its stylesheet.
+STANDALONE_DOCUMENTS = {"case_report.html"}
 
 
 def clinic(name="Kenyatta"):
@@ -1966,12 +1973,32 @@ class ResponsiveLayoutTests(TestCase):
         templates = (settings.BASE_DIR / "screening" / "templates" / "screening").glob("*.html")
 
         for path in templates:
+            if path.name in STANDALONE_DOCUMENTS:
+                continue
             markup = path.read_text(encoding="utf-8")
             self.assertEqual(
                 markup.count("<table"),
                 markup.count('<div class="table-scroll">'),
                 f"{path.name} has a table outside a scroll wrapper",
             )
+
+    def test_a_standalone_document_keeps_its_tables_inside_the_page(self):
+        """It cannot use the wrapper, so it has to solve this another way.
+
+        The printable report does not extend the interface and carries its own
+        stylesheet, where .table-scroll does not exist. A wrapper class with no
+        rule behind it would satisfy the check above and fix nothing, so the
+        report narrows its columns and stacks its images instead.
+        """
+        from django.conf import settings
+
+        for name in STANDALONE_DOCUMENTS:
+            markup = (
+                settings.BASE_DIR / "screening" / "templates" / "screening" / name
+            ).read_text(encoding="utf-8")
+
+            self.assertIn("@media (max-width: 30rem)", markup, name)
+            self.assertIn("overflow-wrap: anywhere", markup, name)
 
 
 @override_settings(MEDIA_ROOT=MEDIA_FOR_TESTS)
@@ -2717,3 +2744,257 @@ class AuditChainTests(TestCase):
 
         with self.assertRaises(SystemExit):
             call_command("verifyaudit", stdout=io.StringIO())
+
+
+class ClinicalWorkflowTests(TestCase):
+    """The worklist, the printable report, patient history and the export.
+
+    These four are what turns an archive of results into something a clinic
+    could work from: a queue that says what still needs deciding, a result
+    that can leave the system on paper, the earlier films for the same patient,
+    and the caseload as a spreadsheet.
+    """
+
+    def setUp(self):
+        super().setUp()
+        from .models import Profile, profile_for
+
+        self.clinic = clinic("Kenyatta")
+        self.clinician = get_user_model().objects.create_user(
+            username="queue-clinician", email="queue@example.org"
+        )
+        profile = profile_for(self.clinician)
+        profile.facility = self.clinic
+        profile.role = Profile.Role.CLINICIAN
+        profile.save()
+        self.client.force_login(self.clinician)
+
+    def record(self, reference, triage=None, status=None, days_ago=0, facility=None):
+        row = PredictionRecord.objects.create(
+            patient_reference=reference,
+            xray_image="x.png",
+            facility=facility if facility is not None else self.clinic,
+            screened_by=self.clinician,
+            tb_probability=Decimal("0.500"),
+            predicted_label=PredictionRecord.PredictedLabel.LIKELY_TB,
+            quality_status=PredictionRecord.QualityStatus.ACCEPTABLE,
+            triage_level=triage or PredictionRecord.TriageLevel.MEDIUM,
+            review_status=status or PredictionRecord.ReviewStatus.PENDING,
+            model_version="test",
+            decision_threshold=Decimal("0.102"),
+            triage_low_medium_threshold=Decimal("0.102"),
+            triage_medium_high_threshold=Decimal("0.546"),
+        )
+        if days_ago:
+            # created_at is set on insert, so a case that has been waiting has
+            # to be backdated in the database rather than on the instance.
+            stamp = timezone.now() - timedelta(days=days_ago)
+            PredictionRecord.objects.filter(pk=row.pk).update(created_at=stamp)
+            row.refresh_from_db()
+        return row
+
+    # ---- The worklist ----------------------------------------------------
+
+    def test_the_worklist_holds_only_what_is_awaiting_review(self):
+        self.record("Q-PENDING")
+        self.record("Q-DONE", status=PredictionRecord.ReviewStatus.REVIEWED)
+
+        response = self.client.get(reverse("screening:worklist"))
+
+        self.assertContains(response, "Q-PENDING")
+        self.assertNotContains(response, "Q-DONE")
+        self.assertEqual(response.context["waiting"], 1)
+
+    def test_high_suspicion_comes_before_medium_whatever_the_order_screened(self):
+        """The point of a queue is that the urgent case is not at the bottom."""
+        self.record("Q-MED", triage=PredictionRecord.TriageLevel.MEDIUM, days_ago=3)
+        self.record("Q-HIGH", triage=PredictionRecord.TriageLevel.HIGH)
+
+        queue = list(self.client.get(reverse("screening:worklist")).context["page"])
+
+        self.assertEqual([row.patient_reference for row in queue], ["Q-HIGH", "Q-MED"])
+
+    def test_within_one_level_the_longest_waiting_comes_first(self):
+        self.record("Q-NEW", triage=PredictionRecord.TriageLevel.HIGH)
+        self.record("Q-OLD", triage=PredictionRecord.TriageLevel.HIGH, days_ago=9)
+
+        queue = list(self.client.get(reverse("screening:worklist")).context["page"])
+
+        self.assertEqual([row.patient_reference for row in queue], ["Q-OLD", "Q-NEW"])
+
+    def test_the_counts_break_the_queue_down_by_triage_level(self):
+        self.record("Q-H1", triage=PredictionRecord.TriageLevel.HIGH)
+        self.record("Q-H2", triage=PredictionRecord.TriageLevel.HIGH)
+        self.record("Q-L1", triage=PredictionRecord.TriageLevel.LOW)
+
+        counts = self.client.get(reverse("screening:worklist")).context["counts"]
+
+        self.assertEqual(counts["high"], 2)
+        self.assertEqual(counts["medium"], 0)
+        self.assertEqual(counts["low"], 1)
+
+    def test_the_oldest_waiting_case_is_reported_in_days(self):
+        self.record("Q-OLD", days_ago=11)
+
+        response = self.client.get(reverse("screening:worklist"))
+
+        self.assertEqual(response.context["oldest_days"], 11)
+        self.assertContains(response, "11 day")
+
+    def test_waiting_days_is_blank_once_a_case_has_been_reviewed(self):
+        """It measures how long a decision is overdue, not the record's age."""
+        reviewed = self.record(
+            "Q-DONE", status=PredictionRecord.ReviewStatus.REVIEWED, days_ago=5
+        )
+
+        self.assertIsNone(reviewed.waiting_days)
+
+    def test_an_empty_queue_says_so(self):
+        response = self.client.get(reverse("screening:worklist"))
+
+        self.assertContains(response, "Nothing")
+        self.assertEqual(response.context["waiting"], 0)
+
+    def test_the_worklist_stops_at_the_clinic_boundary(self):
+        self.record("Q-MINE")
+        self.record("Q-THEIRS", facility=clinic("Mbagathi"))
+
+        response = self.client.get(reverse("screening:worklist"))
+
+        self.assertContains(response, "Q-MINE")
+        self.assertNotContains(response, "Q-THEIRS")
+
+    # ---- The printable report --------------------------------------------
+
+    def test_the_report_carries_the_result_and_the_clinical_boundary(self):
+        row = self.record("R-001")
+
+        response = self.client.get(reverse("screening:case_report", args=[row.case_id]))
+
+        self.assertContains(response, "R-001")
+        self.assertContains(response, "0.5000")
+        self.assertContains(response, "screening aid, not a diagnosis")
+        self.assertContains(response, "Kenyatta")
+
+    def test_the_report_states_who_printed_it_and_when(self):
+        """A sheet of paper with no provenance cannot go in a patient's file."""
+        row = self.record("R-002")
+
+        response = self.client.get(reverse("screening:case_report", args=[row.case_id]))
+
+        self.assertContains(response, "Printed")
+        self.assertContains(response, self.clinician.profile.display_name)
+
+    def test_the_report_hides_the_screen_controls_when_printed(self):
+        row = self.record("R-003")
+
+        body = self.client.get(
+            reverse("screening:case_report", args=[row.case_id])
+        ).content.decode()
+
+        self.assertIn("@media print", body)
+        self.assertIn(".actions { display: none; }", body)
+
+    def test_a_report_for_another_clinic_is_not_found(self):
+        theirs = self.record("R-THEIRS", facility=clinic("Mbagathi"))
+
+        response = self.client.get(reverse("screening:case_report", args=[theirs.case_id]))
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_printing_a_report_is_recorded_in_the_audit_trail(self):
+        from .models import AccessEvent
+
+        row = self.record("R-004")
+        self.client.get(reverse("screening:case_report", args=[row.case_id]))
+
+        self.assertTrue(
+            AccessEvent.objects.filter(
+                case_id=row.case_id, detail__startswith="printed report"
+            ).exists()
+        )
+
+    # ---- Patient history -------------------------------------------------
+
+    def test_an_earlier_screening_of_the_same_reference_is_shown(self):
+        earlier = self.record("H-001", days_ago=30)
+        latest = self.record("H-001")
+
+        response = self.client.get(reverse("screening:case_detail", args=[latest.case_id]))
+
+        self.assertEqual([row.pk for row in response.context["history"]], [earlier.pk])
+        self.assertContains(response, "Earlier screenings of H-001")
+
+    def test_the_case_being_read_is_not_listed_as_its_own_history(self):
+        only = self.record("H-002")
+
+        response = self.client.get(reverse("screening:case_detail", args=[only.case_id]))
+
+        self.assertEqual(list(response.context["history"]), [])
+        self.assertNotContains(response, "Earlier screenings")
+
+    def test_the_reference_is_matched_whatever_the_case(self):
+        """DEMO-001 and demo-001 are one patient, not two."""
+        earlier = self.record("H-003", days_ago=10)
+        latest = self.record("h-003")
+
+        history = self.client.get(
+            reverse("screening:case_detail", args=[latest.case_id])
+        ).context["history"]
+
+        self.assertEqual([row.pk for row in history], [earlier.pk])
+
+    def test_history_does_not_reach_into_another_clinic(self):
+        """The same reference at two clinics is two different patients."""
+        self.record("H-004", facility=clinic("Mbagathi"), days_ago=4)
+        mine = self.record("H-004")
+
+        history = self.client.get(
+            reverse("screening:case_detail", args=[mine.case_id])
+        ).context["history"]
+
+        self.assertEqual(list(history), [])
+
+    # ---- The CSV export --------------------------------------------------
+
+    def test_the_export_is_a_csv_download_with_a_row_per_case(self):
+        self.record("E-001")
+        self.record("E-002")
+
+        response = self.client.get(reverse("screening:export_cases"))
+        rows = [line for line in response.content.decode().splitlines() if line]
+
+        self.assertEqual(response["Content-Type"], "text/csv")
+        self.assertIn("attachment; filename=", response["Content-Disposition"])
+        self.assertEqual(len(rows), 3)
+        self.assertIn("Case reference", rows[0])
+
+    def test_the_export_honours_the_filters_it_was_taken_with(self):
+        """Otherwise the download is not the table the user was looking at."""
+        self.record("E-KEEP")
+        self.record("E-DROP")
+
+        body = self.client.get(
+            reverse("screening:export_cases"), {"reference": "KEEP"}
+        ).content.decode()
+
+        self.assertIn("E-KEEP", body)
+        self.assertNotIn("E-DROP", body)
+
+    def test_the_export_cannot_reach_another_clinic(self):
+        self.record("E-MINE")
+        self.record("E-THEIRS", facility=clinic("Mbagathi"))
+
+        body = self.client.get(reverse("screening:export_cases")).content.decode()
+
+        self.assertIn("E-MINE", body)
+        self.assertNotIn("E-THEIRS", body)
+
+    def test_the_export_is_recorded_as_a_bulk_access(self):
+        """A download of every record is the access most worth having logged."""
+        from .models import AccessEvent
+
+        self.record("E-LOG")
+        self.client.get(reverse("screening:export_cases"))
+
+        self.assertTrue(AccessEvent.objects.filter(detail="exported 1 records as CSV").exists())

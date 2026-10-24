@@ -1,0 +1,135 @@
+{% extends "screening/base.html" %}
+
+{% block title %}Worklist{% endblock %}
+
+{% block pagehead %}
+<div class="pagehead">
+  <span class="micro micro-acid">Awaiting review</span>
+  <h1 class="display display-xl mt-2">
+    {% if waiting %}{{ waiting }} case{{ waiting|pluralize }}<br>need{{ waiting|pluralize:"s," }} a decision{% else %}Nothing<br>is waiting{% endif %}
+  </h1>
+  <p class="field-hint" style="max-width: 36rem;">
+    {% if waiting %}
+      Most urgent first, and within each level the longest waiting first.
+      {% if oldest_days %}The oldest has been waiting {{ oldest_days }} day{{ oldest_days|pluralize }}.{% endif %}
+    {% else %}
+      Every screening at this clinic has been reviewed.
+    {% endif %}
+  </p>
+</div>
+{% endblock %}
+
+{% block content %}
+
+{% if waiting %}
+  <div class="row g-3 mb-4">
+    <div class="col-sm-4">
+      <div class="readout readout-high rise">
+        <span class="readout-label">High suspicion</span>
+        <span class="readout-value numeric" data-count="{{ counts.high }}">{{ counts.high }}</span>
+      </div>
+    </div>
+    <div class="col-sm-4">
+      <div class="readout readout-medium rise">
+        <span class="readout-label">Medium suspicion</span>
+        <span class="readout-value numeric" data-count="{{ counts.medium }}">{{ counts.medium }}</span>
+      </div>
+    </div>
+    <div class="col-sm-4">
+      <div class="readout rise">
+        <span class="readout-label">Low suspicion</span>
+        <span class="readout-value numeric" data-count="{{ counts.low }}">{{ counts.low }}</span>
+      </div>
+    </div>
+  </div>
+{% endif %}
+
+<div class="panel panel-lead rise">
+  <div class="panel-head">
+    <h2 class="panel-title">The queue</h2>
+    <a class="micro micro-acid" href="{% url 'screening:case_list' %}">All cases &rarr;</a>
+  </div>
+
+  {% if page.object_list %}
+    <div class="panel-body p-0">
+      <div class="table-scroll">
+        <table class="table mb-0">
+          <thead>
+            <tr>
+              <th>Case reference</th>
+              <th>Triage</th>
+              <th class="text-end">Score</th>
+              <th>Waiting</th>
+              <th>Screened by</th>
+              <th>Quality</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for record in page.object_list %}
+              <tr>
+                <td>
+                  <a href="{% url 'screening:case_detail' record.case_id %}">
+                    {{ record.patient_reference }}
+                  </a>
+                </td>
+                <td>
+                  <span class="triage {{ record.triage_css_class }}">
+                    {{ record.get_triage_level_display }}
+                  </span>
+                </td>
+                <td class="text-end numeric">{{ record.tb_probability|floatformat:4 }}</td>
+                <td class="numeric">
+                  {% if record.waiting_days %}
+                    <span class="{% if record.waiting_days >= 7 %}waiting-long{% endif %}">
+                      {{ record.waiting_days }} day{{ record.waiting_days|pluralize }}
+                    </span>
+                  {% else %}
+                    Today
+                  {% endif %}
+                </td>
+                <td>{{ record.screened_by.email|default:"—" }}</td>
+                <td>{{ record.get_quality_status_display }}</td>
+                <td class="text-end">
+                  <a class="btn btn-quiet btn-row" href="{% url 'screening:case_detail' record.case_id %}">
+                    {% if may_review %}Review{% else %}Open{% endif %}
+                  </a>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    {% if page.has_other_pages %}
+      <div class="panel-body">
+        <nav class="pager">
+          {% if page.has_previous %}
+            <a class="btn btn-quiet" href="?page={{ page.previous_page_number }}">Previous</a>
+          {% endif %}
+          <span class="micro">Page {{ page.number }} of {{ page.paginator.num_pages }}</span>
+          {% if page.has_next %}
+            <a class="btn btn-quiet" href="?page={{ page.next_page_number }}">Next</a>
+          {% endif %}
+        </nav>
+      </div>
+    {% endif %}
+  {% else %}
+    <div class="panel-body">
+      <p class="field-hint mb-0">
+        Nothing is awaiting review.
+        <a href="{% url 'screening:upload' %}">Screen a radiograph</a> to add to the queue.
+      </p>
+    </div>
+  {% endif %}
+</div>
+
+{% if not may_review %}
+  <div class="notice notice-boundary mt-4">
+    Your role is {{ user.profile.get_role_display|lower }}, so you can open these
+    cases but not record a review. A clinician has to make the decision.
+  </div>
+{% endif %}
+
+{% endblock %}

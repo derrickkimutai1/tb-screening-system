@@ -38,6 +38,16 @@
       <div class="col-sm-auto">
         <button type="submit" class="btn btn-quiet">Filter</button>
       </div>
+      <div class="col-sm-auto">
+        {% comment %}
+          Carries the filters, so the download is the table on screen rather
+          than everything.
+        {% endcomment %}
+        <a class="btn btn-quiet"
+           href="{% url 'screening:export_cases' %}?reference={{ reference|urlencode }}&amp;triage={{ triage|urlencode }}">
+          Export CSV
+        </a>
+      </div>
       {% if reference or triage %}
         <div class="col-sm-auto">
           <a class="btn btn-quiet" href="{% url 'screening:case_list' %}">Clear</a>

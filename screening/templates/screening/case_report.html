@@ -1,0 +1,209 @@
+{% load static %}<!doctype html>
+{% comment %}
+  A screening result laid out for paper.
+
+  Extends nothing. The interface is dark with a sticky masthead and a wide
+  layout, none of which belongs on a sheet of A4: printed, it wastes ink on a
+  black background and prints navigation nobody can click. This is black on
+  white, one column, with the clinical boundary where a reader cannot miss it.
+
+  The browser's own print dialogue turns it into a PDF, so the system needs no
+  PDF library to produce one.
+{% endcomment %}
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ record.patient_reference }} — screening report</title>
+  <link rel="icon" href="{% static 'screening/favicon.svg' %}" type="image/svg+xml">
+  <style>
+    /* Deliberately self-contained: a stylesheet that failed to load would
+       leave a clinical document unreadable rather than merely plain. */
+    :root { color-scheme: light; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0 auto; padding: 2rem 1.5rem; max-width: 46rem;
+      background: #fff; color: #111;
+      font-family: Georgia, "Times New Roman", serif; font-size: 11pt; line-height: 1.5;
+    }
+    header { border-bottom: 2px solid #111; padding-bottom: .75rem; margin-bottom: 1.5rem; }
+    .masthead { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; }
+    h1 { font-size: 15pt; margin: 0; letter-spacing: -.01em; }
+    .sub { font-size: 9pt; color: #555; margin: .15rem 0 0; }
+    h2 {
+      font-size: 10pt; text-transform: uppercase; letter-spacing: .08em;
+      margin: 1.75rem 0 .5rem; padding-bottom: .25rem; border-bottom: 1px solid #ccc;
+    }
+    table { width: 100%; border-collapse: collapse; }
+    td, th { padding: .3rem .5rem .3rem 0; vertical-align: top; text-align: left; }
+    tbody tr + tr td { border-top: 1px solid #eee; }
+    th { font-size: 9pt; text-transform: uppercase; letter-spacing: .06em; color: #555; font-weight: normal; }
+    .label { width: 13rem; color: #555; }
+    .mono { font-family: "Courier New", monospace; overflow-wrap: anywhere; }
+    .headline { font-size: 13pt; font-weight: bold; margin: 0 0 .25rem; }
+    .score { font-family: "Courier New", monospace; font-size: 20pt; font-weight: bold; }
+    .triage {
+      display: inline-block; padding: .15rem .6rem; border: 1.5px solid #111;
+      font-size: 9pt; text-transform: uppercase; letter-spacing: .08em; font-family: Arial, sans-serif;
+    }
+    .triage-high { background: #111; color: #fff; }
+    .boundary {
+      border: 1.5px solid #111; padding: .75rem 1rem; margin: 1.5rem 0;
+      font-size: 10pt;
+    }
+    figure { margin: 0; }
+    .plates { display: flex; gap: 1rem; margin-top: .5rem; }
+    .plates figure { flex: 1; }
+    .plates img { width: 100%; border: 1px solid #ccc; }
+    figcaption { font-size: 8.5pt; color: #555; margin-top: .25rem; }
+    footer { margin-top: 2rem; padding-top: .75rem; border-top: 1px solid #ccc; font-size: 8.5pt; color: #555; }
+    .actions { margin: 1.5rem 0; }
+    button, .back {
+      font-family: Arial, sans-serif; font-size: 10pt; padding: .45rem 1rem;
+      border: 1px solid #111; background: #111; color: #fff; cursor: pointer;
+      text-decoration: none; display: inline-block;
+    }
+    .back { background: #fff; color: #111; margin-left: .5rem; }
+
+    @media (max-width: 30rem) {
+      /* No scroll wrapper here: the tables give up the fixed label column and
+         the two plates stack, so the document stays inside the screen. */
+      body { padding: 1.25rem 1rem; }
+      .label { width: 8rem; }
+      .plates { flex-direction: column; }
+    }
+
+    @media print {
+      /* Nothing to click on paper, and no need to repeat the address. */
+      .actions { display: none; }
+      body { padding: 0; max-width: none; font-size: 10.5pt; }
+      h2 { page-break-after: avoid; }
+      table, figure { page-break-inside: avoid; }
+      @page { margin: 18mm; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="masthead">
+    <div>
+      <h1>Chest radiograph screening report</h1>
+      <p class="sub">
+        {{ record.facility.name|default:"Unassigned clinic" }} &middot;
+        AI-assisted tuberculosis screening and triage
+      </p>
+    </div>
+    <p class="sub mono">{{ record.patient_reference }}</p>
+  </div>
+</header>
+
+<div class="actions">
+  <button type="button" onclick="window.print()">Print or save as PDF</button>
+  <a class="back" href="{% url 'screening:case_detail' record.case_id %}">Back to the case</a>
+</div>
+
+<h2>Result</h2>
+<p class="headline">{{ record.get_predicted_label_display }}</p>
+<p>
+  <span class="score">{{ record.tb_probability|floatformat:4 }}</span>
+  <span class="sub">model score, against a decision threshold of {{ record.decision_threshold|floatformat:3 }}</span>
+</p>
+<p>
+  <span class="triage {{ record.triage_css_class }}">{{ record.get_triage_level_display }}</span>
+</p>
+{% if record.triage_justification %}
+  <p>{{ record.triage_justification }}</p>
+{% endif %}
+
+<div class="boundary">
+  <strong>This is a screening aid, not a diagnosis.</strong>
+  The score is the model's output and is not a calibrated probability. A result
+  of any level requires clinical review and confirmatory testing before any
+  decision is made about this patient.
+</div>
+
+<h2>The screening</h2>
+<table>
+  <tbody>
+    <tr><td class="label">Case reference</td><td>{{ record.patient_reference }}</td></tr>
+    <tr><td class="label">Case identifier</td><td class="mono">{{ record.case_id }}</td></tr>
+    <tr><td class="label">Screened</td><td>{{ record.created_at|date:"j F Y, H:i" }}</td></tr>
+    <tr><td class="label">Screened by</td><td>{{ record.screened_by.email|default:"—" }}</td></tr>
+    <tr><td class="label">Clinic</td><td>{{ record.facility.name|default:"—" }}</td></tr>
+    <tr><td class="label">Image quality</td><td>{{ record.get_quality_status_display }}{% if record.quality_message %} — {{ record.quality_message }}{% endif %}</td></tr>
+    <tr><td class="label">Model</td><td class="mono">{{ record.model_version }}</td></tr>
+    <tr><td class="label">Triage thresholds</td><td class="mono">{{ record.triage_low_medium_threshold|floatformat:3 }} / {{ record.triage_medium_high_threshold|floatformat:3 }}</td></tr>
+    <tr><td class="label">Review status</td><td>{{ record.get_review_status_display }}</td></tr>
+  </tbody>
+</table>
+
+{% if record.xray_image %}
+  <h2>Images</h2>
+  <div class="plates">
+    <figure>
+      <img src="{{ record.xray_image.url }}" alt="The chest radiograph that was screened">
+      <figcaption>Submitted radiograph</figcaption>
+    </figure>
+    {% if record.gradcam_image %}
+      <figure>
+        <img src="{{ record.gradcam_image.url }}" alt="Heatmap overlaid on the radiograph">
+        <figcaption>
+          Grad-CAM overlay. Indicative only: this explanation does not localise
+          reliably and should not be read as showing where disease is.
+        </figcaption>
+      </figure>
+    {% endif %}
+  </div>
+{% endif %}
+
+{% if history %}
+  <h2>Earlier screenings of {{ record.patient_reference }}</h2>
+  <table>
+    <thead>
+      <tr><th>Date</th><th>Result</th><th>Score</th><th>Triage</th><th>Review</th></tr>
+    </thead>
+    <tbody>
+      {% for earlier in history %}
+        <tr>
+          <td>{{ earlier.created_at|date:"j M Y" }}</td>
+          <td>{{ earlier.get_predicted_label_display }}</td>
+          <td class="mono">{{ earlier.tb_probability|floatformat:4 }}</td>
+          <td>{{ earlier.get_triage_level_display }}</td>
+          <td>{{ earlier.get_review_status_display }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endif %}
+
+{% if notes %}
+  <h2>Clinical review</h2>
+  <table>
+    <thead>
+      <tr><th>Date</th><th>Reviewer</th><th>Status set</th><th>Note</th></tr>
+    </thead>
+    <tbody>
+      {% for note in notes %}
+        <tr>
+          <td>{{ note.created_at|date:"j M Y, H:i" }}</td>
+          <td>{{ note.attributed_to }}</td>
+          <td>{{ note.get_status_set_display }}</td>
+          <td>{{ note.note }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% else %}
+  <h2>Clinical review</h2>
+  <p>No review has been recorded against this screening.</p>
+{% endif %}
+
+<footer>
+  Printed {{ printed_at|date:"j F Y, H:i" }} by {{ printed_by }}.
+  Produced by a research prototype that has not been clinically validated and
+  is not a medical device. Model {{ record.model_version }}.
+</footer>
+
+</body>
+</html>
