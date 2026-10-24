@@ -2432,3 +2432,126 @@ class SessionTimeoutTests(TestCase):
         response = self.client.get(reverse("account_login"))
 
         self.assertNotContains(response, "idle-warning")
+
+
+class PackagedOperatorTests(TestCase):
+    """How the desktop build signs someone in with nothing to ask.
+
+    Google, Microsoft and email codes all need a network. A packaged build may
+    have none, so the person at the keyboard is the operator and the boundary
+    is the one already around their account on that machine.
+    """
+
+    def middleware(self):
+        from . import middleware
+
+        return middleware
+
+    @override_settings(PACKAGED=False)
+    def test_it_does_nothing_on_the_server(self):
+        """The deployed system must be unaffected by this existing."""
+        response = self.client.get(reverse("screening:upload"))
+
+        self.assertRedirects(
+            response, f"{reverse('account_login')}?next={reverse('screening:upload')}"
+        )
+
+    @override_settings(PACKAGED=True)
+    def test_it_signs_the_operator_in_without_a_gate(self):
+        response = self.client.get(reverse("screening:upload"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.context["user"].is_authenticated)
+
+    @override_settings(PACKAGED=True)
+    def test_the_operator_can_review_what_it_screens(self):
+        """There is nobody else to assign a role, so it administers itself."""
+        from .models import Profile, profile_for
+
+        self.client.get(reverse("screening:upload"))
+
+        operator = get_user_model().objects.get(username=self.middleware().LOCAL_USERNAME)
+        self.assertEqual(profile_for(operator).role, Profile.Role.ADMINISTRATOR)
+        self.assertTrue(profile_for(operator).may_review)
+
+    @override_settings(PACKAGED=True)
+    def test_the_operator_has_a_clinic_so_scoping_behaves_normally(self):
+        from .models import profile_for
+
+        self.client.get(reverse("screening:upload"))
+
+        operator = get_user_model().objects.get(username=self.middleware().LOCAL_USERNAME)
+        self.assertIsNotNone(profile_for(operator).facility)
+
+    @override_settings(PACKAGED=True)
+    def test_the_operator_cannot_be_signed_in_as(self):
+        """No password, so the account is reachable only from this machine."""
+        self.client.get(reverse("screening:upload"))
+
+        operator = get_user_model().objects.get(username=self.middleware().LOCAL_USERNAME)
+        self.assertFalse(operator.has_usable_password())
+
+    @override_settings(PACKAGED=True)
+    def test_repeated_requests_reuse_one_operator(self):
+        for _ in range(3):
+            self.client.get(reverse("screening:upload"))
+
+        self.assertEqual(
+            get_user_model().objects.filter(username=self.middleware().LOCAL_USERNAME).count(),
+            1,
+        )
+
+    @override_settings(PACKAGED=True)
+    def test_work_is_still_attributed_and_logged(self):
+        """Not asking who you are is not the same as not recording what you did."""
+        from .models import AccessEvent
+
+        self.client.get(reverse("screening:case_list"))
+
+        event = AccessEvent.objects.filter(action=AccessEvent.Action.LISTED).first()
+        self.assertIsNotNone(event)
+        self.assertEqual(event.actor_label, self.middleware().LOCAL_EMAIL)
+
+
+class PackagedSettingsTests(TestCase):
+    """The three ways the packaged build differs, and no others."""
+
+    def test_sqlite_is_selected_by_the_launcher_switch(self):
+        import importlib
+        import os
+        from unittest import mock
+
+        with mock.patch.dict(
+            os.environ,
+            {
+                "DJANGO_DB": "sqlite",
+                "TB_DATA_DIR": "/tmp/tb",
+                "DJANGO_SECRET_KEY": "x",
+                "DB_NAME": "x",
+                "DB_USER": "x",
+                "DB_PASSWORD": "x",
+            },
+        ):
+            module = importlib.reload(importlib.import_module("config.settings"))
+            self.assertIn("sqlite3", module.DATABASES["default"]["ENGINE"])
+        # Restore the real settings for everything that follows.
+        importlib.reload(importlib.import_module("config.settings"))
+
+    def test_the_data_directory_follows_the_launcher(self):
+        from django.conf import settings
+
+        self.assertTrue(hasattr(settings, "DATA_DIR"))
+
+    def test_media_lives_beside_the_database(self):
+        from django.conf import settings
+
+        self.assertEqual(settings.MEDIA_ROOT, settings.DATA_DIR / "media")
+
+    def test_the_static_root_can_be_pointed_at_the_bundle(self):
+        """PyInstaller unpacks elsewhere, so this cannot be fixed to the project."""
+        import os
+
+        self.assertIn(
+            "DJANGO_STATIC_ROOT", Path("config/settings.py").read_text(encoding="utf-8")
+        )
+        del os

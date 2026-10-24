@@ -1,0 +1,15 @@
+# Dependencies for the portable desktop build.
+#
+# This is the runtime list plus the packaging tool, and minus the PostgreSQL
+# driver, which the packaged build does not use because it runs on SQLite.
+#
+# TensorFlow is here deliberately. An earlier version of this file left it out
+# to keep the executable small, which would have shipped an application that
+# cannot screen anything: inference needs it, and so does Grad-CAM, which needs
+# gradients that a converted TFLite model cannot provide. The result is a few
+# hundred megabytes rather than a few tens, and that is the cost of the feature
+# rather than an oversight.
+-r requirements.txt
+
+pyinstaller==6.*
+waitress==3.*

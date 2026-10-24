@@ -30,3 +30,9 @@ desktop.ini
 
 # Scratch output from Grad-CAM development
 ml/artifacts/gradcam_samples/
+
+# PyInstaller output. The build is produced from packaging/tb-screening.spec,
+# not committed: it is several hundred megabytes and changes with the machine
+# it was built on.
+/build/
+/dist/

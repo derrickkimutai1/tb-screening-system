@@ -25,6 +25,18 @@ def env_flag(name, default=False):
     return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
+# Set by the desktop launcher when this runs as a packaged build. The packaged
+# build differs from the deployed one in three ways and no others: it keeps its
+# data beside the user rather than in a server's filesystem, it uses SQLite
+# because a database server cannot ship inside one file, and it signs the
+# person at the keyboard in because no identity provider is reachable offline.
+PACKAGED = env_flag("TB_PACKAGED")
+
+# Where writable data lives. The project folder in development; a folder under
+# the user's local application data in a packaged build, because the bundle
+# itself is read-only and unpacked afresh on every run.
+DATA_DIR = Path(os.environ.get("TB_DATA_DIR", BASE_DIR))
+
 SECRET_KEY = os.environ["DJANGO_SECRET_KEY"]
 
 DEBUG = env_flag("DJANGO_DEBUG", default=False)
@@ -66,6 +78,9 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "allauth.account.middleware.AccountMiddleware",
+    # After authentication, so it sees whether anyone is already signed in,
+    # and does nothing unless this is a packaged build.
+    "screening.middleware.PackagedOperatorMiddleware",
 ]
 
 ROOT_URLCONF = "config.urls"
@@ -130,7 +145,24 @@ def database_from_url(url):
     }
 
 
-if os.environ.get("DATABASE_URL"):
+# PostgreSQL is this system's database. The portable build uses SQLite instead,
+# because a database server cannot be shipped inside a single executable. The
+# models and migrations are identical either way, so the two differ in storage
+# and in nothing the application can observe.
+if os.environ.get("DJANGO_DB") == "sqlite":
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": DATA_DIR / "screening.sqlite3",
+            "OPTIONS": {
+                # One process serving one person, but a slow screening still
+                # holds the write lock long enough to matter.
+                "timeout": 20,
+                "transaction_mode": "IMMEDIATE",
+            },
+        }
+    }
+elif os.environ.get("DATABASE_URL"):
     DATABASES = {"default": database_from_url(os.environ["DATABASE_URL"])}
 else:
     DATABASES = {
@@ -162,7 +194,9 @@ USE_TZ = True
 
 
 STATIC_URL = "static/"
-STATIC_ROOT = BASE_DIR / "staticfiles"
+# Overridable, because a packaged build serves them from wherever PyInstaller
+# unpacked the bundle rather than from the project folder.
+STATIC_ROOT = Path(os.environ.get("DJANGO_STATIC_ROOT", BASE_DIR / "staticfiles"))
 
 # Served by WhiteNoise rather than by a separate web server. The deployed
 # container runs one process; adding nginx in front of it to serve a handful of
@@ -175,7 +209,9 @@ STORAGES = {
 # Uploaded X-rays and generated heatmap overlays. Only the paths are stored in
 # PostgreSQL; the image data itself stays on disk.
 MEDIA_URL = "media/"
-MEDIA_ROOT = BASE_DIR / "media"
+# Beside the database, so a packaged build keeps the radiographs it has
+# screened with the records that describe them.
+MEDIA_ROOT = DATA_DIR / "media"
 
 # Upper bound on an accepted chest X-ray upload. Chest radiograph exports from
 # the reference datasets sit well below this, so anything larger is rejected by
