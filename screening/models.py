@@ -27,6 +27,37 @@ def heatmap_upload_path(instance, filename):
     return f"heatmaps/{timezone.now():%Y/%m}/{instance.case_id}.png"
 
 
+class Facility(models.Model):
+    """A clinic or hospital that shares a caseload.
+
+    Previously this was free text on each profile, and visibility was decided
+    by comparing those strings. Two spellings of one hospital therefore made
+    two separate caseloads, and a typo silently hid every record from the
+    person who made it. Making the clinic a row removes the question: records
+    are scoped by which clinic, not by how it was spelled.
+
+    Administrators maintain the list. A user picks from it and cannot invent
+    one, which is the point; somewhere that is not on the list is a question
+    for an administrator rather than something to type around.
+    """
+
+    name = models.CharField(max_length=120, unique=True)
+    # Somewhere that closes should stop being offered without taking its
+    # records with it.
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Clear this to stop offering the clinic without removing its records.",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["name"]
+        verbose_name_plural = "Facilities"
+
+    def __str__(self):
+        return self.name
+
+
 class PredictionRecordQuerySet(models.QuerySet):
     """Visibility rules, in one place rather than repeated in each view."""
 
@@ -49,8 +80,11 @@ class PredictionRecordQuerySet(models.QuerySet):
             return self.none()
         if user.is_superuser:
             return self
-        profile = Profile.objects.filter(user=user).first()
-        return self.filter(facility=(profile.facility if profile else ""))
+        profile = Profile.objects.filter(user=user).select_related("facility").first()
+        facility = profile.facility if profile else None
+        if facility is None:
+            return self.filter(facility__isnull=True)
+        return self.filter(facility=facility)
 
 
 class PredictionRecord(models.Model):
@@ -97,13 +131,18 @@ class PredictionRecord(models.Model):
         blank=True,
         related_name="screenings",
     )
-    facility = models.CharField(
-        max_length=120,
+    # PROTECT: a clinic with records cannot be deleted out from under them.
+    # Deactivating it stops it being offered, which is the intended way to
+    # retire one.
+    facility = models.ForeignKey(
+        "Facility",
+        on_delete=models.PROTECT,
+        null=True,
         blank=True,
-        db_index=True,
+        related_name="records",
         help_text=(
-            "The clinic this screening belongs to, copied from the profile of "
-            "whoever took it. Records are visible to that clinic."
+            "The clinic this screening belongs to, taken from the profile of "
+            "whoever screened it. Records are visible to that clinic."
         ),
     )
 
@@ -282,6 +321,15 @@ class ReviewNote(models.Model):
         return self.reviewer_name or "Unnamed reviewer"
 
 
+def facility_name(facility):
+    """The clinic's name, for the places that store text rather than a link.
+
+    The audit trail keeps a name rather than a foreign key, so a row survives
+    the clinic being renamed or removed and still says where it happened.
+    """
+    return facility.name if facility else ""
+
+
 def profile_for(user):
     """The user's profile, creating it if somehow it is missing.
 
@@ -325,10 +373,17 @@ class Profile(models.Model):
         default=Role.RADIOGRAPHER,
         help_text="Determines whether this user may record a clinical review.",
     )
-    facility = models.CharField(
-        max_length=120,
+    facility = models.ForeignKey(
+        "Facility",
+        on_delete=models.SET_NULL,
+        null=True,
         blank=True,
-        help_text="The clinic or hospital this user works at.",
+        related_name="staff",
+        limit_choices_to={"is_active": True},
+        help_text=(
+            "The clinic you work at. Records are shared with everyone at the "
+            "same clinic. Ask an administrator if yours is not listed."
+        ),
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

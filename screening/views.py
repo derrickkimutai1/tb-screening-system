@@ -42,7 +42,13 @@ from .forms import (
     ReviewForm,
     ScreeningUploadForm,
 )
-from .models import AccessEvent, PredictionRecord, ReviewNote, profile_for
+from .models import (
+    AccessEvent,
+    PredictionRecord,
+    ReviewNote,
+    facility_name,
+    profile_for,
+)
 from .services.gradcam import ExplanationUnavailable, GradCAMGenerator
 from .services.predict import ModelUnavailable, PredictionEngine
 from .services.quality import ImageQualityChecker
@@ -185,7 +191,7 @@ def upload(request):
                         request,
                         AccessEvent.Action.SCREENED,
                         case_id=record.case_id,
-                        facility=record.facility,
+                        facility=facility_name(record.facility),
                         detail=record.patient_reference,
                     )
                 else:
@@ -239,7 +245,7 @@ def case_detail(request, case_id):
         request,
         AccessEvent.Action.VIEWED,
         case_id=record.case_id,
-        facility=record.facility,
+        facility=facility_name(record.facility),
         detail=record.patient_reference,
     )
 
@@ -255,7 +261,7 @@ def case_detail(request, case_id):
                 request,
                 AccessEvent.Action.REFUSED,
                 case_id=record.case_id,
-                facility=record.facility,
+                facility=facility_name(record.facility),
                 detail="review refused: role is not permitted",
             )
             raise PermissionDenied("Your role does not permit recording a review.")
@@ -278,7 +284,7 @@ def case_detail(request, case_id):
                 request,
                 AccessEvent.Action.REVIEWED,
                 case_id=record.case_id,
-                facility=record.facility,
+                facility=facility_name(record.facility),
                 detail=f"set to {review_form.cleaned_data['status_set']}",
             )
             return redirect("screening:case_detail", case_id=record.case_id)
@@ -343,7 +349,7 @@ def case_list(request):
     AccessEvent.record(
         request,
         AccessEvent.Action.LISTED,
-        facility=profile_for(request.user).facility,
+        facility=facility_name(profile_for(request.user).facility),
         detail=f"search: {reference}" if reference else "",
     )
     if reference:

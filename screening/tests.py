@@ -32,6 +32,18 @@ import preprocessing  # noqa: E402
 MEDIA_FOR_TESTS = tempfile.mkdtemp()
 
 
+def clinic(name="Kenyatta"):
+    """The Facility row for this name, created if the test is the first to ask.
+
+    Clinics became rows so that two spellings could not make two caseloads;
+    tests go through the same door as the application rather than writing a
+    name straight onto a field.
+    """
+    from screening.models import Facility
+
+    return Facility.objects.get_or_create(name=name)[0]
+
+
 def make_image(name="chest.png", size=(64, 64), fmt="PNG"):
     """Build a small valid greyscale image in memory."""
     buffer = io.BytesIO()
@@ -615,10 +627,36 @@ class ProfileTests(SignedIn, TestCase):
         self.assertRedirects(self.client.get(url), f"{reverse('account_login')}?next={url}")
 
     def test_the_facility_can_be_set_by_its_owner(self):
-        self.client.post(reverse("screening:profile"), {"facility": "Kenyatta National"})
+        chosen = clinic("Kenyatta National")
+
+        self.client.post(reverse("screening:profile"), {"facility": chosen.pk})
 
         self.clinician.profile.refresh_from_db()
-        self.assertEqual(self.clinician.profile.facility, "Kenyatta National")
+        self.assertEqual(self.clinician.profile.facility, chosen)
+
+    def test_a_clinic_cannot_be_invented_from_the_profile_form(self):
+        """Free text was the defect: one spelling mistake made two caseloads."""
+        from .models import Facility
+
+        response = self.client.post(
+            reverse("screening:profile"), {"facility": "Somewhere Made Up"}
+        )
+
+        self.assertFalse(Facility.objects.filter(name="Somewhere Made Up").exists())
+        self.clinician.profile.refresh_from_db()
+        self.assertIsNone(self.clinician.profile.facility)
+        self.assertEqual(response.status_code, 200)
+
+    def test_a_retired_clinic_is_not_offered(self):
+        from .models import Facility
+
+        clinic("Open Clinic")
+        Facility.objects.create(name="Closed Clinic", is_active=False)
+
+        response = self.client.get(reverse("screening:profile"))
+
+        self.assertContains(response, "Open Clinic")
+        self.assertNotContains(response, "Closed Clinic")
 
     def test_the_role_cannot_be_set_by_its_owner(self):
         """Choosing your own role would make the role meaningless."""
@@ -1960,7 +1998,7 @@ class FacilityScopeTests(TestCase):
             email=f"{username or 'u'}{get_user_model().objects.count()}@example.org",
         )
         profile = profile_for(user)
-        profile.facility = facility
+        profile.facility = clinic(facility) if facility else None
         if role:
             profile.role = role
         profile.save()
@@ -1970,7 +2008,7 @@ class FacilityScopeTests(TestCase):
         return PredictionRecord.objects.create(
             patient_reference=reference,
             xray_image="x.png",
-            facility=facility,
+            facility=clinic(facility) if facility else None,
             screened_by=screener,
             tb_probability=Decimal("0.5"),
             triage_level=PredictionRecord.TriageLevel.MEDIUM,
@@ -2060,7 +2098,7 @@ class FacilityScopeTests(TestCase):
 
         record = PredictionRecord.objects.get(patient_reference="STAMP-01")
         self.assertEqual(record.screened_by, user)
-        self.assertEqual(record.facility, "Kenyatta")
+        self.assertEqual(record.facility, clinic("Kenyatta"))
 
     def test_a_record_keeps_its_clinic_when_the_screener_moves(self):
         """The facility is copied, not followed."""
@@ -2074,11 +2112,11 @@ class FacilityScopeTests(TestCase):
         )
 
         profile = profile_for(user)
-        profile.facility = "Mbagathi"
+        profile.facility = clinic("Mbagathi")
         profile.save()
 
         record = PredictionRecord.objects.get(patient_reference="MOVE-01")
-        self.assertEqual(record.facility, "Kenyatta")
+        self.assertEqual(record.facility, clinic("Kenyatta"))
 
     def test_a_record_survives_its_screener_being_removed(self):
         user = self.member_of("Kenyatta", username="leaving")
@@ -2088,7 +2126,7 @@ class FacilityScopeTests(TestCase):
 
         record.refresh_from_db()
         self.assertIsNone(record.screened_by)
-        self.assertEqual(record.facility, "Kenyatta")
+        self.assertEqual(record.facility, clinic("Kenyatta"))
 
     def test_the_profile_counts_what_this_user_screened(self):
         user = self.member_of("Kenyatta", username="counter")
@@ -2125,7 +2163,7 @@ class NoFacilityNoticeTests(TestCase):
         from .models import profile_for
 
         profile = profile_for(self.user)
-        profile.facility = "Kenyatta"
+        profile.facility = clinic("Kenyatta")
         profile.save()
 
         response = self.client.get(reverse("screening:case_list"))
@@ -2144,7 +2182,7 @@ class NoFacilityNoticeTests(TestCase):
         PredictionRecord.objects.create(
             patient_reference="JOIN-01",
             xray_image="x.png",
-            facility="Kenyatta",
+            facility=clinic("Kenyatta"),
             tb_probability=Decimal("0.5"),
             triage_level=PredictionRecord.TriageLevel.MEDIUM,
             model_version="test",
@@ -2154,7 +2192,7 @@ class NoFacilityNoticeTests(TestCase):
         )
         self.assertNotContains(self.client.get(reverse("screening:case_list")), "JOIN-01")
 
-        self.client.post(reverse("screening:profile"), {"facility": "Kenyatta"})
+        self.client.post(reverse("screening:profile"), {"facility": clinic("Kenyatta").pk})
 
         self.assertContains(self.client.get(reverse("screening:case_list")), "JOIN-01")
 
@@ -2180,7 +2218,7 @@ class AccessTrailTests(TestCase):
             username="audited", email="audited@strathmore.edu"
         )
         profile = profile_for(self.user)
-        profile.facility = "Kenyatta"
+        profile.facility = clinic("Kenyatta")
         profile.save()
         self.client.force_login(self.user)
 
@@ -2194,7 +2232,7 @@ class AccessTrailTests(TestCase):
         return PredictionRecord.objects.create(
             patient_reference="AUD-01",
             xray_image="x.png",
-            facility="Kenyatta",
+            facility=clinic("Kenyatta"),
             tb_probability=Decimal("0.5"),
             triage_level=PredictionRecord.TriageLevel.MEDIUM,
             model_version="test",

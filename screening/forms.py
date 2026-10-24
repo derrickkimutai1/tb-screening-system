@@ -7,9 +7,25 @@ from django import forms
 from django.conf import settings
 from django.template.defaultfilters import filesizeformat
 
-from .models import PredictionRecord, Profile, profile_for
+from .models import Facility, PredictionRecord, Profile, profile_for
 
 ACCEPTED_SUFFIXES = {".png", ".jpg", ".jpeg"}
+
+
+def active_facilities(including=None):
+    """The clinics a user may choose.
+
+    Retired ones are not offered, but one already recorded against a profile
+    stays selectable so that saving an unrelated change does not quietly move
+    someone out of their clinic.
+    """
+    from django.db.models import Q
+
+    condition = Q(is_active=True)
+    if including:
+        condition |= Q(pk=including)
+    return Facility.objects.filter(condition)
+
 
 # A clinic working through a morning's films wants to submit them together
 # rather than one at a time. The cap exists because screening happens inside
@@ -121,11 +137,16 @@ class ProfileForm(forms.ModelForm):
     class Meta:
         model = Profile
         fields = ["facility"]
-        widgets = {
-            "facility": forms.TextInput(
-                attrs={"class": "form-control", "placeholder": "Kenyatta National Hospital"}
-            )
-        }
+        widgets = {"facility": forms.Select(attrs={"class": "form-select"})}
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Only clinics still in use are offered, but a profile already pointing
+        # at a retired one keeps it rather than being silently cleared on the
+        # next save.
+        field = self.fields["facility"]
+        field.queryset = active_facilities(including=self.instance.facility_id)
+        field.empty_label = "Not set"
 
 
 class ReviewForm(forms.Form):
@@ -173,14 +194,16 @@ class SocialSignupForm(SocialAccountSignupForm):
         label="Surname",
         widget=forms.TextInput(attrs={"class": "form-control", "autocomplete": "family-name"}),
     )
-    facility = forms.CharField(
-        max_length=120,
+    facility = forms.ModelChoiceField(
+        queryset=Facility.objects.none(),
         required=False,
+        empty_label="Not set",
         label="Clinic or hospital",
-        help_text="Optional. You can set this later from your profile.",
-        widget=forms.TextInput(
-            attrs={"class": "form-control", "placeholder": "Kenyatta National Hospital"}
+        help_text=(
+            "Optional, and changeable later. Records are shared with everyone "
+            "at the same clinic."
         ),
+        widget=forms.Select(attrs={"class": "form-select"}),
     )
 
     def __init__(self, *args, **kwargs):
@@ -194,6 +217,10 @@ class SocialSignupForm(SocialAccountSignupForm):
             self.fields["email"].widget.attrs.update(
                 {"class": "form-control", "readonly": True}
             )
+        # Populated here rather than at import, so a clinic added today is
+        # offered without restarting the application.
+        self.fields["facility"].queryset = active_facilities()
+
         for name in ("first_name", "last_name"):
             initial = self.initial.get(name) or ""
             if initial:
@@ -209,7 +236,7 @@ class SocialSignupForm(SocialAccountSignupForm):
         # The signal has already created the profile by this point, so this
         # fills it in rather than creating a second one.
         profile = profile_for(user)
-        profile.facility = self.cleaned_data.get("facility", "").strip()
+        profile.facility = self.cleaned_data.get("facility")
         profile.save(update_fields=["facility", "updated_at"])
 
         return user

@@ -12,7 +12,7 @@ from django.conf import settings
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
-from .models import AccessEvent, Profile, profile_for
+from .models import AccessEvent, Profile, facility_name, profile_for
 
 
 @receiver(post_save, sender=settings.AUTH_USER_MODEL)
@@ -32,7 +32,7 @@ def record_sign_in(sender, request, user, **kwargs):
     AccessEvent.record(
         request,
         AccessEvent.Action.SIGNED_IN,
-        facility=profile_for(user).facility,
+        facility=facility_name(profile_for(user).facility),
         detail=kwargs.get("signup") and "first sign-in" or "",
     )
 
@@ -44,5 +44,5 @@ def record_sign_out(sender, request, user, **kwargs):
     AccessEvent.record(
         request,
         AccessEvent.Action.SIGNED_OUT,
-        facility=profile_for(user).facility,
+        facility=facility_name(profile_for(user).facility),
     )

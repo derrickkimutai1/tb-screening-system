@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import AccessEvent, PredictionRecord, Profile, ReviewNote
+from .models import AccessEvent, Facility, PredictionRecord, Profile, ReviewNote
 
 
 class ReviewNoteInline(admin.TabularInline):
@@ -113,3 +113,32 @@ class AccessEventAdmin(admin.ModelAdmin):
         # Retention has to be possible, but only for someone who can already
         # reach everything.
         return request.user.is_superuser
+
+
+@admin.register(Facility)
+class FacilityAdmin(admin.ModelAdmin):
+    """Where the list of clinics is maintained.
+
+    Users pick from this list and cannot add to it, which is the point: a
+    clinic typed freely produced two caseloads out of one spelling mistake.
+    """
+
+    list_display = ["name", "is_active", "staff_count", "record_count", "created_at"]
+    list_filter = ["is_active"]
+    search_fields = ["name"]
+    readonly_fields = ["created_at"]
+
+    @admin.display(description="Staff")
+    def staff_count(self, facility):
+        return facility.staff.count()
+
+    @admin.display(description="Records")
+    def record_count(self, facility):
+        return facility.records.count()
+
+    def has_delete_permission(self, request, obj=None):
+        # A clinic holding records cannot be removed; retire it instead, which
+        # stops it being offered without touching what it holds.
+        if obj is not None and obj.records.exists():
+            return False
+        return super().has_delete_permission(request, obj)
