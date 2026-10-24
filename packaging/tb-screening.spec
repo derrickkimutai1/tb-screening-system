@@ -33,27 +33,105 @@ datas = [
     # bundle rather than fetched, so a prediction cannot depend on a download.
     (str(ROOT / "ml" / "models" / "tb_mobilenetv2_v1.keras"), "ml/models"),
     (str(ROOT / "ml" / "models" / "metadata.json"), "ml/models"),
-    # Preprocessing is shared with the training scripts and imported by path.
+    # Preprocessing is shared with the training scripts. image_processing.py
+    # puts ML_DIR on sys.path and imports it by name, so it travels as a file
+    # rather than as a module and must land where ML_DIR points: beside the
+    # unpacked bundle, which is what BASE_DIR resolves to there.
     (str(ROOT / "ml" / "preprocessing.py"), "ml"),
 ]
 
 # allauth keeps its own templates and locale data.
 datas += collect_data_files("allauth")
 
+# This project's own modules. Django reaches almost all of them by name from a
+# string in settings rather than by importing them, so PyInstaller's analysis
+# follows nothing into them and the first build shipped without the settings
+# module at all.
+#
+# Listed one by one rather than collected, because collecting imports each in
+# turn and these cannot be imported without Django already configured, which
+# it is not while the bundle is being analysed.
 hiddenimports = [
-    # Named as strings in settings, so nothing imports them.
+    "config",
+    "config.settings",
+    "config.urls",
+    "config.wsgi",
+    "screening",
+    "screening.admin",
     "screening.apps",
-    "screening.signals",
-    "screening.middleware",
-    "screening.context_processors",
     "screening.auth",
+    "screening.context_processors",
+    "screening.forms",
+    "screening.middleware",
+    "screening.models",
+    "screening.signals",
+    "screening.urls",
+    "screening.views",
+    "screening.services",
+    "screening.services.devmail",
+    "screening.services.gradcam",
+    "screening.services.image_processing",
+    "screening.services.predict",
+    "screening.services.quality",
+    "screening.services.sanitise",
+    "screening.services.triage",
+    "screening.templatetags",
     "screening.templatetags.devmail",
-    "django.contrib.staticfiles.apps",
-    "whitenoise.storage",
     "waitress",
     # SQLite only; PostgreSQL is excluded below.
     "django.db.backends.sqlite3",
+    "django.db.backends.sqlite3.base",
 ]
+
+# Everything Django reaches by a dotted string in settings: middleware,
+# authentication backends, context processors, storage and mail backends, the
+# allauth adapters and forms, and every installed app.
+#
+# This list was produced from the settings themselves rather than written out,
+# and regenerating it is the way to extend it. Finding these one failed launch
+# at a time is how the first two builds went: the bundle starts, Django reads a
+# name out of settings, and the module behind it was never collected because
+# nothing imports it.
+hiddenimports += [
+    "allauth",
+    "allauth.account",
+    "allauth.account.auth_backends",
+    "allauth.account.middleware",
+    "allauth.socialaccount",
+    "allauth.socialaccount.providers.google",
+    "allauth.socialaccount.providers.microsoft",
+    "django.contrib.admin",
+    "django.contrib.admin.apps",
+    "django.contrib.auth",
+    "django.contrib.auth.backends",
+    "django.contrib.auth.context_processors",
+    "django.contrib.auth.middleware",
+    "django.contrib.contenttypes",
+    "django.contrib.messages",
+    "django.contrib.messages.context_processors",
+    "django.contrib.messages.middleware",
+    "django.contrib.sessions",
+    "django.contrib.sessions.middleware",
+    "django.contrib.sites",
+    "django.contrib.staticfiles",
+    "django.contrib.staticfiles.apps",
+    "django.core.files.storage",
+    "django.core.mail.backends.console",
+    "django.core.mail.backends.smtp",
+    "django.middleware.clickjacking",
+    "django.middleware.common",
+    "django.middleware.csrf",
+    "django.middleware.security",
+    "django.template.context_processors",
+    "whitenoise.middleware",
+    "whitenoise.storage",
+]
+
+# WhiteNoise and the session and messages backends each reach further modules
+# by name again, so the whole of the small ones travels rather than guessing.
+hiddenimports += collect_submodules("whitenoise")
+hiddenimports += collect_submodules("django.contrib.sessions")
+hiddenimports += collect_submodules("django.contrib.messages")
 
 # allauth reaches its providers and internal flows dynamically.
 hiddenimports += collect_submodules("allauth")
