@@ -467,3 +467,48 @@ author's deletion.
 
 **Blockers**
 - None.
+
+
+## 25 October 2026 — the test split, for the last time
+
+**What was measured**
+`evaluate_model.py` run at the operating point the system actually ships,
+decision threshold 0.102. Until now `metrics.json` described threshold 0.041,
+an earlier point used while the selection margin was being investigated, so
+there was no test-set sensitivity or specificity for the deployed setting at
+all. The threshold itself was not touched: it was chosen from the validation
+curve alone, and this run only measures what it does on unseen data.
+
+**Result, 120 test images, 59 of them TB**
+
+| | Validation | Test |
+|---|---|---|
+| Sensitivity | 0.9333 | **0.9153** [0.839, 0.983] |
+| Specificity | 0.6393 | **0.6393** [0.509, 0.758] |
+| Accuracy | — | 0.7750 [0.700, 0.850] |
+
+54 true positives, 39 true negatives, 22 false positives, **5 TB cases missed**.
+AUC is threshold-independent and unchanged at 0.9291 [0.878, 0.970].
+
+**The margin earned its keep**
+The threshold was selected for 0.92 sensitivity rather than the WHO minimum of
+0.90, after a threshold picked for exactly 0.900 delivered 0.881 on unseen
+data. Sensitivity dropped 1.8 points in transfer and landed at 0.9153, still
+above the requirement. Chosen at the minimum it would have fallen below it.
+Specificity transferred exactly.
+
+**What is still not met**
+Specificity 0.639 against the WHO target of 0.70. The validation curve already
+said no threshold satisfies both targets at once; the test split agrees. It
+stays a reported finding, not something to tune away against the data meant to
+judge it.
+
+**The cost**
+This was the test split's fourth and final consultation — model selection, the
+cross-dataset work, the earlier threshold investigation, and now this. Chapter
+5 should state it. Each look weakens the independence of the figure, which is
+why the operating point was still chosen without it.
+
+**Blockers**
+- Hosting. The Dockerfile and the deploy workflow are ready and need a Neon
+  connection string, a Space name and a Hugging Face write token.

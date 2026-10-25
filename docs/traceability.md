@@ -108,7 +108,7 @@ Platt scaling or isotonic regression fitted on validation, is future work.
 |---|---|
 | **Implemented in** | `screening/services/triage.py`, thresholds chosen by `ml/scripts/select_thresholds.py` |
 | **Tested by** | `TriageTests` (5 tests, including both boundaries) |
-| **Result** | Decision threshold **0.102**, high suspicion **0.546**, both selected on the validation split alone. At 0.102 validation sensitivity is 0.933 and specificity 0.639. |
+| **Result** | Decision threshold **0.102**, high suspicion **0.546**, both selected on the validation split alone. On the held-out test split at 0.102: **sensitivity 0.9153** [0.839, 0.983], **specificity 0.6393** [0.509, 0.758], accuracy 0.7750. Validation gave 0.9333 and 0.6393, so sensitivity cost 1.8 points in transfer and stayed above the WHO minimum, which is what the selection margin was for. |
 | **Evidence** | `ml/artifacts/threshold_selection.png`, `OPERATING_POINT.md` |
 | **Status** | **Met, with one requirement not reachable.** |
 

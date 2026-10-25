@@ -2,7 +2,7 @@
   "model_version": "tb_mobilenetv2_v1",
   "run_tag": "reg-both",
   "provenance": {
-    "git_commit": "953721dc364f60cc44d2bebc754a4b6805c85638",
+    "git_commit": "0bd77f8b89322ca30fb6df290840f33243ce5737",
     "git_branch": "main",
     "code_is_clean": false,
     "dataset": {
@@ -14,36 +14,36 @@
   "evaluated_on": "test split, held out from training and model selection",
   "test_images": 120,
   "test_tb": 59,
-  "decision_threshold": 0.041,
+  "decision_threshold": 0.102,
   "high_suspicion_threshold": 0.546,
   "metrics": {
-    "accuracy": 0.7,
-    "precision": 0.6237,
-    "recall": 0.9831,
-    "specificity": 0.4262,
-    "f1": 0.7632,
+    "accuracy": 0.775,
+    "precision": 0.7105,
+    "recall": 0.9153,
+    "specificity": 0.6393,
+    "f1": 0.8,
     "auc": 0.9291
   },
   "confidence_intervals_95": {
     "accuracy": [
-      0.6167,
-      0.7833
+      0.7,
+      0.85
     ],
     "precision": [
-      0.5263,
-      0.7222
+      0.6071,
+      0.8089
     ],
     "recall": [
-      0.9412,
-      1.0
+      0.8393,
+      0.9831
     ],
     "specificity": [
-      0.3043,
-      0.5484
+      0.5091,
+      0.7576
     ],
     "f1": [
-      0.6853,
-      0.8345
+      0.7218,
+      0.8677
     ],
     "auc": [
       0.8778,
@@ -52,9 +52,9 @@
   },
   "bootstrap_samples": 2000,
   "confusion_matrix": {
-    "true_negative": 26,
-    "false_positive": 35,
-    "false_negative": 1,
-    "true_positive": 58
+    "true_negative": 39,
+    "false_positive": 22,
+    "false_negative": 5,
+    "true_positive": 54
   }
 }
