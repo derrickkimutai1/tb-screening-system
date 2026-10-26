@@ -1,8 +1,6 @@
 from django.conf import settings
-from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path, re_path
-from django.views.static import serve
 
 from screening import views as screening_views
 
@@ -33,26 +31,19 @@ urlpatterns = [
     path("", include("screening.urls")),
 ]
 
-if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
-elif settings.PACKAGED:
-    # The desktop build has to serve the radiographs and heatmaps itself.
-    #
-    # django.conf.urls.static.static() above returns nothing unless DEBUG, and
-    # WhiteNoise serves only the collected static files, so with neither in
-    # play every image on a result page was a broken icon: the files were
-    # written to the data folder correctly and nothing would hand them back.
-    #
-    # Django's own warning about this view is about serving media from a public
-    # web server, where a dedicated server should do it. This build is a single
-    # process bound to the loopback interface on one person's machine, serving
-    # that person their own uploads, so the warning does not describe this
-    # situation. A deployed instance never reaches here, because PACKAGED is
-    # false and the media sits behind the platform's own storage.
-    urlpatterns += [
-        re_path(
-            rf"^{settings.MEDIA_URL.lstrip('/')}(?P<path>.*)$",
-            serve,
-            {"document_root": settings.MEDIA_ROOT},
-        )
-    ]
+# Uploaded radiographs and the heatmaps built from them are served by the
+# application rather than by a static route, in every environment.
+#
+# They were previously handed out by django.conf.urls.static.static() in
+# development and by nothing at all in the packaged build, which meant they
+# were either public to anyone who knew the address or unreachable even to the
+# person who uploaded them. Both are wrong for patient imaging. The view checks
+# the session and the clinic, so an image is exactly as visible as the case
+# page that shows it.
+urlpatterns += [
+    re_path(
+        rf"^{settings.MEDIA_URL.lstrip('/')}(?P<path>.*)$",
+        screening_views.protected_media,
+        name="protected_media",
+    )
+]

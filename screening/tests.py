@@ -51,8 +51,15 @@ def clinic(name="Kenyatta"):
     return Facility.objects.get_or_create(name=name)[0]
 
 
-def make_image(name="chest.png", size=(64, 64), fmt="PNG"):
-    """Build a small valid greyscale image in memory."""
+def make_image(name="chest.png", size=(256, 256), fmt="PNG"):
+    """Build a small valid greyscale image in memory.
+
+    256 rather than 64, because the quality check now refuses anything below
+    the model's own 224 pixel input: a radiograph smaller than that could only
+    be screened by enlarging it first, which invents no detail and still
+    produces a confident-looking score. A 64 pixel chest X-ray was never a
+    realistic fixture; it only passed because nothing checked.
+    """
     buffer = io.BytesIO()
     Image.new("L", size, color=110).save(buffer, format=fmt)
     buffer.seek(0)
@@ -3266,55 +3273,142 @@ class ExplanationMethodTests(TestCase):
             OcclusionGenerator().heatmap(Flat(), self.prepared())
 
 
-class PackagedMediaTests(TestCase):
-    """The desktop build has to hand back the images it stored.
+@override_settings(MEDIA_ROOT=MEDIA_FOR_TESTS)
+class ProtectedMediaTests(TestCase):
+    """Who can fetch a stored radiograph.
 
-    django.conf.urls.static.static() returns nothing unless DEBUG, and
-    WhiteNoise serves only collected static files. The packaged build runs with
-    DEBUG off and neither of those covers uploads, so every radiograph and
-    every heatmap on a result page was a broken icon: written to disk
-    correctly, and nothing would serve them back.
+    The pages required a session; the images behind them did not. A chest
+    radiograph could be downloaded by anyone who knew the address, which the
+    case identifier in the path does not prevent - that is obscurity, not
+    access control. The proposal asks for these to be "served only through
+    authenticated application routes" (NFR-05).
 
-    This is checked by building the URL configuration under each setting
-    rather than by requesting a file, because the route is decided at import
-    and a running test client would only ever see the one this process loaded.
+    An image is now exactly as visible as the case page that shows it, which
+    means the clinic boundary applies to it too.
     """
 
-    def routes_under(self, **flags):
-        import importlib
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(MEDIA_FOR_TESTS, ignore_errors=True)
+        super().tearDownClass()
 
-        from django.urls import clear_url_caches
+    def setUp(self):
+        super().setUp()
+        from .models import profile_for
 
-        with override_settings(**flags):
-            import config.urls
+        self.clinic = clinic("Kenyatta")
+        self.user = get_user_model().objects.create_user(
+            username="viewer", email="viewer@example.org"
+        )
+        profile = profile_for(self.user)
+        profile.facility = self.clinic
+        profile.save()
 
-            importlib.reload(config.urls)
-            clear_url_caches()
-            patterns = [str(p.pattern) for p in config.urls.urlpatterns]
+    def stored(self, reference="MED-001", facility=None):
+        """A record whose image really exists on disk."""
+        record = PredictionRecord.objects.create(
+            patient_reference=reference,
+            facility=facility if facility is not None else self.clinic,
+            screened_by=self.user,
+            tb_probability=Decimal("0.500"),
+            triage_level=PredictionRecord.TriageLevel.MEDIUM,
+            model_version="test",
+            decision_threshold=Decimal("0.102"),
+            triage_low_medium_threshold=Decimal("0.102"),
+            triage_medium_high_threshold=Decimal("0.546"),
+        )
+        relative = f"uploads/2026/10/{record.case_id}.png"
+        destination = Path(MEDIA_FOR_TESTS) / relative
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(make_image().read())
+        record.xray_image = relative
+        record.save(update_fields=["xray_image"])
+        return record, f"/media/{relative}"
 
-        # Leave the process with the configuration it started with, or every
-        # later test inherits whichever was reloaded last.
-        import config.urls as restored
+    def test_a_stranger_cannot_fetch_a_radiograph(self):
+        """The defect this view exists for: it used to answer 200."""
+        _, url = self.stored()
 
-        importlib.reload(restored)
-        clear_url_caches()
-        return patterns
+        response = self.client.get(url)
 
-    def test_the_packaged_build_serves_its_own_media(self):
-        routes = self.routes_under(DEBUG=False, PACKAGED=True)
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/accounts/login/", response["Location"])
 
-        self.assertTrue(
-            any("media" in route for route in routes),
-            "the packaged build has no route for the images it stores",
+    def test_the_clinic_that_owns_the_case_can(self):
+        _, url = self.stored()
+        self.client.force_login(self.user)
+
+        response = self.client.get(url)
+
+        self.assertEqual(response.status_code, 200)
+
+    def test_another_clinic_cannot(self):
+        """The image carries the same boundary as the case page."""
+        _, url = self.stored("MED-THEIRS", facility=clinic("Mbagathi"))
+        self.client.force_login(self.user)
+
+        self.assertEqual(self.client.get(url).status_code, 404)
+
+    def test_a_path_climbing_out_of_the_media_folder_is_refused(self):
+        self.client.force_login(self.user)
+
+        response = self.client.get("/media/../secret.key")
+
+        self.assertIn(response.status_code, {404, 400, 301})
+
+    def test_a_file_not_named_after_a_case_is_not_served(self):
+        """Nothing else in that folder is this view's to hand out."""
+        stray = Path(MEDIA_FOR_TESTS) / "uploads" / "notes.png"
+        stray.parent.mkdir(parents=True, exist_ok=True)
+        stray.write_bytes(make_image().read())
+        self.client.force_login(self.user)
+
+        self.assertEqual(self.client.get("/media/uploads/notes.png").status_code, 404)
+
+    def test_a_missing_file_is_not_found_rather_than_an_error(self):
+        self.client.force_login(self.user)
+
+        self.assertEqual(
+            self.client.get(f"/media/uploads/2026/10/{uuid.uuid4()}.png").status_code,
+            404,
         )
 
-    def test_a_deployed_instance_does_not(self):
-        """There the platform's storage serves it, and this view must not."""
-        routes = self.routes_under(DEBUG=False, PACKAGED=False)
 
-        self.assertFalse(any("media" in route for route in routes))
+class MinimumImageSizeTests(TestCase):
+    """FR-02: a radiograph below the model's own input is refused.
 
-    def test_development_still_serves_media_the_usual_way(self):
-        routes = self.routes_under(DEBUG=True, PACKAGED=False)
+    Anything smaller has to be enlarged to reach the network, which invents no
+    detail. It would still produce a confident-looking score, which is the
+    worst of the available outcomes.
+    """
 
-        self.assertTrue(any("media" in route for route in routes))
+    def report_for(self, size):
+        from screening.services.quality import ImageQualityChecker
+
+        directory = Path(tempfile.mkdtemp())
+        try:
+            path = directory / "image.png"
+            Image.new("L", size, color=130).save(path)
+            return ImageQualityChecker().check(path)
+        finally:
+            shutil.rmtree(directory, ignore_errors=True)
+
+    def test_a_thumbnail_is_rejected(self):
+        report = self.report_for((64, 64))
+
+        self.assertEqual(report.status, "INVALID")
+        self.assertFalse(report.is_usable)
+
+    def test_the_message_names_the_size_and_the_requirement(self):
+        """A rejection without a reason sends somebody hunting for the cause."""
+        report = self.report_for((100, 80))
+
+        self.assertIn("100 by 80", report.message)
+        self.assertIn("224", report.message)
+
+    def test_one_short_edge_is_enough_to_refuse_it(self):
+        self.assertEqual(self.report_for((1000, 200)).status, "INVALID")
+
+    def test_an_image_at_exactly_the_minimum_is_allowed_through(self):
+        """The boundary is inclusive; 224 is the model's own input size."""
+        self.assertNotEqual(self.report_for((224, 224)).status, "INVALID")

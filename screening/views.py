@@ -29,7 +29,7 @@ from django.db import connections, transaction
 from django.db.models import Count, Q
 from django.db.models.functions import TruncDate
 from django.db.utils import OperationalError
-from django.http import HttpResponse, JsonResponse
+from django.http import FileResponse, Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render, resolve_url
 from django.urls import reverse
 from django.utils import timezone
@@ -729,6 +729,44 @@ def case_explanation(request, case_id):
     return JsonResponse(
         {"status": record.explanation_status, "url": record.explanation_image.url}
     )
+
+
+@login_required
+def protected_media(request, path):
+    """Serve a stored radiograph or heatmap, to someone entitled to see it.
+
+    These files were reachable by anyone who knew the address. The pages that
+    show them required a session and the files behind those pages did not, so
+    a chest radiograph could be fetched with no account at all. The case
+    identifier in the path is obscurity, not access control, and the proposal's
+    NFR-05 asks for them to be "served only through authenticated application
+    routes".
+
+    Both upload paths name the file after the case, so the record it belongs to
+    can be found from the path and the same visibility rule that governs the
+    case page governs the image. A file that does not resolve to a visible
+    record is not found rather than refused, exactly as the case page behaves:
+    a 403 would confirm that the case exists.
+    """
+    candidate = (Path(settings.MEDIA_ROOT) / path).resolve()
+    root = Path(settings.MEDIA_ROOT).resolve()
+    # A path that climbs out of the media folder is not a missing file, it is
+    # an attempt at a different one.
+    if root not in candidate.parents or not candidate.is_file():
+        raise Http404("No such file.")
+
+    try:
+        case_id = uuid.UUID(candidate.stem)
+    except ValueError:
+        # Nothing else in this folder is served. Anything the application
+        # writes here is named after the case it belongs to, so a name that is
+        # not a case identifier is not a file this view should hand out.
+        raise Http404("No such file.") from None
+
+    if not PredictionRecord.objects.visible_to(request.user).filter(case_id=case_id).exists():
+        raise Http404("No such file.")
+
+    return FileResponse(candidate.open("rb"))
 
 
 @login_required

@@ -3,9 +3,11 @@ Image quality checking, as required by proposal Objective 4.
 
 A radiograph that is badly blurred or poorly exposed is harder for the model to
 read, and the clinician should know that before trusting the result. This check
-runs before prediction and produces a warning, not a rejection: only a file that
-cannot be decoded at all is treated as unusable. A usable but poor image still
-gets a prediction, shown alongside a caution.
+runs before prediction and usually produces a warning rather than a rejection:
+a usable but poor image still gets a prediction, shown alongside a caution.
+Two things are refused outright - a file that cannot be decoded at all, and one
+smaller than the model's own input, which could only be screened by enlarging
+it first.
 
 The thresholds were measured rather than guessed. Blur and brightness were
 computed across all 559 training radiographs, which are diagnostically usable
@@ -31,6 +33,15 @@ MAXIMUM_BRIGHTNESS = 200.0
 # Measured at a fixed size so the figures do not depend on the source
 # resolution, which varies from 1130 to 4892 pixels across the datasets.
 ASSESSMENT_SIZE = (512, 512)
+
+# The model's input size, and the smallest image worth screening.
+#
+# Anything smaller has to be enlarged to reach the network, which invents no
+# detail: it stretches what little is there and produces a confident-looking
+# score from an image a radiologist could not read either. A thumbnail or an
+# icon dropped into the upload field is the realistic case, and it should be
+# refused with a reason rather than screened.
+MINIMUM_EDGE = 224
 
 
 @dataclass(frozen=True)
@@ -59,6 +70,19 @@ class ImageQualityChecker:
             return QualityReport(
                 status="INVALID",
                 message="This file could not be read as an image. Upload a PNG or JPEG.",
+                blur_score=None,
+                brightness_mean=None,
+            )
+
+        height, width = image.shape[:2]
+        if min(height, width) < MINIMUM_EDGE:
+            return QualityReport(
+                status="INVALID",
+                message=(
+                    f"This image is {width} by {height} pixels. A radiograph must "
+                    f"be at least {MINIMUM_EDGE} by {MINIMUM_EDGE} so it does not "
+                    "have to be enlarged before screening."
+                ),
                 blur_score=None,
                 brightness_mean=None,
             )
