@@ -139,7 +139,12 @@ class PredictionRecord(models.Model):
         MEDIUM = "MEDIUM", "Medium suspicion"
         HIGH = "HIGH", "High suspicion"
 
-    class GradcamStatus(models.TextChoices):
+    class ExplanationStatus(models.TextChoices):
+        # The map is built the first time somebody opens the case, not at
+        # upload. It costs several hundred forward passes, and most of a
+        # batch is never opened, so building them all would spend that time
+        # on images nobody looks at and make the upload itself slow.
+        PENDING = "PENDING", "Not yet generated"
         GENERATED = "GENERATED", "Generated"
         FAILED = "FAILED", "Failed"
         NOT_ATTEMPTED = "NOT_ATTEMPTED", "Not attempted"
@@ -218,12 +223,18 @@ class PredictionRecord(models.Model):
     triage_medium_high_threshold = models.DecimalField(max_digits=4, decimal_places=3)
 
     # Explainability
-    gradcam_image = models.ImageField(upload_to=heatmap_upload_path, null=True, blank=True)
-    gradcam_status = models.CharField(
+    #
+    # Named for what it is rather than for how it is made. The map shipped
+    # with the first version was Grad-CAM; it is now an occlusion map, and the
+    # method that produced each stored image is recorded beside it so an old
+    # record is never read as though it came from the current one.
+    explanation_image = models.ImageField(upload_to=heatmap_upload_path, null=True, blank=True)
+    explanation_status = models.CharField(
         max_length=16,
-        choices=GradcamStatus.choices,
-        default=GradcamStatus.NOT_ATTEMPTED,
+        choices=ExplanationStatus.choices,
+        default=ExplanationStatus.PENDING,
     )
+    explanation_method = models.CharField(max_length=32, blank=True)
 
     # Provenance
     model_version = models.CharField(max_length=64)
@@ -318,7 +329,15 @@ class PredictionRecord(models.Model):
 
     @property
     def has_explanation(self):
-        return bool(self.gradcam_image) and self.gradcam_status == self.GradcamStatus.GENERATED
+        return (
+            bool(self.explanation_image)
+            and self.explanation_status == self.ExplanationStatus.GENERATED
+        )
+
+    @property
+    def explanation_awaited(self):
+        """True when the map has not been built yet but still can be."""
+        return self.explanation_status == self.ExplanationStatus.PENDING
 
 
 class ReviewNote(models.Model):

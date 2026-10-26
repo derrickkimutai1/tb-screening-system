@@ -104,26 +104,32 @@
   <div class="col-md-6">
     <div class="panel h-100 rise">
       <div class="panel-head">
-        <h2 class="panel-title">Grad-CAM explanation</h2>
-        <span class="micro">{{ record.get_gradcam_status_display }}</span>
+        <h2 class="panel-title">Explanation</h2>
+        <span class="micro" data-explanation-status>{{ record.get_explanation_status_display }}</span>
       </div>
       <div class="panel-body">
-        <div class="radiograph-frame">
+        <div class="radiograph-frame" data-explanation-frame>
           {% if record.has_explanation %}
-            <img src="{{ record.gradcam_image.url }}"
-                 alt="Grad-CAM heatmap overlay for {{ record.patient_reference }}">
+            <img src="{{ record.explanation_image.url }}"
+                 alt="Occlusion heatmap overlay for {{ record.patient_reference }}">
           {% else %}
-            <p class="placeholder-note mb-0">
-              No explanation image for this record ({{ record.get_gradcam_status_display|lower }}).
+            <p class="placeholder-note mb-0" data-explanation-note>
+              {% if record.explanation_awaited %}
+                Building the explanation for this radiograph. It takes a few
+                seconds, because the map is measured rather than inferred.
+              {% else %}
+                No explanation image for this record
+                ({{ record.get_explanation_status_display|lower }}).
+              {% endif %}
             </p>
           {% endif %}
         </div>
-        {% if record.has_explanation %}
-          <p class="field-hint mt-2 mb-0">
-            Brighter areas influenced the model's output most. They indicate where the model
-            looked, not confirmed disease locations.
-          </p>
-        {% endif %}
+        <p class="field-hint mt-2 mb-0" data-explanation-caption
+           {% if not record.has_explanation %}hidden{% endif %}>
+          Brighter areas are the regions the model's score depended on: covering
+          one of them is what made the score fall. They show what the model used,
+          not confirmed disease locations.
+        </p>
       </div>
     </div>
   </div>
@@ -257,5 +263,44 @@
       </table>
     </div>
   </div>
+{% endif %}
+
+{% if record.explanation_awaited %}
+<script>
+  // The map is not made at upload: it costs several hundred forward passes,
+  // and most screenings are never opened. It is made here instead, once, the
+  // first time somebody actually looks at the case.
+  (function () {
+    const frame = document.querySelector("[data-explanation-frame]");
+    const note = document.querySelector("[data-explanation-note]");
+    const status = document.querySelector("[data-explanation-status]");
+    const caption = document.querySelector("[data-explanation-caption]");
+    if (!frame) return;
+
+    fetch("{% url 'screening:case_explanation' record.case_id %}", {
+      method: "POST",
+      headers: { "X-CSRFToken": "{{ csrf_token }}" },
+    })
+      .then(function (response) { return response.json(); })
+      .then(function (result) {
+        if (result.url) {
+          const image = new Image();
+          image.src = result.url;
+          image.alt = "Occlusion heatmap overlay for {{ record.patient_reference }}";
+          frame.replaceChildren(image);
+          if (caption) caption.hidden = false;
+          if (status) status.textContent = "Generated";
+        } else if (note) {
+          note.textContent = "The explanation could not be produced for this image.";
+          if (status) status.textContent = "Failed";
+        }
+      })
+      .catch(function () {
+        // A failed request leaves the record pending, so opening the case
+        // again simply tries once more.
+        if (note) note.textContent = "The explanation could not be loaded. Reload to try again.";
+      });
+  })();
+</script>
 {% endif %}
 {% endblock %}

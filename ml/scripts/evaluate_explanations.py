@@ -48,12 +48,19 @@ sys.path.insert(0, str(ROOT))
 
 import preprocessing  # noqa: E402
 
+from screening.services.occlusion import PATCH, STRIDE  # noqa: E402
+
 MANIFEST = ROOT / "ml" / "artifacts" / "splits.csv"
 MODELS = ROOT / "ml" / "models"
 ARTIFACTS = ROOT / "ml" / "artifacts"
 MASKS = ROOT / "data/raw/montgomery/MontgomerySet/ManualMask"
 
 MODEL_VERSION = "tb_mobilenetv2_v1"
+METHOD_NAMES = {
+    "gradcam": "Grad-CAM",
+    "occlusion": "Occlusion",
+    "scorecam": "Score-CAM",
+}
 Image.MAX_IMAGE_PIXELS = None
 
 
@@ -101,7 +108,14 @@ def measure(rows, model, generator, activation, layer=None):
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[1])
     parser.add_argument(
-        "--split", default="test", choices=["train", "validation", "test", "all"]
+        "--split",
+        default="test",
+        choices=["train", "validation", "development", "test", "all"],
+        help=(
+            "development is train plus validation: the images to choose a "
+            "setting on, so that the reported figure is not measured on the "
+            "same data the setting was tuned against."
+        ),
     )
     parser.add_argument(
         "--activation",
@@ -114,7 +128,33 @@ def main():
         default=None,
         help=(
             "base layer to read the map from; defaults to the one the application "
-            "uses. Pass out_relu to measure the 7 by 7 map for comparison."
+            "uses. Pass out_relu to measure the 7 by 7 map for comparison. "
+            "Grad-CAM only."
+        ),
+    )
+    parser.add_argument(
+        "--method",
+        default="gradcam",
+        choices=["gradcam", "occlusion", "scorecam"],
+        help=(
+            "which explanation to measure. Both are scored by the same lung-mask "
+            "lift, which is the only way the choice between them can be settled."
+        ),
+    )
+    parser.add_argument(
+        "--patch", type=int, default=None, help="occluding patch size in pixels"
+    )
+    parser.add_argument(
+        "--stride", type=int, default=None, help="how far the patch moves each step"
+    )
+    parser.add_argument(
+        "--labels",
+        default="all",
+        choices=["all", "tb", "normal"],
+        help=(
+            "which images to measure. On a normal radiograph there is no lesion to "
+            "find, so the lung-mask question has no right answer there and the "
+            "combined figure mixes two different questions."
         ),
     )
     args = parser.parse_args()
@@ -126,27 +166,60 @@ def main():
         rows = [
             r
             for r in csv.DictReader(handle)
-            if r["source"] == "montgomery" and (args.split == "all" or r["split"] == args.split)
+            if r["source"] == "montgomery"
+            and (
+                args.split == "all"
+                or r["split"] == args.split
+                or (args.split == "development" and r["split"] in {"train", "validation"})
+            )
         ]
+    if args.labels != "all":
+        wanted = "1" if args.labels == "tb" else "0"
+        rows = [r for r in rows if r["label"] == wanted]
     if not rows:
         raise SystemExit(f"No Montgomery images in the {args.split} split.")
 
     import keras
 
-    from screening.services.gradcam import GradCAMGenerator
+    from screening.services.gradcam import EXPLANATION_LAYER, GradCAMGenerator
 
     print(f"model  {MODEL_VERSION}")
     print(f"images {len(rows)} Montgomery radiographs from the {args.split} split")
 
     model = keras.models.load_model(MODELS / f"{MODEL_VERSION}.keras")
-    generator = GradCAMGenerator()
+
+    if args.method == "scorecam":
+        from screening.services.scorecam import CHANNELS, ScoreCAMGenerator
+
+        generator = ScoreCAMGenerator()
+        layer_used = f"scorecam top {CHANNELS} of {EXPLANATION_LAYER}"
+        print(f"method {layer_used}")
+    elif args.method == "occlusion":
+        from screening.services.occlusion import OcclusionGenerator
+
+        generator = OcclusionGenerator()
+        if args.patch:
+            generator.patch = args.patch
+        if args.stride:
+            generator.stride = args.stride
+        layer_used = f"occlusion patch {args.patch or PATCH} stride {args.stride or STRIDE}"
+        print(f"method {layer_used}")
+    else:
+        generator = GradCAMGenerator()
+
     results = measure(rows, model, generator, args.activation, layer=args.layer)
-    # Report the layer actually used, which may be the fallback rather than the
-    # one asked for.
-    layer_used = generator.layer_used() or "unknown"
-    print(f"layer  {layer_used}")
+
+    if args.method == "gradcam":
+        # Report the layer actually used, which may be the fallback rather than
+        # the one asked for.
+        layer_used = generator.layer_used() or "unknown"
+        print(f"layer  {layer_used}")
     if not results:
         raise SystemExit("No explanations could be produced.")
+
+    settings = f"-{args.split}-{args.labels}"
+    if args.method == "occlusion":
+        settings = f"-p{args.patch or PATCH}s{args.stride or STRIDE}{settings}"
 
     shares = np.array([r["share_in_lungs"] for r in results])
     areas = np.array([r["lung_area"] for r in results])
@@ -186,16 +259,18 @@ def main():
     )
     plt.xlabel("Lift: activation in lungs relative to lung area")
     plt.ylabel("Images")
-    plt.title(f"Grad-CAM lung concentration from {layer_used}, Montgomery {args.split} split")
+    plt.title(
+        f"{METHOD_NAMES[args.method]} lung concentration "
+        f"from {layer_used}, Montgomery {args.split} split"
+    )
     plt.legend(fontsize=8)
     plt.tight_layout()
     # Named after the layer when one was asked for, so a comparison between
     # two layers leaves two figures rather than overwriting the first.
-    figure = (
-        ARTIFACTS / "gradcam_lung_concentration.png"
-        if args.layer is None
-        else ARTIFACTS / f"gradcam_lung_concentration_{layer_used}.png"
-    )
+    if args.method != "gradcam":
+        figure = ARTIFACTS / f"{args.method}{settings}_lung_concentration.png"
+    else:
+        figure = ARTIFACTS / f"gradcam-{layer_used}{settings}_lung_concentration.png"
     plt.savefig(figure, dpi=150)
     plt.close()
 
@@ -204,6 +279,7 @@ def main():
         "split": args.split,
         "images": len(results),
         "activation_threshold": args.activation,
+        "method": args.method,
         "layer": layer_used,
         "share_in_lungs_mean": round(float(shares.mean()), 4),
         "lung_area_mean": round(float(areas.mean()), 4),
@@ -219,11 +295,10 @@ def main():
         ),
         "per_image": results,
     }
-    destination = (
-        ARTIFACTS / "gradcam_evaluation.json"
-        if args.layer is None
-        else ARTIFACTS / f"gradcam_evaluation_{layer_used}.json"
-    )
+    if args.method != "gradcam":
+        destination = ARTIFACTS / f"{args.method}{settings}_evaluation.json"
+    else:
+        destination = ARTIFACTS / f"gradcam-{layer_used}{settings}_evaluation.json"
     destination.write_text(json.dumps(summary, indent=2), encoding="utf-8")
 
     print(f"\n  summary -> {destination.relative_to(ROOT)}")

@@ -910,17 +910,28 @@ class FailureScenarioTests(SignedIn, TestCase):
         self.assertEqual(response.status_code, 200)
 
     def test_an_unreadable_overlay_does_not_discard_a_valid_prediction(self):
-        """A failed explanation is recorded, not raised."""
-        from screening.services.gradcam import ExplanationUnavailable
+        """A failed explanation is recorded, not raised.
+
+        The map is built on first view now, so the failure happens there
+        rather than during the upload. The prediction has to survive it either
+        way: a screening without a heatmap is still a screening.
+        """
+        from screening.services.overlays import ExplanationUnavailable
+
+        self.upload(make_image(), reference="FAIL-CAM")
+        record = PredictionRecord.objects.get()
 
         with mock.patch(
-            "screening.views.GradCAMGenerator.overlay",
+            "screening.views.OcclusionGenerator.overlay",
             side_effect=ExplanationUnavailable("no gradients"),
         ):
-            self.upload(make_image(), reference="FAIL-CAM")
+            response = self.client.post(
+                reverse("screening:case_explanation", args=[record.case_id])
+            )
 
-        record = PredictionRecord.objects.get()
-        self.assertEqual(record.gradcam_status, PredictionRecord.GradcamStatus.FAILED)
+        record.refresh_from_db()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(record.explanation_status, PredictionRecord.ExplanationStatus.FAILED)
         self.assertIsNotNone(record.tb_probability)
 
     # --- provider failure --------------------------------------------------
@@ -3037,3 +3048,219 @@ class TemplateCommentTests(TestCase):
         )
 
         self.assertEqual(rendered.strip(), "kept")
+
+
+class LazyExplanationTests(TestCase):
+    """The explanation is built when a case is opened, not when it is uploaded.
+
+    An occlusion map is 625 forward passes. Producing one for every image of a
+    batch of twenty would add minutes to an upload, and most of those images
+    are never opened. These check that the upload leaves the map pending, that
+    opening the case builds it exactly once, and that a case at another clinic
+    cannot be made to build one.
+    """
+
+    def setUp(self):
+        super().setUp()
+        from .models import Profile, profile_for
+
+        self.clinic = clinic("Kenyatta")
+        self.user = get_user_model().objects.create_user(
+            username="explainer", email="explainer@example.org"
+        )
+        profile = profile_for(self.user)
+        profile.facility = self.clinic
+        profile.role = Profile.Role.CLINICIAN
+        profile.save()
+        self.client.force_login(self.user)
+
+    def record(self, reference="EXP-001", facility=None, status=None):
+        return PredictionRecord.objects.create(
+            patient_reference=reference,
+            xray_image="x.png",
+            facility=facility if facility is not None else self.clinic,
+            screened_by=self.user,
+            tb_probability=Decimal("0.500"),
+            predicted_label=PredictionRecord.PredictedLabel.LIKELY_TB,
+            quality_status=PredictionRecord.QualityStatus.ACCEPTABLE,
+            triage_level=PredictionRecord.TriageLevel.MEDIUM,
+            explanation_status=status or PredictionRecord.ExplanationStatus.PENDING,
+            model_version="test",
+            decision_threshold=Decimal("0.102"),
+            triage_low_medium_threshold=Decimal("0.102"),
+            triage_medium_high_threshold=Decimal("0.546"),
+        )
+
+    def generated(self):
+        """Stand in for the real generator, which would load the model."""
+
+        def write(source, model, prepared, destination):
+            from screening.services.overlays import Explanation
+
+            return Explanation(path=destination, coverage=0.2)
+
+        return mock.patch("screening.views.OcclusionGenerator.overlay", side_effect=write)
+
+    def test_a_new_screening_leaves_the_explanation_pending(self):
+        record = self.record()
+
+        self.assertTrue(record.explanation_awaited)
+        self.assertFalse(record.has_explanation)
+        self.assertEqual(record.explanation_method, "")
+
+    def test_opening_the_case_builds_the_map(self):
+        record = self.record()
+
+        with self.generated(), mock.patch("screening.views.PredictionEngine"):
+            response = self.client.post(
+                reverse("screening:case_explanation", args=[record.case_id])
+            )
+
+        record.refresh_from_db()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            record.explanation_status, PredictionRecord.ExplanationStatus.GENERATED
+        )
+        self.assertTrue(record.has_explanation)
+
+    def test_the_method_that_produced_the_map_is_recorded_with_it(self):
+        """An old Grad-CAM image must never be read as a current occlusion map."""
+        from screening.services.occlusion import METHOD_NAME
+
+        record = self.record()
+        with self.generated(), mock.patch("screening.views.PredictionEngine"):
+            self.client.post(reverse("screening:case_explanation", args=[record.case_id]))
+
+        record.refresh_from_db()
+        self.assertEqual(record.explanation_method, METHOD_NAME)
+
+    def test_a_second_open_does_not_build_it_again(self):
+        """625 forward passes is not something to repeat on every page load."""
+        record = self.record()
+        with self.generated(), mock.patch("screening.views.PredictionEngine"):
+            self.client.post(reverse("screening:case_explanation", args=[record.case_id]))
+
+        with mock.patch("screening.views.OcclusionGenerator.overlay") as again:
+            self.client.post(reverse("screening:case_explanation", args=[record.case_id]))
+
+        again.assert_not_called()
+
+    def test_a_failed_explanation_is_not_retried_on_every_view(self):
+        """It would spend the same work to fail the same way."""
+        record = self.record(status=PredictionRecord.ExplanationStatus.FAILED)
+
+        with mock.patch("screening.views.OcclusionGenerator.overlay") as attempted:
+            response = self.client.post(
+                reverse("screening:case_explanation", args=[record.case_id])
+            )
+
+        attempted.assert_not_called()
+        self.assertIsNone(response.json()["url"])
+
+    def test_the_endpoint_refuses_a_get(self):
+        """It creates something and costs real work, so a prefetch must not fire it."""
+        record = self.record()
+
+        response = self.client.get(reverse("screening:case_explanation", args=[record.case_id]))
+
+        self.assertEqual(response.status_code, 405)
+
+    def test_another_clinic_cannot_make_one_built(self):
+        theirs = self.record("EXP-THEIRS", facility=clinic("Mbagathi"))
+
+        with mock.patch("screening.views.OcclusionGenerator.overlay") as attempted:
+            response = self.client.post(
+                reverse("screening:case_explanation", args=[theirs.case_id])
+            )
+
+        self.assertEqual(response.status_code, 404)
+        attempted.assert_not_called()
+
+    def test_signing_out_closes_the_endpoint(self):
+        record = self.record()
+        self.client.logout()
+
+        response = self.client.post(
+            reverse("screening:case_explanation", args=[record.case_id])
+        )
+
+        self.assertEqual(response.status_code, 302)
+
+    def test_the_case_page_asks_for_the_map_only_while_one_is_awaited(self):
+        record = self.record()
+
+        wanted = reverse("screening:case_explanation", args=[record.case_id])
+
+        awaiting = self.client.get(reverse("screening:case_detail", args=[record.case_id]))
+        self.assertContains(awaiting, wanted)
+
+        record.explanation_status = PredictionRecord.ExplanationStatus.FAILED
+        record.save(update_fields=["explanation_status"])
+        settled = self.client.get(reverse("screening:case_detail", args=[record.case_id]))
+        self.assertNotContains(settled, wanted)
+
+    def test_the_printed_report_says_when_no_map_exists(self):
+        """A sheet that silently omits it would read as though none was wanted."""
+        record = self.record()
+
+        response = self.client.get(reverse("screening:case_report", args=[record.case_id]))
+
+        self.assertContains(response, "No explanation map was printed")
+
+
+class ExplanationMethodTests(TestCase):
+    """The generators themselves, on arrays rather than on the real model.
+
+    The model is not loaded here: these check the arithmetic each method does
+    around it, which is where the two bugs in this work actually were.
+    """
+
+    def prepared(self):
+        import numpy as np
+
+        rng = np.random.default_rng(42)
+        return rng.uniform(-1, 1, (224, 224, 3)).astype("float32")
+
+    def test_occlusion_covers_the_whole_image_including_the_far_edge(self):
+        """A lesion in the lower zones must not sit in a band never measured."""
+        from screening.services.occlusion import OcclusionGenerator
+
+        generator = OcclusionGenerator()
+        offsets = generator._positions(224)
+
+        self.assertEqual(offsets[0], 0)
+        self.assertEqual(offsets[-1], 224 - generator.patch)
+
+    def test_occlusion_returns_a_normalised_map(self):
+        import numpy as np
+
+        from screening.services.occlusion import OcclusionGenerator
+
+        prepared = self.prepared()
+
+        class Scorer:
+            """Scores high unless the top-left corner is hidden."""
+
+            def predict(self, batch, verbose=0):
+                hidden = batch[:, :32, :32, :].std(axis=(1, 2, 3))
+                return np.where(hidden < 1e-6, 0.1, 0.9).reshape(-1, 1)
+
+        heat = OcclusionGenerator().heatmap(Scorer(), prepared)
+
+        self.assertAlmostEqual(float(heat.max()), 1.0, places=5)
+        self.assertGreaterEqual(float(heat.min()), 0.0)
+        # The corner that mattered is the hot one.
+        self.assertEqual(np.unravel_index(heat.argmax(), heat.shape), (0, 0))
+
+    def test_occlusion_refuses_when_nothing_supported_the_score(self):
+        import numpy as np
+
+        from screening.services.occlusion import OcclusionGenerator
+        from screening.services.overlays import ExplanationUnavailable
+
+        class Flat:
+            def predict(self, batch, verbose=0):
+                return np.full((len(batch), 1), 0.5)
+
+        with self.assertRaises(ExplanationUnavailable):
+            OcclusionGenerator().heatmap(Flat(), self.prepared())

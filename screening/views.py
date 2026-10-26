@@ -29,7 +29,7 @@ from django.db import connections, transaction
 from django.db.models import Count, Q
 from django.db.models.functions import TruncDate
 from django.db.utils import OperationalError
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render, resolve_url
 from django.urls import reverse
 from django.utils import timezone
@@ -51,7 +51,8 @@ from .models import (
     facility_name,
     profile_for,
 )
-from .services.gradcam import ExplanationUnavailable, GradCAMGenerator
+from .services.occlusion import METHOD_NAME, OcclusionGenerator
+from .services.overlays import ExplanationUnavailable
 from .services.predict import ModelUnavailable, PredictionEngine
 from .services.quality import ImageQualityChecker
 from .services.sanitise import strip_metadata
@@ -74,9 +75,9 @@ def store_upload(case_id, uploaded):
 def screen(case_id, image_path):
     """Run the screening pipeline over one stored radiograph.
 
-    Returns the fields to persist. A failed explanation is recorded rather than
-    raised: the prediction is still valid and useful without the heatmap, and
-    the result page says which of the two happened.
+    Returns the fields to persist. The explanation is left pending and built
+    on first view, so a batch upload is not held up producing maps for images
+    nobody opens.
     """
     engine = PredictionEngine()
     prediction = engine.predict(image_path)
@@ -91,20 +92,14 @@ def screen(case_id, image_path):
         "triage_medium_high_threshold": Decimal(str(prediction.triage_medium_high)),
         "model_version": prediction.model_version,
         "inference_ms": prediction.inference_ms,
-        "gradcam_status": PredictionRecord.GradcamStatus.NOT_ATTEMPTED,
-        "gradcam_image": None,
+        # The explanation is built when somebody opens the case, not here.
+        # An occlusion map is several hundred forward passes; building one for
+        # every image of a batch of twenty would add minutes to an upload, and
+        # most of those images are never opened.
+        "explanation_status": PredictionRecord.ExplanationStatus.PENDING,
+        "explanation_image": None,
+        "explanation_method": "",
     }
-
-    relative = f"heatmaps/{timezone.now():%Y/%m}/{case_id}.png"
-    destination = Path(settings.MEDIA_ROOT) / relative
-    try:
-        prepared = engine.processor.prepare(image_path)
-        GradCAMGenerator().overlay(image_path, engine.model(), prepared, destination)
-        fields["gradcam_status"] = PredictionRecord.GradcamStatus.GENERATED
-        fields["gradcam_image"] = relative
-    except (ExplanationUnavailable, OSError, ValueError):
-        logger.exception("Grad-CAM failed for case %s", case_id)
-        fields["gradcam_status"] = PredictionRecord.GradcamStatus.FAILED
 
     return fields
 
@@ -677,6 +672,62 @@ def worklist(request):
             "may_review": profile_for(request.user).may_review,
             "active": "worklist",
         },
+    )
+
+
+@login_required
+@require_POST
+def case_explanation(request, case_id):
+    """Build the explanation for one case, on demand.
+
+    Called by the case page when the map has not been made yet. It is a POST
+    because it creates something and costs real work, so it must not be
+    triggered by a prefetch, a crawler or a refresh of a cached GET.
+
+    The answer is JSON rather than a redirect: the page has already rendered
+    by the time this runs, and swapping an image into it is all that is left
+    to do.
+    """
+    record = get_object_or_404(
+        PredictionRecord.objects.visible_to(request.user), case_id=case_id
+    )
+
+    if record.has_explanation:
+        return JsonResponse(
+            {"status": record.explanation_status, "url": record.explanation_image.url}
+        )
+    if not record.explanation_awaited:
+        # Already attempted and failed. Retrying on every page load would
+        # spend the same work to fail the same way.
+        return JsonResponse({"status": record.explanation_status, "url": None})
+
+    source = Path(settings.MEDIA_ROOT) / record.xray_image.name
+    relative = f"heatmaps/{record.created_at:%Y/%m}/{record.case_id}.png"
+    destination = Path(settings.MEDIA_ROOT) / relative
+
+    engine = PredictionEngine()
+    try:
+        prepared = engine.processor.prepare(source)
+        OcclusionGenerator().overlay(source, engine.model(), prepared, destination)
+    except (ExplanationUnavailable, OSError, ValueError):
+        logger.exception("The explanation failed for case %s", record.case_id)
+        record.explanation_status = PredictionRecord.ExplanationStatus.FAILED
+        record.save(update_fields=["explanation_status", "updated_at"])
+        return JsonResponse({"status": record.explanation_status, "url": None})
+
+    record.explanation_image = relative
+    record.explanation_status = PredictionRecord.ExplanationStatus.GENERATED
+    record.explanation_method = METHOD_NAME
+    record.save(
+        update_fields=[
+            "explanation_image",
+            "explanation_status",
+            "explanation_method",
+            "updated_at",
+        ]
+    )
+    return JsonResponse(
+        {"status": record.explanation_status, "url": record.explanation_image.url}
     )
 
 

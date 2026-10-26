@@ -1,0 +1,81 @@
+{
+  "model_version": "tb_mobilenetv2_v1",
+  "split": "test",
+  "images": 9,
+  "activation_threshold": 0.5,
+  "method": "gradcam",
+  "layer": "block_13_expand_relu",
+  "share_in_lungs_mean": 0.4499,
+  "lung_area_mean": 0.2827,
+  "lift_mean": 1.3985,
+  "lift_median": 1.5324,
+  "lift_tb_mean": 1.3985,
+  "lift_normal_mean": null,
+  "interpretation": "the explanations favour the lungs",
+  "note": "Only Montgomery images carry hand-drawn lung masks, so only they can be checked. A lift near 1 means the activation is distributed as though placed at random with respect to the lungs.",
+  "per_image": [
+    {
+      "filename": "MCUCXR_0104_1.png",
+      "label": 1,
+      "share_in_lungs": 0.599,
+      "lung_area": 0.3438,
+      "lift": 1.7426
+    },
+    {
+      "filename": "MCUCXR_0141_1.png",
+      "label": 1,
+      "share_in_lungs": 0.9286,
+      "lung_area": 0.3575,
+      "lift": 2.5974
+    },
+    {
+      "filename": "MCUCXR_0144_1.png",
+      "label": 1,
+      "share_in_lungs": 0.0419,
+      "lung_area": 0.2748,
+      "lift": 0.1525
+    },
+    {
+      "filename": "MCUCXR_0182_1.png",
+      "label": 1,
+      "share_in_lungs": 0.3688,
+      "lung_area": 0.269,
+      "lift": 1.3712
+    },
+    {
+      "filename": "MCUCXR_0243_1.png",
+      "label": 1,
+      "share_in_lungs": 0.8372,
+      "lung_area": 0.3246,
+      "lift": 2.5795
+    },
+    {
+      "filename": "MCUCXR_0255_1.png",
+      "label": 1,
+      "share_in_lungs": 0.854,
+      "lung_area": 0.335,
+      "lift": 2.5495
+    },
+    {
+      "filename": "MCUCXR_0316_1.png",
+      "label": 1,
+      "share_in_lungs": 0.4092,
+      "lung_area": 0.267,
+      "lift": 1.5324
+    },
+    {
+      "filename": "MCUCXR_0348_1.png",
+      "label": 1,
+      "share_in_lungs": 0.0103,
+      "lung_area": 0.1666,
+      "lift": 0.0617
+    },
+    {
+      "filename": "MCUCXR_0399_1.png",
+      "label": 1,
+      "share_in_lungs": 0.0,
+      "lung_area": 0.2062,
+      "lift": 0.0
+    }
+  ]
+}

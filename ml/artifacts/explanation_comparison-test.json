@@ -1,0 +1,23 @@
+{
+  "baseline": {
+    "source": "ml/artifacts/gradcam-block_13_expand_relu-test-tb_evaluation.json",
+    "name": "block_13_expand_relu"
+  },
+  "candidate": {
+    "source": "ml/artifacts/occlusion-p32s16-test-tb_evaluation.json",
+    "name": "occlusion patch 32 stride 16"
+  },
+  "images": 9,
+  "split": "test",
+  "baseline_lift_mean": 1.3985,
+  "candidate_lift_mean": 1.476,
+  "mean_difference": 0.0774,
+  "difference_ci_95": [
+    -0.9683,
+    1.2738
+  ],
+  "candidate_higher_on": 4,
+  "tied": 0,
+  "bootstrap_samples": 10000,
+  "interpretation": "this data cannot separate the two: the interval includes zero, so any difference claimed from the means alone would be noise"
+}

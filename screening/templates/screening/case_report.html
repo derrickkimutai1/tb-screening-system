@@ -140,17 +140,24 @@
 
 {% if record.xray_image %}
   <h2>Images</h2>
+  {% if record.explanation_awaited %}
+    <p class="sub">
+      No explanation map was printed: none has been generated for this case yet.
+      Open the case in the system to produce one, then print again.
+    </p>
+  {% endif %}
   <div class="plates">
     <figure>
       <img src="{{ record.xray_image.url }}" alt="The chest radiograph that was screened">
       <figcaption>Submitted radiograph</figcaption>
     </figure>
-    {% if record.gradcam_image %}
+    {% if record.has_explanation %}
       <figure>
-        <img src="{{ record.gradcam_image.url }}" alt="Heatmap overlaid on the radiograph">
+        <img src="{{ record.explanation_image.url }}" alt="Heatmap overlaid on the radiograph">
         <figcaption>
-          Grad-CAM overlay. Indicative only: this explanation does not localise
-          reliably and should not be read as showing where disease is.
+          Occlusion map. Brighter areas are the regions the model's score
+          depended on. Indicative only: this shows what the model used, not
+          where disease is, and is not a substitute for reading the film.
         </figcaption>
       </figure>
     {% endif %}
