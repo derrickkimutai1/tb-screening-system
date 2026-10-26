@@ -1,0 +1,320 @@
+{
+  "requirement": "NFR-01: at least 90% of single-image screenings return a complete result, including heatmap generation, within 10 seconds",
+  "machine": {
+    "platform": "Windows-10-10.0.26200-SP0",
+    "processor": "AMD64 Family 25 Model 80 Stepping 0, AuthenticAMD",
+    "python": "3.11.4",
+    "total_ram_gb": 11.4,
+    "gpu": "none; TensorFlow has no GPU support on native Windows"
+  },
+  "screenings": 50,
+  "median_seconds": 5.968,
+  "p90_seconds": 6.426,
+  "slowest_seconds": 10.184,
+  "within_requirement": 49,
+  "share_within_requirement": 0.98,
+  "requirement_met": true,
+  "note": "Timed as upload plus explanation, because the explanation is built when a case is first opened rather than during the upload, and the requirement covers a complete result including heatmap generation. Measured through Django's test client, which runs the real middleware, views, model and database but not the network hop or browser rendering.",
+  "per_screening": [
+    {
+      "image": "MCUCXR_0001_0.png",
+      "upload_seconds": 4.883,
+      "explanation_seconds": 5.301,
+      "total_seconds": 10.184
+    },
+    {
+      "image": "MCUCXR_0002_0.png",
+      "upload_seconds": 2.655,
+      "explanation_seconds": 3.663,
+      "total_seconds": 6.318
+    },
+    {
+      "image": "MCUCXR_0003_0.png",
+      "upload_seconds": 2.936,
+      "explanation_seconds": 3.403,
+      "total_seconds": 6.339
+    },
+    {
+      "image": "MCUCXR_0004_0.png",
+      "upload_seconds": 2.028,
+      "explanation_seconds": 3.319,
+      "total_seconds": 5.347
+    },
+    {
+      "image": "MCUCXR_0005_0.png",
+      "upload_seconds": 2.723,
+      "explanation_seconds": 3.265,
+      "total_seconds": 5.987
+    },
+    {
+      "image": "MCUCXR_0006_0.png",
+      "upload_seconds": 2.924,
+      "explanation_seconds": 3.336,
+      "total_seconds": 6.26
+    },
+    {
+      "image": "MCUCXR_0008_0.png",
+      "upload_seconds": 2.558,
+      "explanation_seconds": 3.426,
+      "total_seconds": 5.984
+    },
+    {
+      "image": "MCUCXR_0011_0.png",
+      "upload_seconds": 2.578,
+      "explanation_seconds": 3.397,
+      "total_seconds": 5.975
+    },
+    {
+      "image": "MCUCXR_0013_0.png",
+      "upload_seconds": 2.848,
+      "explanation_seconds": 3.392,
+      "total_seconds": 6.239
+    },
+    {
+      "image": "MCUCXR_0015_0.png",
+      "upload_seconds": 3.047,
+      "explanation_seconds": 3.327,
+      "total_seconds": 6.374
+    },
+    {
+      "image": "MCUCXR_0016_0.png",
+      "upload_seconds": 2.509,
+      "explanation_seconds": 3.281,
+      "total_seconds": 5.79
+    },
+    {
+      "image": "MCUCXR_0017_0.png",
+      "upload_seconds": 1.97,
+      "explanation_seconds": 3.203,
+      "total_seconds": 5.174
+    },
+    {
+      "image": "MCUCXR_0019_0.png",
+      "upload_seconds": 2.409,
+      "explanation_seconds": 3.18,
+      "total_seconds": 5.589
+    },
+    {
+      "image": "MCUCXR_0020_0.png",
+      "upload_seconds": 2.879,
+      "explanation_seconds": 3.305,
+      "total_seconds": 6.184
+    },
+    {
+      "image": "MCUCXR_0021_0.png",
+      "upload_seconds": 2.167,
+      "explanation_seconds": 3.236,
+      "total_seconds": 5.403
+    },
+    {
+      "image": "MCUCXR_0022_0.png",
+      "upload_seconds": 3.116,
+      "explanation_seconds": 3.344,
+      "total_seconds": 6.46
+    },
+    {
+      "image": "MCUCXR_0023_0.png",
+      "upload_seconds": 2.837,
+      "explanation_seconds": 3.502,
+      "total_seconds": 6.339
+    },
+    {
+      "image": "MCUCXR_0024_0.png",
+      "upload_seconds": 2.651,
+      "explanation_seconds": 3.295,
+      "total_seconds": 5.947
+    },
+    {
+      "image": "MCUCXR_0026_0.png",
+      "upload_seconds": 1.73,
+      "explanation_seconds": 3.077,
+      "total_seconds": 4.808
+    },
+    {
+      "image": "MCUCXR_0027_0.png",
+      "upload_seconds": 2.267,
+      "explanation_seconds": 3.279,
+      "total_seconds": 5.545
+    },
+    {
+      "image": "MCUCXR_0028_0.png",
+      "upload_seconds": 2.077,
+      "explanation_seconds": 3.17,
+      "total_seconds": 5.246
+    },
+    {
+      "image": "MCUCXR_0029_0.png",
+      "upload_seconds": 2.398,
+      "explanation_seconds": 3.235,
+      "total_seconds": 5.632
+    },
+    {
+      "image": "MCUCXR_0030_0.png",
+      "upload_seconds": 2.921,
+      "explanation_seconds": 3.432,
+      "total_seconds": 6.353
+    },
+    {
+      "image": "MCUCXR_0031_0.png",
+      "upload_seconds": 3.104,
+      "explanation_seconds": 3.784,
+      "total_seconds": 6.888
+    },
+    {
+      "image": "MCUCXR_0035_0.png",
+      "upload_seconds": 2.483,
+      "explanation_seconds": 3.952,
+      "total_seconds": 6.435
+    },
+    {
+      "image": "MCUCXR_0038_0.png",
+      "upload_seconds": 2.643,
+      "explanation_seconds": 3.69,
+      "total_seconds": 6.333
+    },
+    {
+      "image": "MCUCXR_0040_0.png",
+      "upload_seconds": 2.479,
+      "explanation_seconds": 3.815,
+      "total_seconds": 6.294
+    },
+    {
+      "image": "MCUCXR_0041_0.png",
+      "upload_seconds": 2.196,
+      "explanation_seconds": 3.551,
+      "total_seconds": 5.747
+    },
+    {
+      "image": "MCUCXR_0042_0.png",
+      "upload_seconds": 1.8,
+      "explanation_seconds": 3.439,
+      "total_seconds": 5.239
+    },
+    {
+      "image": "MCUCXR_0043_0.png",
+      "upload_seconds": 2.926,
+      "explanation_seconds": 3.599,
+      "total_seconds": 6.524
+    },
+    {
+      "image": "MCUCXR_0044_0.png",
+      "upload_seconds": 2.713,
+      "explanation_seconds": 3.713,
+      "total_seconds": 6.426
+    },
+    {
+      "image": "MCUCXR_0045_0.png",
+      "upload_seconds": 2.826,
+      "explanation_seconds": 3.442,
+      "total_seconds": 6.268
+    },
+    {
+      "image": "MCUCXR_0046_0.png",
+      "upload_seconds": 2.568,
+      "explanation_seconds": 3.426,
+      "total_seconds": 5.995
+    },
+    {
+      "image": "MCUCXR_0047_0.png",
+      "upload_seconds": 2.367,
+      "explanation_seconds": 3.455,
+      "total_seconds": 5.821
+    },
+    {
+      "image": "MCUCXR_0048_0.png",
+      "upload_seconds": 1.914,
+      "explanation_seconds": 3.233,
+      "total_seconds": 5.148
+    },
+    {
+      "image": "MCUCXR_0049_0.png",
+      "upload_seconds": 2.099,
+      "explanation_seconds": 3.376,
+      "total_seconds": 5.475
+    },
+    {
+      "image": "MCUCXR_0051_0.png",
+      "upload_seconds": 2.758,
+      "explanation_seconds": 3.42,
+      "total_seconds": 6.178
+    },
+    {
+      "image": "MCUCXR_0052_0.png",
+      "upload_seconds": 2.23,
+      "explanation_seconds": 3.365,
+      "total_seconds": 5.595
+    },
+    {
+      "image": "MCUCXR_0053_0.png",
+      "upload_seconds": 2.266,
+      "explanation_seconds": 3.367,
+      "total_seconds": 5.634
+    },
+    {
+      "image": "MCUCXR_0054_0.png",
+      "upload_seconds": 2.455,
+      "explanation_seconds": 3.467,
+      "total_seconds": 5.922
+    },
+    {
+      "image": "MCUCXR_0055_0.png",
+      "upload_seconds": 2.687,
+      "explanation_seconds": 3.375,
+      "total_seconds": 6.061
+    },
+    {
+      "image": "MCUCXR_0056_0.png",
+      "upload_seconds": 1.913,
+      "explanation_seconds": 3.287,
+      "total_seconds": 5.2
+    },
+    {
+      "image": "MCUCXR_0057_0.png",
+      "upload_seconds": 2.277,
+      "explanation_seconds": 3.364,
+      "total_seconds": 5.641
+    },
+    {
+      "image": "MCUCXR_0058_0.png",
+      "upload_seconds": 2.213,
+      "explanation_seconds": 3.339,
+      "total_seconds": 5.551
+    },
+    {
+      "image": "MCUCXR_0059_0.png",
+      "upload_seconds": 2.526,
+      "explanation_seconds": 3.448,
+      "total_seconds": 5.974
+    },
+    {
+      "image": "MCUCXR_0060_0.png",
+      "upload_seconds": 1.436,
+      "explanation_seconds": 3.385,
+      "total_seconds": 4.821
+    },
+    {
+      "image": "MCUCXR_0061_0.png",
+      "upload_seconds": 2.05,
+      "explanation_seconds": 3.355,
+      "total_seconds": 5.406
+    },
+    {
+      "image": "MCUCXR_0062_0.png",
+      "upload_seconds": 2.199,
+      "explanation_seconds": 3.364,
+      "total_seconds": 5.563
+    },
+    {
+      "image": "MCUCXR_0063_0.png",
+      "upload_seconds": 2.602,
+      "explanation_seconds": 3.366,
+      "total_seconds": 5.968
+    },
+    {
+      "image": "MCUCXR_0064_0.png",
+      "upload_seconds": 2.374,
+      "explanation_seconds": 3.361,
+      "total_seconds": 5.735
+    }
+  ]
+}

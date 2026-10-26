@@ -15,6 +15,11 @@ pixels first, so stripping the tag cannot turn an upright chest film sideways.
 The image is re-encoded rather than edited, which also means a file that only
 looks like an image does not survive: whatever is written out is what Pillow
 could decode, not the bytes that arrived.
+
+Re-encoding is the most expensive thing an upload does, because a radiograph
+is around twenty megapixels, so how it is done decides whether the system
+meets its response-time requirement. See the notes beside the two lines that
+matter.
 """
 
 import io
@@ -44,14 +49,25 @@ def strip_metadata(uploaded):
             upright = ImageOps.exif_transpose(image)
             fmt = (image.format or "PNG").upper()
 
+            # A new image with nothing in its info dictionary, so no metadata
+            # can survive into the copy. paste moves the pixels inside Pillow;
+            # the earlier putdata(list(getdata())) built a Python list of every
+            # pixel first, which on a 4892 by 4020 radiograph means nineteen
+            # million objects and most of a second on its own.
             clean = Image.new(upright.mode, upright.size)
-            clean.putdata(list(upright.getdata()))
+            clean.paste(upright)
 
             buffer = io.BytesIO()
             if fmt in {"JPEG", "JPG"}:
                 clean.save(buffer, format="JPEG", quality=JPEG_QUALITY)
             else:
-                clean.save(buffer, format="PNG", optimize=True)
+                # Default compression rather than optimize=True. Optimising a
+                # radiograph of this size took nine seconds and saved seven per
+                # cent of the file, which is the wrong way round: NFR-01 gives
+                # the whole screening ten seconds, and this one step spent them
+                # all. PNG is lossless at every level, so nothing is given up
+                # but disc space.
+                clean.save(buffer, format="PNG")
     except (OSError, ValueError):
         uploaded.seek(0)
         return uploaded

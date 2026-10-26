@@ -209,6 +209,7 @@ because the proposal governs.
 | Shortcut and occlusion testing | Source AUC 1.000 available, occlusion cost 0.021, lungs 0.788 vs surroundings 0.545 | `shortcut_tests.json` / `.png` |
 | Explanation quality | Lift 1.63 on TB films, +0.447 [+0.125, +0.780] over Grad-CAM paired | `explanation_methods.md`, `explanation_comparison-all.json` |
 | Score calibration | ECE 0.1018, underconfident; not a probability | `calibration.json` / `.png` |
+| Response time (NFR-01) | Median 5.97s, p90 6.43s, 49 of 50 within 10s | `response_times.json` / `.png` |
 | Overfitting diagnosis | Mild, AUC gap 0.057 | `model_report_reg-both.md` |
 
 ### System testing
