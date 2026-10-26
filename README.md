@@ -232,6 +232,7 @@ limits how far the results generalise. This is measured and reported rather than
 
 | Document | What it covers |
 |---|---|
+| `docs/user-guide.md` | How to use the system, for radiographers and clinicians |
 | `docs/traceability.md` | Each objective traced to its component, test, result and evidence, and what is not met |
 | `docs/test-record.md` | Generated from the suite by `scripts/build_test_record.py` |
 | `docs/deployment.md` | Deploying to a Hugging Face Space, and configuring mail |
