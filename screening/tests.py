@@ -3264,3 +3264,57 @@ class ExplanationMethodTests(TestCase):
 
         with self.assertRaises(ExplanationUnavailable):
             OcclusionGenerator().heatmap(Flat(), self.prepared())
+
+
+class PackagedMediaTests(TestCase):
+    """The desktop build has to hand back the images it stored.
+
+    django.conf.urls.static.static() returns nothing unless DEBUG, and
+    WhiteNoise serves only collected static files. The packaged build runs with
+    DEBUG off and neither of those covers uploads, so every radiograph and
+    every heatmap on a result page was a broken icon: written to disk
+    correctly, and nothing would serve them back.
+
+    This is checked by building the URL configuration under each setting
+    rather than by requesting a file, because the route is decided at import
+    and a running test client would only ever see the one this process loaded.
+    """
+
+    def routes_under(self, **flags):
+        import importlib
+
+        from django.urls import clear_url_caches
+
+        with override_settings(**flags):
+            import config.urls
+
+            importlib.reload(config.urls)
+            clear_url_caches()
+            patterns = [str(p.pattern) for p in config.urls.urlpatterns]
+
+        # Leave the process with the configuration it started with, or every
+        # later test inherits whichever was reloaded last.
+        import config.urls as restored
+
+        importlib.reload(restored)
+        clear_url_caches()
+        return patterns
+
+    def test_the_packaged_build_serves_its_own_media(self):
+        routes = self.routes_under(DEBUG=False, PACKAGED=True)
+
+        self.assertTrue(
+            any("media" in route for route in routes),
+            "the packaged build has no route for the images it stores",
+        )
+
+    def test_a_deployed_instance_does_not(self):
+        """There the platform's storage serves it, and this view must not."""
+        routes = self.routes_under(DEBUG=False, PACKAGED=False)
+
+        self.assertFalse(any("media" in route for route in routes))
+
+    def test_development_still_serves_media_the_usual_way(self):
+        routes = self.routes_under(DEBUG=True, PACKAGED=False)
+
+        self.assertTrue(any("media" in route for route in routes))
