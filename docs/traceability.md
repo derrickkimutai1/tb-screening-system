@@ -47,7 +47,7 @@ each of them exists rather than an afterthought.
 
 | Named gap | Answered by |
 |---|---|
-| Explainability | `screening/services/gradcam.py`, measured by `ml/scripts/evaluate_explanations.py` |
+| Explainability | `screening/services/occlusion.py`, measured by `ml/scripts/evaluate_explanations.py` and compared by `compare_explanations.py` |
 | Image quality handling | `screening/services/quality.py` |
 | Triage support | `screening/services/triage.py`, thresholds from `ml/scripts/select_thresholds.py` |
 | Record keeping | `screening/models.py`: `PredictionRecord`, `ReviewNote`, `Profile` |
@@ -120,20 +120,44 @@ tuning oversight, and is reported rather than worked around.
 Every record stores the thresholds it was judged under, so revising them later does
 not silently reinterpret historical results.
 
-### 4d — Grad-CAM heatmap
+### 4d — Explanation heatmap
 
 | | |
 |---|---|
-| **Implemented in** | `screening/services/gradcam.py` |
-| **Measured by** | `ml/scripts/evaluate_explanations.py` against Montgomery's 276 hand-drawn lung masks |
-| **Result** | **Lift 1.00** reading from `block_13_expand_relu` (14×14), against **0.49** from `out_relu` (7×7), across all 138 Montgomery images. 1.16 on TB cases, 0.88 on normal. |
-| **Evidence** | `ml/artifacts/gradcam_evaluation.json`, `gradcam_evaluation_out_relu.json`, `gradcam_lung_concentration.png`, `gradcam_vs_lungs.png` |
-| **Status** | **Partially met, and the shortfall is stated.** |
+| **Implemented in** | `screening/services/occlusion.py`, replacing `gradcam.py` on 26 October |
+| **Measured by** | `ml/scripts/evaluate_explanations.py` against Montgomery's hand-drawn lung masks, settings chosen on the development split and compared by `compare_explanations.py` |
+| **Result** | **Lift 1.63** on TB films, against **1.11** for the Grad-CAM map replaced. Paired over the 58 masked TB radiographs the gain is **+0.447, 95% CI [+0.125, +0.780]**, higher on 42 of 58. On the 9 held-out test films the interval includes zero. |
+| **Evidence** | `ml/artifacts/explanation_methods.md`, `explanation_comparison-all.json`, `explanation_comparison-test.json`, `occlusion-p32s16-*_evaluation.json`, `gradcam-block_13_expand_relu-*_evaluation.json`, `scorecam-all-tb_evaluation.json` |
+| **Status** | **Met on the data available, with the limit of that data stated.** |
 
-A heatmap is produced for every successful prediction and the failure path is
-handled rather than fatal: `PredictionRecord.gradcam_status` records
-`GENERATED`, `FAILED` or `NOT_ATTEMPTED`, and a failed heatmap does not discard a
-valid prediction.
+An occlusion map covers one patch of the radiograph at a time and records how
+far the score falls, so it reports what the prediction depended on rather than
+what correlated with it inside a layer. It costs 2.87s against Grad-CAM's
+0.48s, so it is built the first time a case is opened rather than during the
+upload: `PredictionRecord.explanation_status` records `PENDING`, `GENERATED`,
+`FAILED` or `NOT_ATTEMPTED`, `explanation_method` records what produced each
+stored image, and a failed map does not discard a valid prediction.
+
+Two things are deliberately not claimed. The improvement is **not confirmed on
+the held-out 9**, which is too small to separate the methods, and Montgomery
+offers no more masked TB films. And the setting is **not the best-scoring one**:
+lift rises monotonically as the map gets coarser, reaching 2.12 at a 5×5 grid
+that could not point at a lesion, while a control map that is hot everywhere
+still scores 1.00 rather than 0. Stride 16 is the finest setting that clearly
+beats Grad-CAM, which is the defensible question rather than the flattering
+one.
+
+**This diverges from the approved proposal**, which names a "Grad-CAM heatmap"
+in SO4 rather than an explanation in general. The divergence is deliberate and
+the reason is measurable: the component as specified was built, measured
+against the lung masks, and found to localise no better than a map placed at
+random, which does not satisfy the objective it was named to serve. The
+objective is explainability; Grad-CAM was the proposal's means to it, and the
+means was changed when the evidence said it did not work. Grad-CAM remains in
+the codebase at `screening/services/gradcam.py` and is still measured by the
+evaluation script, so the comparison that justified the change can be rerun.
+Anyone marking against the proposal's literal wording should read this section
+and `ml/artifacts/explanation_methods.md` together.
 
 What is not met is usefulness. A lift of 1.00 means activation falls inside the
 lungs about as often as a map placed at random would. Moving from a 7×7 to a 14×14
@@ -183,7 +207,7 @@ because the proposal governs.
 | Architecture comparison, four candidates | ResNet50 0.9478, EfficientNetB0 0.9126, MobileNetV2 0.9119, scratch CNN 0.6108 | `architecture_comparison.md` / `.png` |
 | Cross-dataset generalisation | Changing hospital costs **0.071 AUC** (0.9336 → 0.8625) | `cross_dataset.json` |
 | Shortcut and occlusion testing | Source AUC 1.000 available, occlusion cost 0.021, lungs 0.788 vs surroundings 0.545 | `shortcut_tests.json` / `.png` |
-| Explanation quality | Lift 1.00 against lung masks | `gradcam_evaluation.json` |
+| Explanation quality | Lift 1.63 on TB films, +0.447 [+0.125, +0.780] over Grad-CAM paired | `explanation_methods.md`, `explanation_comparison-all.json` |
 | Score calibration | ECE 0.1018, underconfident; not a probability | `calibration.json` / `.png` |
 | Overfitting diagnosis | Mild, AUC gap 0.057 | `model_report_reg-both.md` |
 
@@ -225,8 +249,7 @@ Stated here rather than left to be discovered.
 |---|---|---|
 | **No deployed release over HTTPS** | Sprint III requires a working operational release. The system runs only on a development machine. | The blocker is TensorFlow's memory footprint against free-tier limits. A route has to be chosen and provisioned. |
 | **No usability testing with representative users** | SO5 says "system testing"; Sprint III asks for usability and failure scenarios with real participants. Functional tests do not substitute. | The protocol, task list, recording sheet and SUS instrument are ready in `docs/usability-study.md`. What remains is five participants and an answer on ethics clearance, which has weeks of lead time. |
-| **Chapters 5 and 6 not written** | Required for submission. | Evidence exists for every claim; the writing does not. |
-| **Grad-CAM lift at chance** | SO3 names explainability as a gap this project addresses. The heatmap does not localise reliably. | Reported as a limitation. The occlusion evidence carries the explainability claim instead. |
+| ~~Grad-CAM lift at chance~~ | **Addressed 26 October.** The Grad-CAM map scored 1.11 on TB films, barely above the 1.0 a random map scores. An occlusion map replaces it at 1.63, a paired gain of +0.447 [+0.125, +0.780] over the 58 masked TB radiographs. | Remaining limit: the gain is not confirmed on the 9 held-out films, and no masked dataset larger than Montgomery was available. The map still shows what the score depended on, not where disease is. |
 | **WHO specificity target not reachable** | SO1's requirement is not fully satisfiable by this model on this data. | Reported as a finding. |
 | **Score is not calibrated** | 4b displays a raw score, not a probability. Now measured: ECE 0.1018, underconfident. | Labelled honestly as a model score. Platt or isotonic calibration is future work. |
 | ~~Any signed-in user can open any case~~ | **Resolved 22 October.** Records are scoped to a facility: a clinic shares its caseload, which is what the review workflow requires, and nothing crosses the clinic boundary. A user with no facility set sees nothing, so an open registration does not expose a caseload. Administrators see everything. | Remaining judgement: whether a clinic should be chosen from a list rather than typed, since two spellings make two clinics. |

@@ -248,7 +248,9 @@ Then, in a browser, confirm each of these and keep a screenshot:
 - [ ] A radiograph uploads, previews, scores, and stores a record.
 - [ ] A batch of several images screens and reports per-image outcomes.
 - [ ] A deliberately unusable image is rejected with a specific reason.
-- [ ] The Grad-CAM overlay appears on the case page.
+- [ ] The explanation panel on a case nobody has opened says it is building, then shows
+      a heatmap within a few seconds without reloading the page.
+- [ ] Opening that case a second time shows the map immediately and does not rebuild it.
 - [ ] A radiographer cannot record a review; a clinician can.
 - [ ] The dashboard counts match the case list.
 - [ ] Signing out returns to the gate and the pages are no longer reachable.

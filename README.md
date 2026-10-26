@@ -5,8 +5,8 @@ Engineering Sciences.
 
 A clinician uploads a chest X-ray. The system checks the image quality, estimates whether
 pulmonary tuberculosis is likely, assigns a low, medium or high suspicion triage level with
-a short justification, generates a Grad-CAM heatmap showing the regions that influenced the
-prediction, and stores the result in PostgreSQL for later review and reporting.
+a short justification, builds an occlusion map showing the regions the prediction actually
+depended on, and stores the result in PostgreSQL for later review and reporting.
 
 ## Scope and clinical boundary
 
@@ -200,7 +200,7 @@ reads, and `ml/artifacts/data_summary.md`.
 ```
 config/          Django project settings and root URLs
 screening/       The screening application
-  services/      Image processing, quality checking, prediction, triage, Grad-CAM
+  services/      Image processing, quality checking, prediction, triage, explanations
 ml/
   scripts/       Data preparation, training and evaluation
   models/        Saved models and their metadata
@@ -244,26 +244,34 @@ limits how far the results generalise. This is measured and reported rather than
 ## Status
 
 The application is complete and runs: sign-in, screening of single images and
-batches, quality checking, triage, Grad-CAM, review with role separation,
-reporting, and a health endpoint. 196 tests pass, and the same suite runs on
-every push.
+batches, quality checking, triage, explanations, a review queue, review with
+role separation, printable reports, CSV export, a tamper-evident access trail
+and a health endpoint. 257 tests pass, and the same suite runs on every push.
 
 **Headline results.** Test AUC 0.9291 [0.878, 0.970]. Decision threshold 0.102,
-chosen on validation against the WHO target product profile. Changing hospital
-costs 0.071 of AUC. Occlusion shows the model reads the lungs: 0.788 with lungs
-alone against 0.545 with everything else.
+chosen on validation against the WHO target product profile; at that threshold
+the held-out test split gives sensitivity 0.9153 [0.839, 0.983] and specificity
+0.6393 [0.509, 0.758]. Changing hospital costs 0.071 of AUC. Occlusion shows the
+model reads the lungs: 0.788 with lungs alone against 0.545 with everything
+else.
 
 **Not finished.** No deployed release yet; the container and its workflow are
 ready and need an account to push to. No usability study yet; the instrument is
-written and needs participants. Chapters 5 and 6 are outstanding.
+written and needs participants.
 
 **Known limitations**, each measured rather than assumed:
 
 - **No threshold meets both WHO targets.** The best specificity at or above 90%
   sensitivity is 0.689 against the 0.70 asked for.
-- **The Grad-CAM heatmap does not localise reliably.** Lift over chance is 1.00.
-  It should not be presented as evidence of where the model looked; the
-  occlusion tests carry that claim instead.
+- **The explanation localises weakly, and only on positive cases.** The shipped
+  occlusion map scores a lift of 1.63 against hand-drawn lung masks on TB films,
+  against 1.11 for the Grad-CAM map it replaced, and a paired comparison over
+  the 58 masked TB radiographs puts the gain at +0.447 [+0.125, +0.780]. On the
+  9 held-out test films the interval includes zero, so the improvement is not
+  independently confirmed and no masked dataset larger than Montgomery was
+  available to settle it. The map shows what the score depended on, not where
+  disease is. `ml/artifacts/explanation_methods.md` records the full comparison,
+  including why the best-scoring configuration was deliberately not chosen.
 - **The score is not a calibrated probability.** Expected calibration error
   0.1018, systematically underconfident, which is why the interface calls it a
   model score and reports AUC.

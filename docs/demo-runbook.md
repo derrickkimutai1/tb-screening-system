@@ -40,10 +40,18 @@ On the result page, point at each part:
 - **The score**, drawn as a gauge. This is the model's output, between 0 and 1.
 - **The triage level**, with its written justification naming the thresholds used.
 - **The threshold scale** showing where this score sits across the bands.
-- **The two panels** — the original radiograph and the Grad-CAM heatmap beside it.
+- **The two panels** — the original radiograph and the explanation beside it. On a case
+  nobody has opened before, the panel says it is building and fills in after about three
+  seconds. That is deliberate: the map is measured, not inferred, so it is produced when
+  somebody actually looks at a case rather than for every image of a batch.
 
-> "The heatmap shows which regions most influenced the prediction. It shows where the
-> model looked, not where disease is."
+> "The heatmap is an occlusion map. Each region is covered in turn and the image scored
+> again, so the bright areas are the ones the score actually depended on. It shows what
+> the model used, not where disease is."
+
+If asked why it is not Grad-CAM: Grad-CAM scored a lift of 1.11 against hand-drawn lung
+masks, where 1.0 is a map placed at random. This scores 1.63, a paired gain of +0.447
+[+0.125, +0.780] across the 58 masked TB radiographs.
 
 Then upload the **normal case** and show the score drops and the triage level changes.
 
@@ -119,13 +127,18 @@ same preprocessing module the application uses.
 
 Say these before being asked:
 
-- **Specificity is 50.8 per cent**, against a 70 per cent target. First priority.
-- **The Grad-CAM is not yet verified to focus on the lungs.** On one TB case it
-  activated over the mediastinum and near the "PA ERECT" marker, so the model may be
-  partly reading acquisition artefacts. Montgomery ships 276 manual lung masks, so this
-  can be measured rather than guessed.
-- **Chapter 5 and the Chapter 4 diagrams** are behind the implementation.
-- **Wireframes** from proposal section 3.6.2 are outstanding.
+- **Specificity is 63.9 per cent on the held-out test split**, against a 70 per cent
+  target, at the 0.102 threshold the system actually runs at. Sensitivity is 91.5 per
+  cent, above the 90 per cent asked for. No threshold meets both at once, which is a
+  property of the model on this data rather than a tuning oversight.
+- **The explanation localises, but weakly, and the gain is not confirmed on held-out
+  data.** The occlusion map scores 1.63 against lung masks where Grad-CAM scored 1.11,
+  and paired over the 58 masked TB films the gain is +0.447 [+0.125, +0.780]. On the 9
+  test films the interval includes zero. Montgomery has no more masked TB films.
+- **The lung-mask metric is gameable**, and it is better to say so first: coarser maps
+  score higher, up to 2.12 for a 5×5 grid that cannot point at a lesion, and a map that
+  is hot everywhere still scores 1.00. The shipped setting is the finest that clearly
+  beats Grad-CAM, not the best-scoring one.
 - **The dataset is small and not Kenyan**, which limits both performance and
   generalisability.
 
