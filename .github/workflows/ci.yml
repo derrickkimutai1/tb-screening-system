@@ -63,5 +63,15 @@ jobs:
       - name: Django system checks
         run: python manage.py check
 
+      # Static files are served through WhiteNoise's manifest storage, which
+      # refuses any asset it cannot find in a manifest. The manifest is built
+      # by collectstatic, staticfiles/ is not in the repository, and Django's
+      # test runner forces DEBUG off, so without this step every test that
+      # renders a template carrying {% static %} fails. The Dockerfile and the
+      # PyInstaller spec have always run it; this workflow never did, and the
+      # tests have been red on every push since the project began.
+      - name: Collect static files
+        run: python manage.py collectstatic --noinput
+
       - name: Run tests
         run: python manage.py test screening --noinput --verbosity 2

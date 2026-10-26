@@ -55,15 +55,29 @@ py -3.11 -m venv .venv
 `requirements-ml.txt` adds the model training, evaluation and linting packages.
 
 Copy `.env.example` to `.env` and fill in the database password and a Django secret key.
-The `.env` file is never committed.
-
-Apply migrations and start the development server:
+The `.env` file is never committed. Generate a key with:
 
 ```bash
+.venv/Scripts/python.exe -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
+```
+
+Note that the datasets are not in the repository and are downloaded separately, as
+described under **Data** below. The trained model *is* in the repository, so the
+application screens images without them.
+
+Collect the static files, apply migrations and start the development server:
+
+```bash
+.venv/Scripts/python.exe manage.py collectstatic --noinput
 .venv/Scripts/python.exe manage.py migrate
 .venv/Scripts/python.exe manage.py createsuperuser
 .venv/Scripts/python.exe manage.py runserver
 ```
+
+`collectstatic` is not optional and is not only for deployment. Static files are
+served through WhiteNoise's manifest storage, which refuses any asset missing from
+the manifest that command builds, and `staticfiles/` is not tracked by Git. Skip it
+and both the interface and the test suite fail on a fresh clone.
 
 ### Signing in
 
