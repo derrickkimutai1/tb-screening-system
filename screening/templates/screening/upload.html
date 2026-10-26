@@ -33,7 +33,7 @@
           <div class="notice notice-caution mb-3">{{ form.non_field_errors }}</div>
         {% endif %}
 
-        <form method="post" enctype="multipart/form-data" novalidate>
+        <form method="post" enctype="multipart/form-data" novalidate data-screening-form>
           {% csrf_token %}
 
           <div class="mb-4">
@@ -72,7 +72,9 @@
             </div>
           </div>
 
-          <button type="submit" class="btn btn-action" id="analyse">Analyse radiograph</button>
+          <button type="submit" class="btn btn-action" id="analyse">
+            <span data-label>Analyse radiograph</span>
+          </button>
         </form>
 
       </div>
@@ -153,7 +155,8 @@
     const list = document.getElementById("selection-list");
     const count = document.getElementById("selection-count");
     const submit = document.getElementById("analyse");
-    if (!input || !panel) return;
+    const form = document.querySelector("[data-screening-form]");
+    if (!input || !panel || !form) return;
 
     const limit = {{ max_batch|default:20 }};
     const maxBytes = {{ max_upload_mb|default:20 }} * 1024 * 1024;
@@ -169,6 +172,33 @@
       chosen.forEach((file) => transfer.items.add(file));
       input.files = transfer.files;
     }
+
+    // A screening takes a few seconds, most of it in the model. A button that
+    // still looks clickable during that wait invites a second click, and a
+    // second click screens the same radiograph again: another record, another
+    // case reference, and a worklist with a duplicate in it. The sign-in forms
+    // already guard against this; the upload is the one that actually creates
+    // something, so it needs it more.
+    form.addEventListener("submit", (event) => {
+      if (form.dataset.sent === "yes") {
+        event.preventDefault();
+        return;
+      }
+      if (submit.disabled) return;
+      form.dataset.sent = "yes";
+      const label = submit.querySelector("[data-label]");
+      if (label) {
+        label.textContent =
+          chosen.length > 1 ? `Screening ${chosen.length} radiographs…` : "Screening…";
+      }
+      // Disabled after the handler returns, so the button still submits the
+      // form it belongs to: a disabled control is not successful and its form
+      // would never be sent.
+      window.setTimeout(() => {
+        submit.disabled = true;
+        submit.classList.add("is-pending");
+      }, 0);
+    });
 
     function readable(bytes) {
       const mb = bytes / (1024 * 1024);
