@@ -191,7 +191,12 @@ def main():
         count = removed.count()
         removed.delete()
         if created:
-            operator.delete()
+            # Deactivated, not deleted. Every screening above wrote an audit
+            # row naming this account, and the actor column is SET_NULL, so
+            # deleting it rewrites those rows after they were sealed. That is
+            # what broke a hundred of them the first time this script ran.
+            operator.is_active = False
+            operator.save(update_fields=["is_active"])
         print(f"\ncleaned up {count} records")
 
     if not results:

@@ -2622,6 +2622,58 @@ class AuditChainTests(TestCase):
         request.user = self.user
         return AccessEvent.record(request, AccessEvent.Action.VIEWED, detail=detail)
 
+    def test_removing_the_account_does_not_break_the_chain(self):
+        """Deleting a user is administration, not tampering.
+
+        The chain originally hashed actor_id. That column is SET_NULL, so
+        deleting an account rewrote it on every row the account had produced
+        and the verification reported a hundred altered rows - caused by a
+        script tidying up after itself. A chain must hash what cannot
+        legitimately change, so it hashes actor_label instead.
+        """
+        from .models import AccessEvent
+
+        self.event("before the account went")
+        self.event("and another")
+        self.user.delete()
+
+        checked, problems = AccessEvent.verify_chain()
+
+        self.assertEqual(problems, [])
+        self.assertEqual(checked, 2)
+
+    def test_who_acted_survives_the_account_being_removed(self):
+        """Dropping actor_id from the hash must not lose the person."""
+        from .models import AccessEvent
+
+        self.event("traceable")
+        self.user.delete()
+
+        row = AccessEvent.objects.get()
+        self.assertIn("chained@strathmore.edu", row.actor_label)
+        self.assertIsNone(row.actor_id)
+
+    def test_altering_a_row_is_still_detected_after_that_change(self):
+        """Loosening what is hashed must not loosen what is caught."""
+        from django.db import connection
+
+        from .models import AccessEvent
+
+        self.event("one")
+        target = self.event("two")
+        self.event("three")
+
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "UPDATE screening_accessevent SET detail = %s WHERE id = %s",
+                ["rewritten", target.pk],
+            )
+
+        checked, problems = AccessEvent.verify_chain()
+
+        self.assertEqual(checked, 3)
+        self.assertTrue(problems)
+
     def test_a_row_is_sealed_when_it_is_written(self):
         event = self.event()
 

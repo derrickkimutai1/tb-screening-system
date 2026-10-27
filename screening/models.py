@@ -552,8 +552,15 @@ class AccessEvent(models.Model):
 
     # Every field whose alteration the chain should catch. created_at is in it,
     # so back-dating an event is as detectable as changing what it says.
+    #
+    # actor_id is deliberately not in it, although it was at first. The foreign
+    # key is SET_NULL, so deleting an account rewrites it to NULL on every row
+    # that account ever produced - which is a legitimate administrative act
+    # that silently broke a hundred sealed rows the first time it happened. A
+    # chain has to hash what cannot legitimately change. actor_label holds the
+    # address as text and is never rewritten, so who acted is still covered,
+    # and the link to the account remains on the row for anyone reading it.
     CHAINED_FIELDS = (
-        "actor_id",
         "actor_label",
         "action",
         "case_id",
