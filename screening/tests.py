@@ -7,6 +7,7 @@ so nothing here asserts anything about model accuracy.
 """
 
 import io
+import json
 import os
 import re
 import shutil
@@ -3723,3 +3724,168 @@ class ModelPerformancePageTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertFalse(response.context["available"])
         self.assertContains(response, "does not carry the evaluation artifacts")
+
+
+@override_settings(MEDIA_ROOT=MEDIA_FOR_TESTS)
+class DataRightsTests(TestCase):
+    """Taking a copy of your data, and closing your account.
+
+    The Data Protection Act 2019 gives both rights, and neither is unlimited.
+    A screening is a clinical record of a patient held by a clinic; the
+    operator who uploaded it cannot export it as "their" data, nor erase it by
+    closing their own account. These check that the limit is implemented and
+    not merely described in the interface.
+    """
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(MEDIA_FOR_TESTS, ignore_errors=True)
+        super().tearDownClass()
+
+    def setUp(self):
+        super().setUp()
+        from .models import Profile, profile_for
+
+        self.clinic = clinic("Kenyatta")
+        self.user = get_user_model().objects.create_user(
+            username="subject", email="subject@example.org"
+        )
+        profile = profile_for(self.user)
+        profile.facility = self.clinic
+        profile.role = Profile.Role.CLINICIAN
+        profile.save()
+        self.client.force_login(self.user)
+
+    def record(self, reference="RIGHTS-001"):
+        return PredictionRecord.objects.create(
+            patient_reference=reference,
+            xray_image="x.png",
+            facility=self.clinic,
+            screened_by=self.user,
+            tb_probability=Decimal("0.500"),
+            triage_level=PredictionRecord.TriageLevel.MEDIUM,
+            model_version="test",
+            decision_threshold=Decimal("0.102"),
+            triage_low_medium_threshold=Decimal("0.102"),
+            triage_medium_high_threshold=Decimal("0.546"),
+        )
+
+    # ---- taking a copy ---------------------------------------------------
+
+    def test_the_export_is_machine_readable(self):
+        """A right to your data is not a right to a screenshot."""
+        response = self.client.get(reverse("screening:export_my_data"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "application/json")
+        self.assertIn("attachment; filename=", response["Content-Disposition"])
+        json.loads(response.content.decode())
+
+    def test_it_contains_the_person(self):
+        self.record()
+        payload = json.loads(
+            self.client.get(reverse("screening:export_my_data")).content.decode()
+        )
+
+        self.assertEqual(payload["account"]["email"], "subject@example.org")
+        self.assertEqual(payload["role_and_clinic"]["clinic"], "Kenyatta")
+        self.assertEqual(len(payload["screenings_performed"]), 1)
+
+    def test_it_does_not_contain_the_patient(self):
+        """Somebody else's radiograph is not yours because you uploaded it."""
+        self.record()
+        body = self.client.get(reverse("screening:export_my_data")).content.decode()
+
+        for leaked in ("tb_probability", "xray_image", "0.500"):
+            self.assertNotIn(leaked, body)
+
+    def test_taking_a_copy_is_itself_recorded(self):
+        from .models import AccessEvent
+
+        self.client.get(reverse("screening:export_my_data"))
+
+        self.assertTrue(
+            AccessEvent.objects.filter(detail__contains="exported their own").exists()
+        )
+
+    # ---- closing the account ---------------------------------------------
+
+    def test_the_wrong_address_changes_nothing(self):
+        """A destructive action reached by one click is reached by accident."""
+        response = self.client.post(
+            reverse("screening:delete_my_account"), {"confirm_email": "someone@else.org"}
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertTrue(get_user_model().objects.filter(pk=self.user.pk).exists())
+
+    def test_the_right_address_closes_it(self):
+        self.client.post(
+            reverse("screening:delete_my_account"),
+            {"confirm_email": "subject@example.org"},
+        )
+
+        self.assertFalse(get_user_model().objects.filter(pk=self.user.pk).exists())
+
+    def test_the_clinical_records_stay_with_the_clinic(self):
+        """A radiographer leaving a hospital does not delete the films."""
+        record = self.record()
+        ReviewNote.objects.create(
+            record=record,
+            reviewer=self.user,
+            reviewer_name="Subject",
+            note="seen",
+            status_set=PredictionRecord.ReviewStatus.REVIEWED,
+        )
+
+        self.client.post(
+            reverse("screening:delete_my_account"),
+            {"confirm_email": "subject@example.org"},
+        )
+
+        record.refresh_from_db()
+        note = ReviewNote.objects.get()
+        self.assertIsNone(record.screened_by)
+        self.assertEqual(record.facility, self.clinic)
+        self.assertIsNone(note.reviewer)
+        self.assertEqual(note.reviewer_name, "Subject")
+
+    def test_the_audit_trail_survives_and_still_verifies(self):
+        """A log somebody leaving could empty would answer nothing."""
+        from .models import AccessEvent
+
+        self.client.get(reverse("screening:export_my_data"))
+        before = AccessEvent.objects.count()
+
+        self.client.post(
+            reverse("screening:delete_my_account"),
+            {"confirm_email": "subject@example.org"},
+        )
+
+        checked, problems = AccessEvent.verify_chain()
+        self.assertGreaterEqual(AccessEvent.objects.count(), before)
+        self.assertEqual(problems, [])
+        self.assertTrue(
+            AccessEvent.objects.filter(actor_label__contains="subject@example.org")
+            .exclude(actor_label="")
+            .exists()
+        )
+
+    def test_the_last_administrator_cannot_lock_everyone_out(self):
+        from .models import Profile, profile_for
+
+        profile = profile_for(self.user)
+        profile.role = Profile.Role.ADMINISTRATOR
+        profile.save()
+
+        self.client.post(
+            reverse("screening:delete_my_account"),
+            {"confirm_email": "subject@example.org"},
+        )
+
+        self.assertTrue(get_user_model().objects.filter(pk=self.user.pk).exists())
+
+    def test_closing_an_account_refuses_a_get(self):
+        self.assertEqual(
+            self.client.get(reverse("screening:delete_my_account")).status_code, 405
+        )

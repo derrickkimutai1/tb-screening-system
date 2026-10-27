@@ -146,4 +146,86 @@
   </div>
 
 </div>
+
+<div class="panel mt-3 rise">
+  <div class="panel-head">
+    <h2 class="panel-title">Your data</h2>
+    <span class="micro">Data Protection Act 2019</span>
+  </div>
+  <div class="panel-body">
+    <p class="field-hint">
+      The Act gives you a copy of the personal data held about you, and the
+      right to have it erased. Both are below. Neither is unlimited, and the
+      limit is stated rather than left for you to discover.
+    </p>
+
+    <div class="row g-4 mt-1">
+      <div class="col-md-6">
+        <h3 class="micro micro-acid">Take a copy</h3>
+        <p class="field-hint">
+          A JSON file of your account, your role and clinic, the screenings you
+          performed, the reviews you wrote and the actions recorded against
+          you. Machine-readable, because a right to your data is not a right to
+          a screenshot.
+        </p>
+        <p class="field-hint">
+          It does not contain the radiographs or the scores. A screening is a
+          record of a patient held by the clinic, not yours because you
+          uploaded it.
+        </p>
+        <a class="btn btn-quiet" href="{% url 'screening:export_my_data' %}">
+          Download my data
+        </a>
+      </div>
+
+      <div class="col-md-6">
+        <h3 class="micro micro-acid">Close this account</h3>
+        <p class="field-hint">
+          Removes your account and your ability to sign in, and unlinks every
+          record from it.
+        </p>
+        <p class="field-hint">
+          <strong>It does not delete clinical records.</strong> The screenings
+          and reviews stay with the clinic under the name already written into
+          them, and the access trail keeps its rows. A log that somebody
+          leaving could empty would answer nothing, and a patient's screening
+          is not the operator's to erase.
+        </p>
+        <form method="post" action="{% url 'screening:delete_my_account' %}"
+              data-close-account>
+          {% csrf_token %}
+          <label class="field-label" for="confirm_email">
+            Type <strong>{{ user.email }}</strong> to confirm
+          </label>
+          <input type="email" class="form-control" id="confirm_email"
+                 name="confirm_email" autocomplete="off" required
+                 placeholder="{{ user.email }}">
+          <button type="submit" class="btn btn-quiet mt-2" style="border-color: var(--triage-high); color: var(--triage-high);">
+            Close my account permanently
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // One confirmation in the browser as well as the typed address on the
+  // server, because this cannot be undone from inside the application.
+  (function () {
+    const form = document.querySelector("[data-close-account]");
+    if (!form) return;
+    form.addEventListener("submit", function (event) {
+      const sure = window.confirm(
+        "Close this account permanently?
+
+" +
+        "You will be signed out and will not be able to sign in again with " +
+        "this address unless an administrator sets it up afresh. Clinical " +
+        "records stay with the clinic."
+      );
+      if (!sure) event.preventDefault();
+    });
+  })();
+</script>
 {% endblock %}

@@ -22,6 +22,7 @@ from allauth.account.internal.stagekit import clear_login
 from allauth.account.utils import complete_signup, filter_users_by_email
 from django.conf import settings
 from django.contrib import messages
+from django.contrib.auth import logout
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.core.files.storage import default_storage
@@ -769,6 +770,155 @@ def protected_media(request, path):
         raise Http404("No such file.")
 
     return FileResponse(candidate.open("rb"))
+
+
+@login_required
+def export_my_data(request):
+    """Everything this system holds that is about the signed-in person.
+
+    The Data Protection Act 2019 gives a data subject the right to a copy of
+    their personal data in a structured, commonly used, machine-readable form,
+    so this is JSON rather than a page to screenshot.
+
+    What it contains is the person: their account, their role and clinic, and
+    the actions attributed to them. What it does not contain is the patients:
+    a screening belongs to the clinic's caseload and to whoever it is of, not
+    to the operator who uploaded it, so this lists the screenings they
+    performed without the radiographs or the scores. Exporting somebody else's
+    chest X-ray because a third party happened to upload it would be the
+    opposite of a privacy right.
+    """
+    viewer = profile_for(request.user)
+
+    payload = {
+        "exported_at": timezone.now().isoformat(),
+        "about": (
+            "The personal data this system holds about this account. Clinical "
+            "records are not included: a screening belongs to the clinic and "
+            "to the patient, not to the operator who uploaded it."
+        ),
+        "account": {
+            "email": request.user.email,
+            "name": request.user.get_full_name() or request.user.username,
+            "joined": request.user.date_joined.isoformat(),
+            "last_signed_in": (
+                request.user.last_login.isoformat() if request.user.last_login else None
+            ),
+        },
+        "role_and_clinic": {
+            "role": viewer.get_role_display(),
+            "may_record_reviews": viewer.may_review,
+            "clinic": facility_name(viewer.facility) or None,
+            "note": "The role is set by an administrator and is not self-chosen.",
+        },
+        "screenings_performed": [
+            {
+                "case_reference": record.patient_reference,
+                "case_id": str(record.case_id),
+                "screened_at": record.created_at.isoformat(),
+                "clinic": facility_name(record.facility) or None,
+            }
+            for record in PredictionRecord.objects.filter(screened_by=request.user).order_by(
+                "created_at"
+            )
+        ],
+        "reviews_written": [
+            {
+                "case_id": str(note.record.case_id),
+                "written_at": note.created_at.isoformat(),
+                "status_set": note.get_status_set_display(),
+                "note": note.note,
+            }
+            for note in ReviewNote.objects.filter(reviewer=request.user)
+            .select_related("record")
+            .order_by("created_at")
+        ],
+        "recorded_actions": [
+            {
+                "at": event.created_at.isoformat(),
+                "action": event.get_action_display(),
+                "case_id": str(event.case_id) if event.case_id else None,
+                "clinic": event.facility or None,
+                "from_address": event.ip_address,
+                "detail": event.detail,
+            }
+            for event in AccessEvent.objects.filter(actor=request.user).order_by("created_at")
+        ],
+    }
+
+    AccessEvent.record(
+        request,
+        AccessEvent.Action.LISTED,
+        facility=facility_name(viewer.facility),
+        detail="exported their own personal data",
+    )
+
+    stamp = timezone.now().strftime("%Y-%m-%d")
+    response = HttpResponse(
+        json.dumps(payload, indent=2, ensure_ascii=False),
+        content_type="application/json",
+    )
+    response["Content-Disposition"] = f'attachment; filename="my-data-{stamp}.json"'
+    return response
+
+
+@login_required
+@require_POST
+def delete_my_account(request):
+    """Close this account, and say plainly what that does and does not remove.
+
+    Erasure is a real right and it is not unlimited. A screening is a clinical
+    record of a patient, held by a clinic; the operator who uploaded it cannot
+    erase it by closing their own account, any more than a radiographer
+    leaving a hospital deletes the films they took. The audit trail is the same
+    - a log that a departing member of staff could empty would answer nothing.
+
+    So this removes the person: the account, the ability to sign in, the link
+    from each record to that account. It keeps the records, and keeps the name
+    already written into them as text, so the history stays readable and the
+    hash chain stays intact.
+
+    Confirmed by typing the address, because a destructive action reached by
+    one click is reached by accident.
+    """
+    viewer = profile_for(request.user)
+    typed = (request.POST.get("confirm_email") or "").strip().lower()
+
+    if typed != (request.user.email or "").strip().lower():
+        messages.error(
+            request,
+            "The address did not match, so nothing was changed. Type the "
+            "address you signed in with to confirm.",
+        )
+        return redirect("screening:profile")
+
+    administrators = Profile.objects.filter(role=Profile.Role.ADMINISTRATOR)
+    if viewer.role == Profile.Role.ADMINISTRATOR and administrators.count() <= 1:
+        messages.error(
+            request,
+            "You are the only administrator. Give somebody else that role "
+            "first, or nobody will be able to set roles afterwards.",
+        )
+        return redirect("screening:profile")
+
+    AccessEvent.record(
+        request,
+        AccessEvent.Action.REFUSED,
+        facility=facility_name(viewer.facility),
+        detail=f"closed their own account ({request.user.email})",
+    )
+
+    user = request.user
+    logout(request)
+    user.delete()
+
+    messages.success(
+        request,
+        "Your account is closed. The screenings and reviews you recorded stay "
+        "with the clinic as clinical records, under the name already written "
+        "into them.",
+    )
+    return redirect("account_login")
 
 
 def _artifact(name):
