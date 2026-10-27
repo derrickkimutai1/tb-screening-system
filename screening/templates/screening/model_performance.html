@@ -1,0 +1,237 @@
+{% extends "screening/base.html" %}
+
+{% block title %}Model performance{% endblock %}
+
+{% block pagehead %}
+<div class="pagehead">
+  <span class="micro micro-acid">Evidence</span>
+  <h1 class="display display-xl mt-2">
+    {% if available %}What this model<br>is measured to do{% else %}Measurements<br>not in this build{% endif %}
+  </h1>
+  <p class="field-hint" style="max-width: 40rem;">
+    Every figure here is read from the evaluation files the scripts produced,
+    at the moment this page loads. None of it is typed into the page, so a
+    number here cannot drift from the run that produced it.
+  </p>
+</div>
+{% endblock %}
+
+{% block content %}
+
+{% if not available %}
+  <div class="notice notice-boundary">
+    This build does not carry the evaluation artifacts, so there is nothing to
+    show. They live in <code>ml/artifacts/</code> in the repository.
+  </div>
+{% else %}
+
+<div class="notice notice-boundary mb-3">
+  <strong>Read the miss rate before the accuracy.</strong>
+  On the held-out test set this model found
+  {{ matrix.true_positive }} of {{ positives }} TB radiographs and
+  <strong>missed {{ missed }}</strong>. A low score is not a clearance, and no
+  figure on this page changes that.
+</div>
+
+<div class="row g-3 mb-3">
+  <div class="col-sm-4">
+    <div class="readout rise">
+      <span class="readout-label">AUC</span>
+      <span class="readout-value numeric">{{ test.metrics.auc|floatformat:4 }}</span>
+      <span class="readout-unit">
+        95% CI {{ test.confidence_intervals_95.auc.0|floatformat:3 }}
+        to {{ test.confidence_intervals_95.auc.1|floatformat:3 }}
+      </span>
+    </div>
+  </div>
+  <div class="col-sm-4">
+    <div class="readout readout-high rise">
+      <span class="readout-label">Sensitivity</span>
+      <span class="readout-value numeric">{{ test.metrics.recall|floatformat:4 }}</span>
+      <span class="readout-unit">
+        WHO asks for 0.90 &middot; met
+      </span>
+    </div>
+  </div>
+  <div class="col-sm-4">
+    <div class="readout readout-medium rise">
+      <span class="readout-label">Specificity</span>
+      <span class="readout-value numeric">{{ test.metrics.specificity|floatformat:4 }}</span>
+      <span class="readout-unit">
+        WHO asks for 0.70 &middot; <strong>not met</strong>
+      </span>
+    </div>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-7">
+    <div class="panel rise">
+      <div class="panel-head">
+        <h2 class="panel-title">On the held-out test set</h2>
+        <span class="micro numeric">{{ test.test_images }} images, {{ test.test_tb }} TB</span>
+      </div>
+      <div class="table-scroll">
+        <table class="table mb-0">
+          <thead>
+            <tr><th>Measure</th><th class="text-end">Value</th><th>95% confidence interval</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Sensitivity (recall)</td><td class="text-end numeric">{{ test.metrics.recall|floatformat:4 }}</td><td class="numeric">{{ test.confidence_intervals_95.recall.0|floatformat:3 }} – {{ test.confidence_intervals_95.recall.1|floatformat:3 }}</td></tr>
+            <tr><td>Specificity</td><td class="text-end numeric">{{ test.metrics.specificity|floatformat:4 }}</td><td class="numeric">{{ test.confidence_intervals_95.specificity.0|floatformat:3 }} – {{ test.confidence_intervals_95.specificity.1|floatformat:3 }}</td></tr>
+            <tr><td>Accuracy</td><td class="text-end numeric">{{ test.metrics.accuracy|floatformat:4 }}</td><td class="numeric">{{ test.confidence_intervals_95.accuracy.0|floatformat:3 }} – {{ test.confidence_intervals_95.accuracy.1|floatformat:3 }}</td></tr>
+            <tr><td>Precision</td><td class="text-end numeric">{{ test.metrics.precision|floatformat:4 }}</td><td class="numeric">{{ test.confidence_intervals_95.precision.0|floatformat:3 }} – {{ test.confidence_intervals_95.precision.1|floatformat:3 }}</td></tr>
+            <tr><td>AUC</td><td class="text-end numeric">{{ test.metrics.auc|floatformat:4 }}</td><td class="numeric">{{ test.confidence_intervals_95.auc.0|floatformat:3 }} – {{ test.confidence_intervals_95.auc.1|floatformat:3 }}</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="panel-body">
+        <p class="field-hint mb-0">
+          Intervals come from {{ test.bootstrap_samples }} bootstrap resamples,
+          because 120 images cannot pin a figure precisely and a single number
+          would overstate how well it is known. Decision threshold
+          {{ test.decision_threshold }}, chosen on validation alone.
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-5">
+    <div class="panel h-100 rise">
+      <div class="panel-head"><h2 class="panel-title">What it got right and wrong</h2></div>
+      <div class="table-scroll">
+        <table class="table mb-0">
+          <tbody>
+            <tr><td>TB found</td><td class="text-end numeric">{{ matrix.true_positive }}</td></tr>
+            <tr><td><strong>TB missed</strong></td><td class="text-end numeric"><strong>{{ matrix.false_negative }}</strong></td></tr>
+            <tr><td>Healthy correctly cleared</td><td class="text-end numeric">{{ matrix.true_negative }}</td></tr>
+            <tr><td>Healthy sent for review anyway</td><td class="text-end numeric">{{ matrix.false_positive }}</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="panel-body">
+        <p class="field-hint mb-0">
+          The system over-refers by design: at this threshold, catching TB
+          matters more than avoiding a second look at someone healthy.
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="panel mt-3 rise">
+  <div class="panel-head">
+    <h2 class="panel-title">The four things this model cannot do</h2>
+    <span class="micro">measured, not assumed</span>
+  </div>
+  <div class="table-scroll">
+    <table class="table mb-0">
+      <thead>
+        <tr><th>Limitation</th><th class="text-end">Figure</th><th>What it means</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Both WHO targets cannot be met at once</td>
+          <td class="text-end numeric">{{ test.metrics.specificity|floatformat:3 }}</td>
+          <td>Specificity falls short of 0.70 at the sensitivity required. A property of this model on this data, not a tuning oversight.</td>
+        </tr>
+        {% if calibration %}
+        <tr>
+          <td>The score is not a probability</td>
+          <td class="text-end numeric">{{ calibration.expected_calibration_error|floatformat:4 }}</td>
+          <td>Expected calibration error over {{ calibration.images }} images, systematically underconfident. This is why nothing here calls it a confidence.</td>
+        </tr>
+        {% endif %}
+        {% if across %}
+        <tr>
+          <td>Changing hospital costs accuracy</td>
+          <td class="text-end numeric">&minus;{{ across.generalisation_cost|floatformat:4 }}</td>
+          <td>AUC {{ across.auc_within_source|floatformat:3 }} within the training source against {{ across.auc_across_source|floatformat:3 }} on an unseen hospital. Kenyan equipment was never tested.</td>
+        </tr>
+        {% endif %}
+        {% if explanation %}
+        <tr>
+          <td>The explanation localises only weakly</td>
+          <td class="text-end numeric">{{ occlusion.lift_mean|floatformat:2 }}</td>
+          <td>
+            Lung-mask lift against {{ gradcam.lift_mean|floatformat:2 }} for the
+            Grad-CAM map it replaced, where 1.0 is a map placed at random. The
+            paired gain is {{ explanation.mean_difference|floatformat:3 }}
+            [{{ explanation.difference_ci_95.0|floatformat:3 }},
+            {{ explanation.difference_ci_95.1|floatformat:3 }}] over
+            {{ explanation.images }} films, and is not confirmed on the smaller
+            held-out set.
+          </td>
+        </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if across %}
+<div class="panel mt-3 rise">
+  <div class="panel-head">
+    <h2 class="panel-title">Does it read the lungs, or the label in the corner?</h2>
+    <span class="micro numeric">{{ across.tested_on.images }} {{ across.tested_on.source }} films</span>
+  </div>
+  <div class="table-scroll">
+    <table class="table mb-0">
+      <thead><tr><th>What the model could see</th><th class="text-end">AUC</th></tr></thead>
+      <tbody>
+        <tr><td>The whole radiograph</td><td class="text-end numeric">{{ across.regions.intact|floatformat:4 }}</td></tr>
+        <tr><td>The lungs only</td><td class="text-end numeric">{{ across.regions.lungs_only|floatformat:4 }}</td></tr>
+        <tr><td>Everything except the lungs</td><td class="text-end numeric">{{ across.regions.surroundings_only|floatformat:4 }}</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="panel-body">
+    <p class="field-hint mb-0">
+      With the lungs blanked the model is close to a coin flip, so the signal
+      is in the lungs rather than in acquisition markers or borders. This is
+      the strongest evidence the project has that the score reflects pathology,
+      and it is causal: regions were removed and the model re-scored.
+    </p>
+  </div>
+</div>
+{% endif %}
+
+{% if timing %}
+<div class="panel mt-3 rise">
+  <div class="panel-head">
+    <h2 class="panel-title">How long a screening takes</h2>
+    <span class="micro numeric">{{ timing.screenings }} consecutive</span>
+  </div>
+  <div class="table-scroll">
+    <table class="table mb-0">
+      <tbody>
+        <tr><td>Median, upload to a complete result with heatmap</td><td class="text-end numeric">{{ timing.median_seconds|floatformat:2 }}s</td></tr>
+        <tr><td>90th percentile</td><td class="text-end numeric">{{ timing.p90_seconds|floatformat:2 }}s</td></tr>
+        <tr><td>Slowest</td><td class="text-end numeric">{{ timing.slowest_seconds|floatformat:2 }}s</td></tr>
+        <tr><td>Within the ten-second requirement</td><td class="text-end numeric">{{ timing.within_requirement }} of {{ timing.screenings }}</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="panel-body">
+    <p class="field-hint mb-0">
+      Measured on {{ timing.machine.total_ram_gb }} GB of RAM with no GPU. The
+      requirement names a machine with 8 GB, so these figures describe better
+      hardware than it specifies.
+    </p>
+  </div>
+</div>
+{% endif %}
+
+<div class="notice notice-boundary mt-4">
+  <strong>What none of this establishes.</strong>
+  The model was trained and tested on {{ test.provenance.dataset.images }}
+  public radiographs from two archives, with no Kenyan data and no prospective study
+  against a microbiological reference standard. It is not a medical device, it
+  is not clinically validated, and it is not registered with any regulator.
+  These figures describe a research prototype on public data, which is a
+  different claim from the one a deployed screening tool would need to make.
+</div>
+
+{% endif %}
+
+{% endblock %}

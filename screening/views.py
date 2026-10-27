@@ -8,6 +8,7 @@ where their results are persisted.
 """
 
 import csv
+import json
 import logging
 import uuid
 from datetime import timedelta
@@ -768,6 +769,62 @@ def protected_media(request, path):
         raise Http404("No such file.")
 
     return FileResponse(candidate.open("rb"))
+
+
+def _artifact(name):
+    """Read one measurement file, or None if this build does not carry it."""
+    path = Path(settings.BASE_DIR) / "ml" / "artifacts" / name
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+
+
+@login_required
+def model_performance(request):
+    """What the model is measured to do, in the application that uses it.
+
+    These figures existed only as JSON files beside the training scripts, so
+    the people relying on the score could not see what it is worth. A clinician
+    deciding how much weight to give a result should be able to read the
+    sensitivity, and the fact that five TB cases in fifty-nine were missed,
+    without opening a repository.
+
+    Read from the evaluation artifacts at request time rather than copied into
+    a template, so a figure here cannot drift from the file that produced it.
+    Nothing is computed on this page; re-running an evaluation script changes
+    what it shows.
+    """
+    test = _artifact("metrics.json")
+    calibration = _artifact("calibration.json")
+    across = _artifact("cross_dataset.json")
+    explanation = _artifact("explanation_comparison-all.json")
+    occlusion = _artifact("occlusion-p32s16-all-tb_evaluation.json")
+    gradcam = _artifact("gradcam-block_13_expand_relu-all-tb_evaluation.json")
+    timing = _artifact("response_times.json")
+
+    matrix = (test or {}).get("confusion_matrix") or {}
+    missed = matrix.get("false_negative")
+    positives = (matrix.get("true_positive") or 0) + (missed or 0)
+
+    return render(
+        request,
+        "screening/model_performance.html",
+        {
+            "test": test,
+            "calibration": calibration,
+            "across": across,
+            "explanation": explanation,
+            "occlusion": occlusion,
+            "gradcam": gradcam,
+            "timing": timing,
+            "matrix": matrix,
+            "missed": missed,
+            "positives": positives,
+            "available": test is not None,
+            "active": "performance",
+        },
+    )
 
 
 @login_required

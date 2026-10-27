@@ -3651,3 +3651,75 @@ class AccessTrailPageTests(TestCase):
         for leaked in ("tb_probability", "xray_image", "explanation_image"):
             self.assertNotIn(leaked, stored)
         self.assertTrue(row.actor_label)
+
+
+class ModelPerformancePageTests(TestCase):
+    """The measurements, in the application that relies on them.
+
+    These figures lived only as JSON beside the training scripts, so the
+    people trusting the score could not see what it is worth. The page reads
+    the artifacts at request time rather than carrying copies, because a
+    figure typed into a template drifts from the run that produced it and
+    nobody notices.
+    """
+
+    def setUp(self):
+        super().setUp()
+        from .models import profile_for
+
+        self.user = get_user_model().objects.create_user(
+            username="reader", email="reader@example.org"
+        )
+        profile_for(self.user).save()
+
+    def test_it_needs_a_session(self):
+        self.assertEqual(
+            self.client.get(reverse("screening:model_performance")).status_code, 302
+        )
+
+    def test_it_shows_the_figures_from_the_artifacts(self):
+        """Not from the template, so they cannot drift apart."""
+        import json
+        from pathlib import Path
+
+        from django.conf import settings
+
+        measured = json.loads(
+            (Path(settings.BASE_DIR) / "ml" / "artifacts" / "metrics.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("screening:model_performance"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context["test"]["metrics"]["auc"], measured["metrics"]["auc"])
+        self.assertContains(response, f"{measured['metrics']['auc']:.4f}")
+
+    def test_the_missed_cases_are_stated_before_the_accuracy(self):
+        """A screening tool that hides its miss rate is misleading by layout."""
+        self.client.force_login(self.user)
+
+        body = self.client.get(reverse("screening:model_performance")).content.decode()
+
+        self.assertIn("Read the miss rate before the accuracy", body)
+        self.assertLess(body.index("missed"), body.index("Accuracy"))
+
+    def test_the_unmet_who_target_is_shown_as_unmet(self):
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("screening:model_performance"))
+
+        self.assertContains(response, "not met")
+
+    def test_a_build_without_the_artifacts_says_so_rather_than_breaking(self):
+        """The packaged build may not carry them; it must not 500."""
+        self.client.force_login(self.user)
+
+        with mock.patch("screening.views._artifact", return_value=None):
+            response = self.client.get(reverse("screening:model_performance"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.context["available"])
+        self.assertContains(response, "does not carry the evaluation artifacts")

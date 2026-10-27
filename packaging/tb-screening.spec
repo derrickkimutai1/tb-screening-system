@@ -33,6 +33,30 @@ datas = [
     # bundle rather than fetched, so a prediction cannot depend on a download.
     (str(ROOT / "ml" / "models" / "tb_mobilenetv2_v1.keras"), "ml/models"),
     (str(ROOT / "ml" / "models" / "metadata.json"), "ml/models"),
+    # The measurements behind the model performance page. Small JSON files,
+    # read at request time, so without them that page has nothing to show in
+    # the desktop build and says so rather than breaking.
+    (str(ROOT / "ml" / "artifacts" / "metrics.json"), "ml/artifacts"),
+    (str(ROOT / "ml" / "artifacts" / "calibration.json"), "ml/artifacts"),
+    (str(ROOT / "ml" / "artifacts" / "cross_dataset.json"), "ml/artifacts"),
+    (str(ROOT / "ml" / "artifacts" / "response_times.json"), "ml/artifacts"),
+    (
+        str(ROOT / "ml" / "artifacts" / "explanation_comparison-all.json"),
+        "ml/artifacts",
+    ),
+    (
+        str(ROOT / "ml" / "artifacts" / "occlusion-p32s16-all-tb_evaluation.json"),
+        "ml/artifacts",
+    ),
+    (
+        str(
+            ROOT
+            / "ml"
+            / "artifacts"
+            / "gradcam-block_13_expand_relu-all-tb_evaluation.json"
+        ),
+        "ml/artifacts",
+    ),
     # Preprocessing is shared with the training scripts. image_processing.py
     # puts ML_DIR on sys.path and imports it by name, so it travels as a file
     # rather than as a module and must land where ML_DIR points: beside the
