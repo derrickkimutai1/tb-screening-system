@@ -250,6 +250,7 @@ limits how far the results generalise. This is measured and reported rather than
 |---|---|
 | `LICENSE` | MIT, covering the source code in this repository |
 | `NOTICE.md` | Dataset and pretrained-weight terms, and the clinical boundary |
+| `docs/what-measuring-found.md` | Five claims this project made, and what measuring each one showed |
 | `docs/user-guide.md` | How to use the system, for radiographers and clinicians |
 | `docs/traceability.md` | Each objective traced to its component, test, result and evidence, and what is not met |
 | `docs/test-record.md` | Generated from the suite by `scripts/build_test_record.py` |
