@@ -1,5 +1,7 @@
 # AI-Assisted Tuberculosis Screening and Triage from Chest X-Ray Images
 
+[![checks](https://github.com/derrickkimutai1/tb-screening-system/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/derrickkimutai1/tb-screening-system/actions/workflows/ci.yml)
+
 An undergraduate capstone project at Strathmore University, School of Computing and
 Engineering Sciences.
 

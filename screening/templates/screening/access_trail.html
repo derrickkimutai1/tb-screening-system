@@ -1,0 +1,189 @@
+{% extends "screening/base.html" %}
+
+{% block title %}Access trail{% endblock %}
+
+{% block pagehead %}
+<div class="pagehead">
+  <span class="micro micro-acid">Accountability</span>
+  <h1 class="display display-xl mt-2">
+    {{ total }} recorded<br>action{{ total|pluralize }}
+  </h1>
+  <p class="field-hint" style="max-width: 38rem;">
+    Every view, list, screening, review, refusal and export, with who did it,
+    when, and from where.
+    {% if is_administrator %}
+      You are an administrator, so this is the whole installation.
+    {% else %}
+      Scoped to your clinic, as the case list is.
+    {% endif %}
+  </p>
+</div>
+{% endblock %}
+
+{% block content %}
+
+<div class="panel panel-lead mb-3 rise">
+  <div class="panel-head">
+    <h2 class="panel-title">Integrity</h2>
+    <span class="micro" data-trail-state>Not checked</span>
+  </div>
+  <div class="panel-body">
+    <p class="field-hint">
+      Each row carries a fingerprint of its own contents and of the row before
+      it. Change any field of any row, or remove a row from between two
+      others, and the fingerprints stop matching. The check below walks the
+      whole chain and reports the first row that does not add up.
+    </p>
+    <p class="field-hint">
+      This detects alteration; it does not prevent it. Someone with write
+      access to the database could recompute the whole chain. Saying which of
+      the two this is matters more than the feature.
+    </p>
+
+    <button type="button" class="btn btn-action mt-2" data-verify>
+      <span data-label>Verify the trail</span>
+    </button>
+
+    <div class="notice mt-3" data-trail-result hidden>
+      <strong data-trail-headline></strong>
+      <span data-trail-detail></span>
+      <ul class="mt-2 mb-0" data-trail-problems></ul>
+    </div>
+  </div>
+</div>
+
+<div class="panel rise">
+  <div class="panel-head">
+    <h2 class="panel-title">Recorded actions</h2>
+    <form method="get" class="d-flex align-items-center gap-2">
+      <label class="micro" for="action">Action</label>
+      <select class="form-select form-select-sm" id="action" name="action"
+              onchange="this.form.submit()" style="width: auto;">
+        <option value="">All</option>
+        {% for value, label in actions %}
+          <option value="{{ value }}" {% if action == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </form>
+  </div>
+
+  {% if page.object_list %}
+    <div class="table-scroll">
+      <table class="table mb-0">
+        <thead>
+          <tr>
+            <th>When</th>
+            <th>Who</th>
+            <th>Did what</th>
+            <th>Case</th>
+            <th>Clinic</th>
+            <th>From</th>
+            <th>Detail</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for event in page.object_list %}
+            <tr>
+              <td class="numeric">{{ event.created_at|date:"j M Y, H:i:s" }}</td>
+              <td>{{ event.actor_label|default:"anonymous" }}</td>
+              <td>{{ event.get_action_display }}</td>
+              <td class="numeric" style="font-size: 0.6875rem;">
+                {% if event.case_id %}{{ event.case_id }}{% else %}&mdash;{% endif %}
+              </td>
+              <td>{{ event.facility|default:"&mdash;" }}</td>
+              <td class="numeric">{{ event.ip_address|default:"&mdash;" }}</td>
+              <td>{{ event.detail|default:"&mdash;" }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {% if page.has_other_pages %}
+      <div class="panel-body">
+        <nav class="pager">
+          {% if page.has_previous %}
+            <a class="btn btn-quiet" href="?page={{ page.previous_page_number }}{% if action %}&amp;action={{ action }}{% endif %}">Previous</a>
+          {% endif %}
+          <span class="micro">Page {{ page.number }} of {{ page.paginator.num_pages }}</span>
+          {% if page.has_next %}
+            <a class="btn btn-quiet" href="?page={{ page.next_page_number }}{% if action %}&amp;action={{ action }}{% endif %}">Next</a>
+          {% endif %}
+        </nav>
+      </div>
+    {% endif %}
+  {% else %}
+    <div class="panel-body">
+      <p class="field-hint mb-0">Nothing recorded yet under this filter.</p>
+    </div>
+  {% endif %}
+</div>
+
+<div class="notice notice-boundary mt-4">
+  What is deliberately not here: the radiograph, the score, or anything about
+  the patient. A row says somebody opened a case, not what they saw in it. An
+  audit trail that repeats the record it protects doubles the exposure instead
+  of reducing it.
+</div>
+
+<script>
+  // The check reads every row, so it runs when asked rather than on load.
+  (function () {
+    const button = document.querySelector("[data-verify]");
+    const state = document.querySelector("[data-trail-state]");
+    const box = document.querySelector("[data-trail-result]");
+    const headline = document.querySelector("[data-trail-headline]");
+    const detail = document.querySelector("[data-trail-detail]");
+    const list = document.querySelector("[data-trail-problems]");
+    const label = button ? button.querySelector("[data-label]") : null;
+    if (!button) return;
+
+    button.addEventListener("click", function () {
+      button.disabled = true;
+      if (label) label.textContent = "Checking every row…";
+      list.textContent = "";
+      box.hidden = true;
+
+      fetch("{% url 'screening:verify_access_trail' %}", {
+        method: "POST",
+        headers: { "X-CSRFToken": "{{ csrf_token }}" },
+      })
+        .then(function (response) { return response.json(); })
+        .then(function (result) {
+          box.hidden = false;
+          box.classList.toggle("notice-boundary", !result.intact);
+          if (result.intact) {
+            headline.textContent = result.checked + " rows verified.";
+            detail.textContent =
+              " The chain is intact: nothing has been altered or removed.";
+            if (state) state.textContent = "Intact";
+          } else {
+            headline.textContent =
+              result.problems.length + (result.more ? "+" : "") +
+              " problem(s) in " + result.checked + " rows.";
+            detail.textContent =
+              " The first row listed is where the trail stops being trustworthy; " +
+              "everything before it still verifies.";
+            result.problems.forEach(function (text) {
+              const item = document.createElement("li");
+              item.className = "field-hint";
+              item.textContent = text;
+              list.appendChild(item);
+            });
+            if (state) state.textContent = "Broken";
+          }
+        })
+        .catch(function () {
+          box.hidden = false;
+          headline.textContent = "The check could not be run.";
+          detail.textContent = " Reload the page and try again.";
+        })
+        .finally(function () {
+          button.disabled = false;
+          if (label) label.textContent = "Verify the trail";
+        });
+    });
+  })();
+</script>
+
+{% endblock %}

@@ -16,6 +16,8 @@ urlpatterns = [
         name="case_explanation",
     ),
     path("cases/<uuid:case_id>/report/", views.case_report, name="case_report"),
+    path("trail/", views.access_trail, name="access_trail"),
+    path("trail/verify/", views.verify_access_trail, name="verify_access_trail"),
     path("dashboard/", views.dashboard, name="dashboard"),
     path("profile/", views.profile, name="profile"),
     path("health/", views.health, name="health"),

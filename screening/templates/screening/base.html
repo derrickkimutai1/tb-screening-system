@@ -22,6 +22,7 @@
         <a href="{% url 'screening:worklist' %}" class="{% if active == 'worklist' %}current{% endif %}">Worklist</a>
         <a href="{% url 'screening:case_list' %}" class="{% if active == 'cases' %}current{% endif %}">Cases</a>
         <a href="{% url 'screening:dashboard' %}" class="{% if active == 'dashboard' %}current{% endif %}">Dashboard</a>
+        <a href="{% url 'screening:access_trail' %}" class="{% if active == 'trail' %}current{% endif %}">Trail</a>
         {% if user.is_authenticated %}
           <a href="{% url 'screening:profile' %}" class="masthead-user {% if active == 'profile' %}current{% endif %}"
              title="{{ user.email|default:user.get_username }}">

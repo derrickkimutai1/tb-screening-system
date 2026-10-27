@@ -3536,3 +3536,118 @@ class PresentationCodeTests(TestCase):
 
         with override_settings(DEBUG=False, EMAIL_BACKEND=self.DEV_BACKEND):
             self.assertIsNone(development_code())
+
+
+class AccessTrailPageTests(TestCase):
+    """The access trail as a page, and the integrity check as a button.
+
+    The trail existed only in the database and the Django admin, so the one
+    property worth demonstrating - that it detects its own alteration - could
+    only be shown from a terminal. A clinical system should be able to answer
+    "who opened this record" to the person accountable for it.
+    """
+
+    def setUp(self):
+        super().setUp()
+        from .models import Profile, profile_for
+
+        self.clinic = clinic("Kenyatta")
+        self.clinician = get_user_model().objects.create_user(
+            username="trail-clinician", email="trail@example.org"
+        )
+        profile = profile_for(self.clinician)
+        profile.facility = self.clinic
+        profile.role = Profile.Role.CLINICIAN
+        profile.save()
+
+        self.admin = get_user_model().objects.create_user(
+            username="trail-admin", email="trailadmin@example.org"
+        )
+        other = profile_for(self.admin)
+        other.facility = clinic("Mbagathi")
+        other.role = Profile.Role.ADMINISTRATOR
+        other.save()
+
+    def entry(self, user, facility, detail="something"):
+        from .models import AccessEvent
+
+        request = RequestFactory().get("/")
+        request.user = user
+        return AccessEvent.record(
+            request, AccessEvent.Action.VIEWED, facility=facility, detail=detail
+        )
+
+    def test_the_page_needs_a_session(self):
+        self.assertEqual(self.client.get(reverse("screening:access_trail")).status_code, 302)
+
+    def test_a_clinician_sees_only_their_own_clinic(self):
+        """The trail carries the same boundary as the caseload it describes."""
+        self.entry(self.clinician, "Kenyatta", "mine")
+        self.entry(self.admin, "Mbagathi", "theirs")
+        self.client.force_login(self.clinician)
+
+        response = self.client.get(reverse("screening:access_trail"))
+
+        self.assertContains(response, "mine")
+        self.assertNotContains(response, "theirs")
+
+    def test_an_administrator_sees_the_whole_installation(self):
+        self.entry(self.clinician, "Kenyatta", "mine")
+        self.entry(self.admin, "Mbagathi", "theirs")
+        self.client.force_login(self.admin)
+
+        response = self.client.get(reverse("screening:access_trail"))
+
+        self.assertContains(response, "mine")
+        self.assertContains(response, "theirs")
+
+    def test_the_check_reports_an_intact_chain(self):
+        self.entry(self.clinician, "Kenyatta")
+        self.entry(self.clinician, "Kenyatta")
+        self.client.force_login(self.clinician)
+
+        answer = self.client.post(reverse("screening:verify_access_trail")).json()
+
+        self.assertTrue(answer["intact"])
+        self.assertEqual(answer["checked"], 2)
+        self.assertEqual(answer["problems"], [])
+
+    def test_the_check_names_an_altered_row(self):
+        """The demonstration this page exists for."""
+        from django.db import connection
+
+        self.entry(self.clinician, "Kenyatta", "one")
+        target = self.entry(self.clinician, "Kenyatta", "two")
+        self.entry(self.clinician, "Kenyatta", "three")
+        self.client.force_login(self.clinician)
+
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "UPDATE screening_accessevent SET detail = %s WHERE id = %s",
+                ["tampered", target.pk],
+            )
+
+        answer = self.client.post(reverse("screening:verify_access_trail")).json()
+
+        self.assertFalse(answer["intact"])
+        self.assertEqual(answer["checked"], 3)
+        self.assertTrue(any(str(target.pk) in p for p in answer["problems"]))
+
+    def test_the_check_refuses_a_get(self):
+        """It reads every row, so a prefetch must not fire it."""
+        self.client.force_login(self.clinician)
+
+        self.assertEqual(
+            self.client.get(reverse("screening:verify_access_trail")).status_code, 405
+        )
+
+    def test_the_trail_does_not_carry_the_score_or_the_image(self):
+        """A log that repeats the record it protects doubles the exposure."""
+        from .models import AccessEvent
+
+        row = self.entry(self.clinician, "Kenyatta")
+
+        stored = {f.name for f in AccessEvent._meta.get_fields() if hasattr(f, "name")}
+        for leaked in ("tb_probability", "xray_image", "explanation_image"):
+            self.assertNotIn(leaked, stored)
+        self.assertTrue(row.actor_label)

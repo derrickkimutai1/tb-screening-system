@@ -47,6 +47,7 @@ from .forms import (
 from .models import (
     AccessEvent,
     PredictionRecord,
+    Profile,
     ReviewNote,
     facility_name,
     profile_for,
@@ -767,6 +768,66 @@ def protected_media(request, path):
         raise Http404("No such file.")
 
     return FileResponse(candidate.open("rb"))
+
+
+@login_required
+def access_trail(request):
+    """The log of who did what, and a way to check it has not been edited.
+
+    The trail existed only in the database and the Django admin, which means
+    the one property worth demonstrating - that it detects its own alteration
+    - could only be shown from a terminal. A clinical system should be able to
+    answer "who opened this patient's record" to the person accountable for
+    it, not only to whoever has a database client.
+
+    Administrators see the whole installation. Everyone else sees their own
+    clinic, for the same reason the case list does.
+    """
+    viewer = profile_for(request.user)
+    events = AccessEvent.objects.order_by("-id")
+    if viewer.role != Profile.Role.ADMINISTRATOR:
+        events = events.filter(facility=facility_name(viewer.facility))
+
+    action = request.GET.get("action", "")
+    if action in AccessEvent.Action.values:
+        events = events.filter(action=action)
+
+    paginator = Paginator(events.select_related("actor"), 50)
+    page = paginator.get_page(request.GET.get("page"))
+
+    return render(
+        request,
+        "screening/access_trail.html",
+        {
+            "page": page,
+            "action": action,
+            "actions": AccessEvent.Action.choices,
+            "total": events.count(),
+            "is_administrator": viewer.role == Profile.Role.ADMINISTRATOR,
+            "active": "trail",
+        },
+    )
+
+
+@login_required
+@require_POST
+def verify_access_trail(request):
+    """Walk the chain and report whether it still adds up.
+
+    Deliberately a POST and deliberately not cached: the answer is about the
+    database as it is at this moment, and a stale "intact" is worse than no
+    answer at all. It reads every row, which is why it is a button rather
+    than something the page does on every load.
+    """
+    checked, problems = AccessEvent.verify_chain()
+    return JsonResponse(
+        {
+            "checked": checked,
+            "intact": not problems,
+            "problems": problems[:20],
+            "more": max(0, len(problems) - 20),
+        }
+    )
 
 
 @login_required
