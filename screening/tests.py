@@ -7,6 +7,7 @@ so nothing here asserts anything about model accuracy.
 """
 
 import io
+import os
 import re
 import shutil
 import sys
@@ -3464,3 +3465,74 @@ class MinimumImageSizeTests(TestCase):
     def test_an_image_at_exactly_the_minimum_is_allowed_through(self):
         """The boundary is inclusive; 224 is the model's own input size."""
         self.assertNotEqual(self.report_for((224, 224)).status, "INVALID")
+
+
+class PresentationCodeTests(TestCase):
+    """Showing the sign-in code on screen, and only where that is safe.
+
+    A demonstration signs in as each role in turn, which with real mail
+    configured means opening three inboxes in front of an examiner. The flag
+    puts the code back on the page. It changes where the code is displayed and
+    nothing else: the address is still typed, the code is still generated and
+    checked, and a wrong one is still refused.
+
+    The danger is obvious, so these check the guard rather than the feature.
+    """
+
+    DEV_BACKEND = "screening.services.devmail.LastMessageBackend"
+    SMTP_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+
+    def backend_with(self, debug, flag, host="smtp.example.org"):
+        """Re-read settings under a given environment."""
+        import importlib
+
+        from django.conf import settings as live
+
+        with mock.patch.dict(
+            os.environ,
+            {
+                "DJANGO_DEBUG": str(debug),
+                "SIGN_IN_CODE_ON_SCREEN": str(flag),
+                "EMAIL_HOST": host,
+            },
+        ):
+            module = importlib.import_module("config.settings")
+            importlib.reload(module)
+            chosen = module.EMAIL_BACKEND
+            on_screen = module.SIGN_IN_CODE_ON_SCREEN
+        # Leave the process as it was found.
+        importlib.reload(importlib.import_module("config.settings"))
+        live.EMAIL_BACKEND  # noqa: B018 - touch it so a misconfiguration surfaces here
+        return chosen, on_screen
+
+    def test_the_flag_shows_the_code_while_developing(self):
+        backend, on_screen = self.backend_with(debug=True, flag=True)
+
+        self.assertTrue(on_screen)
+        self.assertEqual(backend, self.DEV_BACKEND)
+
+    def test_debug_off_refuses_it_even_when_the_flag_is_set(self):
+        """A deployment must not be able to display codes by setting one name."""
+        backend, on_screen = self.backend_with(debug=False, flag=True)
+
+        self.assertFalse(on_screen)
+        self.assertEqual(backend, self.SMTP_BACKEND)
+
+    def test_without_the_flag_configured_mail_is_used(self):
+        backend, on_screen = self.backend_with(debug=True, flag=False)
+
+        self.assertFalse(on_screen)
+        self.assertEqual(backend, self.SMTP_BACKEND)
+
+    def test_the_template_tag_stays_silent_under_the_real_backend(self):
+        """Two independent guards, so neither alone can leak a code."""
+        from screening.templatetags.devmail import development_code
+
+        with override_settings(DEBUG=True, EMAIL_BACKEND=self.SMTP_BACKEND):
+            self.assertIsNone(development_code())
+
+    def test_the_template_tag_stays_silent_when_debug_is_off(self):
+        from screening.templatetags.devmail import development_code
+
+        with override_settings(DEBUG=False, EMAIL_BACKEND=self.DEV_BACKEND):
+            self.assertIsNone(development_code())

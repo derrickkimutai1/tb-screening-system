@@ -39,11 +39,13 @@
   {% development_code as dev_code %}
   {% if dev_code %}
     <div class="notice notice-dev mb-3">
-      <strong>No mail provider is configured</strong>, so nothing was sent.
-      The code is <span class="dev-code">{{ dev_code }}</span>.
+      The code is <span class="dev-code">{{ dev_code }}</span>, shown here
+      rather than sent.
       <br>
-      This appears only because <code>DEBUG</code> is on and mail is going to
-      the server console. Set <code>EMAIL_HOST</code> to deliver it properly.
+      This appears only while <code>DEBUG</code> is on and the code is going to
+      the server console: either no mail provider is configured, or
+      <code>SIGN_IN_CODE_ON_SCREEN</code> is set for a demonstration. It can
+      never appear in a deployment.
     </div>
   {% endif %}
 

@@ -123,6 +123,39 @@ same preprocessing module the application uses.
 > laptop failed I would clone the repository, restore the data and the database from
 > Drive, and carry on."
 
+## Signing in as each role during the demonstration
+
+An examiner will likely ask to see the system as a radiographer and as a
+clinician. Three accounts exist for that, all at Kenyatta National Hospital so
+they share a caseload and differ only in what they may do:
+
+| Address | Role | What it demonstrates |
+|---|---|---|
+| `derrickkimutai@students.uonbi.ac.ke` | Radiographer | Sees every case, cannot review one |
+| `derrick.kim46@gmail.com` | Clinician | Can record a review |
+| `derrick.kimutai@strathmore.edu` | Administrator | Can review, and reaches `/admin/` to set roles |
+
+Set `SIGN_IN_CODE_ON_SCREEN=True` in `.env` before presenting. The six-digit
+code then appears on the page instead of being emailed, so the whole sequence
+is typed in front of the room rather than fetched from three different
+inboxes, and it does not depend on the venue's network. Nothing else changes:
+the address is typed, the code is generated and checked, and a wrong code is
+still refused. The flag is ignored unless `DEBUG` is on, so it cannot be
+turned on in a deployment.
+
+Say what it is if asked, rather than letting it be noticed: the code is being
+shown instead of sent, and the sign-in itself is the real one.
+
+**The point to make while switching roles**: the radiographer sees the same
+fourteen cases, so nothing is hidden from them, but the Review panel is
+replaced by a note saying a clinician has to decide. Then add that the server
+refuses the review even if the form is bypassed - it answers 403, which is
+tested rather than asserted.
+
+**If asked why a user cannot choose their own role**: because anyone who could
+would grant themselves the right to sign off TB cases, and the role would be
+decoration. It is set by an administrator in `/admin/`.
+
 ## 7. Close with what is outstanding, about 1 minute
 
 Say these before being asked:

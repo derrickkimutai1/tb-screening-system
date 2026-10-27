@@ -21,7 +21,19 @@ import threading
 
 from django.core.mail.backends.console import EmailBackend as ConsoleBackend
 
-_last = threading.local()
+# Held for the process, not for the thread that sent the message.
+#
+# This was a threading.local, which looked right and was not: the request that
+# sends the code and the request that renders the page asking for it are two
+# different requests, and the development server hands them to whichever
+# worker thread is free. The code was stored on one thread and read from
+# another, so the panel was usually empty and the whole aid looked broken.
+#
+# A module-level holder is correct here because this backend only ever runs in
+# a single-process development server. The lock is for tidiness rather than
+# contention; two sign-ins at once would otherwise interleave the fields.
+_lock = threading.Lock()
+_last = {}
 
 CODE = re.compile(r"\b(\d{6})\b")
 
@@ -32,17 +44,26 @@ class LastMessageBackend(ConsoleBackend):
     def send_messages(self, email_messages):
         for message in email_messages:
             found = CODE.search(message.body or "")
-            _last.code = found.group(1) if found else None
-            _last.to = list(message.to)
-            _last.subject = message.subject
+            with _lock:
+                _last["code"] = found.group(1) if found else None
+                _last["to"] = list(message.to)
+                _last["subject"] = message.subject
         return super().send_messages(email_messages)
 
 
 def last_code():
     """The code in the most recent message, or None if there was none."""
-    return getattr(_last, "code", None)
+    with _lock:
+        return _last.get("code")
 
 
 def last_recipient():
-    recipients = getattr(_last, "to", None)
+    with _lock:
+        recipients = _last.get("to")
     return recipients[0] if recipients else None
+
+
+def forget():
+    """Drop what is held. For tests, so one does not leak into the next."""
+    with _lock:
+        _last.clear()

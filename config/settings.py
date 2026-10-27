@@ -452,7 +452,21 @@ if not DEBUG:
 
 EMAIL_HOST = os.environ.get("EMAIL_HOST", "").strip()
 
-if EMAIL_HOST:
+# Showing the code on screen during a demonstration, without unconfiguring mail.
+#
+# A presentation signs in as a radiographer, then a clinician, then an
+# administrator, to show that the roles differ. With real mail configured that
+# means opening three inboxes in front of an examiner, which is slow and fails
+# if the room's network does. This flag puts the code back on the page so the
+# whole sequence is typed rather than fetched.
+#
+# It changes nothing about how sign-in works: the address is still typed, the
+# code is still generated and checked, and a wrong code is still refused. Only
+# where the code is displayed changes. It is refused outright unless DEBUG is
+# on, so a deployment cannot turn it on by setting one variable.
+SIGN_IN_CODE_ON_SCREEN = DEBUG and env_flag("SIGN_IN_CODE_ON_SCREEN", default=False)
+
+if EMAIL_HOST and not SIGN_IN_CODE_ON_SCREEN:
     EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
     EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "587"))
     EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
