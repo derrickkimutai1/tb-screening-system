@@ -1986,6 +1986,38 @@ class ResponsiveLayoutTests(TestCase):
         self.assertIn(".table-scroll {", css)
         self.assertIn("overflow-x: auto", css)
 
+    def test_the_navigation_is_given_room_before_a_wide_desktop(self):
+        """Six destinations and an email overflowed 1024 pixels by eighteen.
+
+        NFR-10 asks the interface to render legibly from 1024 pixels upward,
+        and the masthead had only a phone breakpoint, so between a phone and a
+        wide desktop the navigation simply ran off the side and dragged the
+        page with it. Adding two destinations in one afternoon was enough to
+        cross the line.
+        """
+        css = self.stylesheet()
+
+        self.assertIn("@media (max-width: 1279.98px)", css)
+        # The nav has to be allowed to shrink, or padding alone never closes
+        # the last few pixels.
+        intermediate = css.split("@media (max-width: 1279.98px)", 1)[1][:600]
+        self.assertIn(".masthead-nav", intermediate)
+        self.assertIn("min-width: 0", intermediate)
+
+    def test_the_dim_text_colour_meets_the_contrast_it_is_measured_against(self):
+        """It carries nearly every secondary label, so it fails everywhere at once."""
+        css = self.stylesheet()
+
+        self.assertIn("--ink-dim: #85907e;", css)
+        self.assertNotIn("--ink-dim: #6e7768;", css)
+
+    def test_links_use_the_palette_rather_than_bootstraps_default(self):
+        """Bootstrap 5.3 reads --bs-link-color-rgb; setting the other does nothing."""
+        css = self.stylesheet()
+
+        self.assertIn("--bs-link-color-rgb:", css)
+        self.assertIn("--bs-link-hover-color-rgb:", css)
+
     def test_every_table_is_wrapped(self):
         """An unwrapped one reintroduces the sideways scroll on its own page."""
         from django.conf import settings

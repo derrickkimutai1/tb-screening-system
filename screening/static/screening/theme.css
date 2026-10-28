@@ -177,6 +177,39 @@ td.numeric {
   padding: 0.75rem 0;
 }
 
+/* Between a phone and a wide desktop the navigation has to earn its room.
+   Six destinations plus an email address overflowed a 1024 pixel window by
+   eighteen pixels and dragged the whole page sideways, which NFR-10 asks the
+   interface not to do at that width. The items give up padding and letter
+   spacing before the account gives up characters, because a truncated email
+   is less useful than a tighter button. */
+@media (max-width: 1279.98px) {
+  .masthead-inner {
+    gap: 1rem;
+  }
+
+  .masthead-nav {
+    gap: 0.125rem;
+  }
+
+  .masthead-nav a {
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+    letter-spacing: 0.06em;
+  }
+
+  .masthead-user {
+    max-width: 8rem;
+  }
+
+  /* Without this the nav is treated as unshrinkable and the last two pixels
+     of it stay outside the window however much padding is given up. */
+  .masthead-nav {
+    min-width: 0;
+    flex-shrink: 1;
+  }
+}
+
 .masthead-title {
   font-family: var(--display);
   font-weight: 800;
