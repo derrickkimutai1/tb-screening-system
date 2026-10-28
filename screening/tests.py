@@ -1986,6 +1986,45 @@ class ResponsiveLayoutTests(TestCase):
         self.assertIn(".table-scroll {", css)
         self.assertIn("overflow-x: auto", css)
 
+    def test_content_is_visible_without_scripting(self):
+        """The reveal must not be the only thing that makes a page appear.
+
+        .rise held opacity: 0 as its resting state, so every panel depended on
+        JavaScript running to become visible at all. A blocked, failed or slow
+        script left a page that looked empty rather than one without an
+        animation. The stylesheet now hides only what scripting has said it
+        will animate.
+        """
+        css = self.stylesheet()
+
+        hiding = css.split(".js .rise {", 1)
+        self.assertEqual(len(hiding), 2, ".js .rise must be what hides a panel")
+        self.assertIn("opacity: 0", hiding[1][:120])
+
+        # The bare selector must not carry the hidden state.
+        bare = css.split(chr(10) + ".rise {", 1)[1].split("}", 1)[0]
+        self.assertNotIn("opacity: 0", bare)
+
+    def test_both_base_templates_mark_the_document_as_scripted(self):
+        """The rule only lifts if something sets the class, on every page."""
+        from django.conf import settings
+
+        root = settings.BASE_DIR / "screening" / "templates"
+        for name in ("screening/base.html", "account/base_auth.html"):
+            markup = (root / name).read_text(encoding="utf-8")
+            self.assertIn('classList.add("js")', markup, f"{name} never marks the document")
+
+    def test_the_sign_in_page_does_not_publish_the_operating_point(self):
+        """A gate that names the threshold tells an attacker what to aim at."""
+        from django.conf import settings
+
+        markup = (
+            settings.BASE_DIR / "screening" / "templates" / "account" / "login.html"
+        ).read_text(encoding="utf-8")
+
+        self.assertNotIn("0.102", markup)
+        self.assertNotIn("TB_MOBILENETV2_V1", markup)
+
     def test_the_navigation_is_given_room_before_a_wide_desktop(self):
         """Six destinations and an email overflowed 1024 pixels by eighteen.
 

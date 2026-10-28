@@ -812,10 +812,24 @@ td.numeric {
    Content settles in on load and as it enters the viewport. Suppressed for
    anyone who has asked the system to reduce motion. */
 
+/* Visible by default; hidden only once scripting has said it will animate.
+   This was the other way round, so opacity: 0 was the resting state and the
+   content depended on JavaScript running to become visible at all. A failed
+   script, a slow one, or a browser that blocked it left a page that looked
+   empty rather than a page without an animation. The class on <html> is set
+   by an inline script in base.html before anything paints. */
 .rise {
+  transition: opacity 0.6s var(--ease), transform 0.6s var(--ease);
+}
+
+.js .rise {
   opacity: 0;
   transform: translateY(14px);
-  transition: opacity 0.6s var(--ease), transform 0.6s var(--ease);
+}
+
+.js .rise.shown {
+  opacity: 1;
+  transform: none;
 }
 
 .rise.shown {

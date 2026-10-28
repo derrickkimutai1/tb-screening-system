@@ -10,10 +10,18 @@
   <h1 class="display display-lg gate-wordmark">TB&nbsp;Screening</h1>
   <p class="gate-qualifier">Chest radiograph triage</p>
 
+  {% comment %}
+    Deliberately says nothing about the model or the threshold it runs at.
+    Both used to be printed here, where anyone who had not signed in could
+    read them: the version of the network and the exact cutoff a result turns
+    on. Neither helps somebody sign in, and a system that publishes its
+    operating point to the open internet is telling an attacker which score to
+    aim at. They are on the model page, behind a session.
+  {% endcomment %}
   <dl class="gate-spec">
-    <div><dt>Model</dt><dd>TB_MOBILENETV2_V1</dd></div>
-    <div><dt>Decision threshold</dt><dd>0.102</dd></div>
-    <div><dt>Records</dt><dd>PostgreSQL, access logged</dd></div>
+    <div><dt>Purpose</dt><dd>Screening support</dd></div>
+    <div><dt>Access</dt><dd>Authorised clinical staff</dd></div>
+    <div><dt>Records</dt><dd>Stored, access logged</dd></div>
   </dl>
 
   <p class="gate-note">

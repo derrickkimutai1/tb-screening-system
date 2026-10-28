@@ -1,6 +1,13 @@
 {% load static %}<!doctype html>
 <html lang="en-GB">
 <head>
+  {% comment %}
+    Marks the document as scripted before anything paints, so the stylesheet
+    can hide what it is about to animate. Without the class the reveal never
+    hides anything and every panel is simply visible, which is the correct
+    outcome when scripting is unavailable, blocked or slow.
+  {% endcomment %}
+  <script>document.documentElement.classList.add("js");</script>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}TB Screening Support{% endblock %}</title>

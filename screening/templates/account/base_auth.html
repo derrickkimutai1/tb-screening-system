@@ -1,5 +1,12 @@
 {% load static %}<!doctype html>
 <html lang="en-GB">
+{% comment %}
+  The same marker the application base sets, so the two documents behave
+  alike and the stylesheet can rely on it everywhere. The sign-in pages do not
+  currently use the reveal, so nothing here depends on it today; it is set so
+  that adding an animated panel to this base later cannot leave it hidden.
+{% endcomment %}
+<script>document.documentElement.classList.add("js");</script>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
