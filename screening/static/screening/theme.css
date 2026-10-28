@@ -38,13 +38,22 @@
 
   --ink: #edf1e2;
   --ink-muted: #9ba491;
-  --ink-dim: #6e7768;
+  /* Lifted from #6e7768, which measured 3.26:1 against --surface where WCAG
+     AA asks 4.5:1 for text below 24px. This colour carries almost every
+     secondary label in the interface - readout captions, field hints, the
+     micro labels - so it failed on every page at once. #85907e measures
+     4.55:1. Checked with alpha compositing, because several of these sit on
+     translucent panels and a naive reading of the background gives a figure
+     that is wrong in the flattering direction. */
+  --ink-dim: #85907e;
 
   --acid: #d7f225;
   --acid-deep: #b4cc16;
   --acid-wash: rgba(215, 242, 37, 0.12);
 
-  --triage-low: #7f8a76;
+  /* 3.48:1 inside its own 14% tinted chip; #929f88 measures 4.51:1. The
+     medium and high chips already passed at 6.18 and 5.69. */
+  --triage-low: #929f88;
   --triage-medium: #ffb02e;
   --triage-high: #ff4a38;
 
@@ -62,8 +71,15 @@
   --bs-body-font-size: 0.875rem;
   --bs-border-color: var(--line);
   --bs-border-radius: var(--r);
+  /* Bootstrap 5.3 builds a link colour from --bs-link-color-rgb, not from
+     --bs-link-color, so setting only the latter left every inline link in
+     body text at Bootstrap's default blue: out of place in this palette, and
+     3.37:1 against the panel where 4.5:1 is required. Both are set now, and
+     the -rgb pair is the one that actually does the work. */
   --bs-link-color: var(--acid);
+  --bs-link-color-rgb: 215, 242, 37;
   --bs-link-hover-color: #e9ff5c;
+  --bs-link-hover-color-rgb: 233, 255, 92;
   --bs-emphasis-color: var(--ink);
 }
 
