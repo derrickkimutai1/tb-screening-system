@@ -95,8 +95,23 @@
       </div>
       <div class="panel-body">
         <div class="radiograph-frame">
-          <img src="{{ record.xray_image.url }}"
-               alt="Uploaded chest radiograph for {{ record.patient_reference }}">
+          {% comment %}
+            Guarded, because reading .url on a field with no file raises
+            rather than returning nothing, and this page answered 500 for any
+            record whose image had gone. That is not hypothetical where this
+            is deployed: a Space has no persistent disk, so after a restart
+            the rows remain and the files do not, and every case page would
+            have failed instead of showing a result without its picture.
+          {% endcomment %}
+          {% if record.xray_image %}
+            <img src="{{ record.xray_image.url }}"
+                 alt="Uploaded chest radiograph for {{ record.patient_reference }}">
+          {% else %}
+            <p class="placeholder-note mb-0">
+              The stored radiograph is no longer available. The screening and
+              its result are unchanged; only the image is missing.
+            </p>
+          {% endif %}
         </div>
       </div>
     </div>

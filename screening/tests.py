@@ -6,6 +6,7 @@ unusable files, and the reporting views. The prediction is still a placeholder,
 so nothing here asserts anything about model accuracy.
 """
 
+import csv
 import io
 import json
 import os
@@ -4103,3 +4104,124 @@ class BlankImageTests(TestCase):
             shutil.rmtree(directory, ignore_errors=True)
 
         self.assertNotEqual(report.status, "INVALID")
+
+
+@override_settings(MEDIA_ROOT=MEDIA_FOR_TESTS)
+class AwkwardRecordTests(TestCase):
+    """What the export and the printed report do with data that fights back.
+
+    Case references are typed by people, and the export exists so that other
+    people open it in a spreadsheet. Both of those facts have consequences
+    that only appear when the data is awkward rather than tidy.
+    """
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(MEDIA_FOR_TESTS, ignore_errors=True)
+        super().tearDownClass()
+
+    def setUp(self):
+        super().setUp()
+        from .models import Profile, profile_for
+
+        self.clinic = clinic("Kenyatta")
+        self.user = get_user_model().objects.create_user(
+            username="awkward", email="awkward@example.org"
+        )
+        profile = profile_for(self.user)
+        profile.facility = self.clinic
+        profile.role = Profile.Role.CLINICIAN
+        profile.save()
+        self.client.force_login(self.user)
+
+    def record(self, reference, image="x.png"):
+        return PredictionRecord.objects.create(
+            patient_reference=reference,
+            xray_image=image,
+            facility=self.clinic,
+            screened_by=self.user,
+            tb_probability=Decimal("0.500"),
+            predicted_label=PredictionRecord.PredictedLabel.LIKELY_TB,
+            quality_status=PredictionRecord.QualityStatus.ACCEPTABLE,
+            triage_level=PredictionRecord.TriageLevel.MEDIUM,
+            model_version="test",
+            decision_threshold=Decimal("0.102"),
+            triage_low_medium_threshold=Decimal("0.102"),
+            triage_medium_high_threshold=Decimal("0.546"),
+        )
+
+    # ---- the export a colleague opens in Excel --------------------------
+
+    def test_a_reference_that_is_a_formula_is_exported_as_text(self):
+        """Otherwise opening the file runs what somebody typed into a form.
+
+        Excel and Sheets evaluate a cell beginning with an equals sign, so a
+        case reference of =cmd|'/c calc'!A1 becomes an instruction on the
+        machine of whoever opens the export.
+        """
+        self.record("=cmd|'/c calc'!A1")
+
+        body = self.client.get(reverse("screening:export_cases")).content.decode()
+        references = [row[0] for row in csv.reader(io.StringIO(body))][1:]
+
+        self.assertTrue(references)
+        for cell in references:
+            self.assertNotIn(cell[:1], ("=", "+", "-", "@"))
+
+    def test_the_formula_text_itself_is_not_lost(self):
+        """Made safe, not silently altered beyond recognition."""
+        self.record("=1+1")
+
+        body = self.client.get(reverse("screening:export_cases")).content.decode()
+
+        self.assertIn("=1+1", body)
+
+    def test_commas_quotes_and_newlines_do_not_break_a_row(self):
+        for reference in ("A,COMMA", 'B"QUOTE"', "C\nNEWLINE"):
+            self.record(reference)
+
+        body = self.client.get(reverse("screening:export_cases")).content.decode()
+        rows = list(csv.reader(io.StringIO(body)))
+
+        self.assertEqual(len(rows) - 1, 3)
+        self.assertEqual({len(row) for row in rows}, {len(rows[0])})
+
+    def test_a_non_ascii_reference_survives(self):
+        self.record("RÉF-Ωmega")
+
+        body = self.client.get(reverse("screening:export_cases")).content.decode()
+
+        self.assertIn("Ωmega", body)
+
+    # ---- a record whose image has gone -----------------------------------
+
+    def test_the_case_page_survives_a_missing_image(self):
+        """A Space has no persistent disk, so this is the deployed state.
+
+        Reading .url on a field with no file raises rather than returning
+        nothing, and the page answered 500 for every such record.
+        """
+        record = self.record("GONE-01", image="")
+
+        response = self.client.get(reverse("screening:case_detail", args=[record.case_id]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "no longer available")
+
+    def test_the_printed_report_survives_a_missing_image(self):
+        record = self.record("GONE-02", image="")
+
+        response = self.client.get(reverse("screening:case_report", args=[record.case_id]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "screening aid, not a diagnosis")
+
+    def test_a_missing_image_does_not_hide_the_result(self):
+        """The screening is still a screening without its picture."""
+        record = self.record("GONE-03", image="")
+
+        body = self.client.get(
+            reverse("screening:case_detail", args=[record.case_id])
+        ).content.decode()
+
+        self.assertIn("0.5000", body)

@@ -921,6 +921,29 @@ def delete_my_account(request):
     return redirect("account_login")
 
 
+# Characters a spreadsheet treats as the start of a formula rather than text.
+FORMULA_LEADERS = ("=", "+", "-", "@", chr(9), chr(13))
+
+
+def _spreadsheet_safe(value):
+    """Keep a cell as text when a spreadsheet would otherwise run it.
+
+    A case reference is typed by a person, and nothing stops that person
+    typing one that begins with an equals sign. Excel and Sheets read such a
+    cell as a formula, so an exported record could run =cmd|'/c calc'!A1 or
+    fetch a URL on the machine of whoever opened the file. This export exists
+    so that colleagues open it in a spreadsheet, which is exactly the
+    situation the attack needs.
+
+    A leading apostrophe is the usual remedy: the spreadsheet shows the text
+    and does not evaluate it. The CSV still carries the original characters,
+    so a program reading it rather than a spreadsheet loses nothing it cannot
+    strip.
+    """
+    text = "" if value is None else str(value)
+    return "'" + text if text.startswith(FORMULA_LEADERS) else text
+
+
 def _artifact(name):
     """Read one measurement file, or None if this build does not carry it."""
     path = Path(settings.BASE_DIR) / "ml" / "artifacts" / name
@@ -1128,20 +1151,26 @@ def export_cases(request):
         ]
     )
     for record in records:
+        # Every cell through the guard, not only the reference: the clinic
+        # name and the address are also typed by somebody at some point, and
+        # a rule that covers one field is a rule somebody forgets to extend.
         writer.writerow(
             [
-                record.patient_reference,
-                record.case_id,
-                record.created_at.strftime("%Y-%m-%d %H:%M"),
-                facility_name(record.facility),
-                record.screened_by.email if record.screened_by else "",
-                record.get_predicted_label_display(),
-                record.tb_probability,
-                record.decision_threshold,
-                record.get_triage_level_display(),
-                record.get_quality_status_display(),
-                record.get_review_status_display(),
-                record.model_version,
+                _spreadsheet_safe(value)
+                for value in (
+                    record.patient_reference,
+                    record.case_id,
+                    record.created_at.strftime("%Y-%m-%d %H:%M"),
+                    facility_name(record.facility),
+                    record.screened_by.email if record.screened_by else "",
+                    record.get_predicted_label_display(),
+                    record.tb_probability,
+                    record.decision_threshold,
+                    record.get_triage_level_display(),
+                    record.get_quality_status_display(),
+                    record.get_review_status_display(),
+                    record.model_version,
+                )
             ]
         )
     return response
