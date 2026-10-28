@@ -4225,3 +4225,100 @@ class AwkwardRecordTests(TestCase):
         ).content.decode()
 
         self.assertIn("0.5000", body)
+
+
+class MicrosoftSignInTests(TestCase):
+    """The Microsoft route, which had never been exercised by anything.
+
+    A Kenyan university or hospital issuing addresses is most likely running
+    Microsoft 365, so this is the route a clinician would actually use. It was
+    written, registered conditionally, documented, and never once tested -
+    including by a human, because the credentials have never been filled in.
+
+    The half of the flow that belongs to this system can be checked without an
+    Azure registration: whether the button appears, whether the route exists,
+    and whether the request sent to Microsoft is the one the documentation
+    tells somebody to register.
+    """
+
+    FAKE_ID = "11111111-2222-3333-4444-555555555555"
+
+    def configured(self, tenant="common"):
+        from django.test import override_settings
+
+        return override_settings(
+            MICROSOFT_SIGN_IN_CONFIGURED=True,
+            MICROSOFT_TENANT=tenant,
+            SOCIALACCOUNT_PROVIDERS={
+                "microsoft": {
+                    "APP": {
+                        "client_id": self.FAKE_ID,
+                        "secret": "not-a-real-secret",
+                        "key": "",
+                    },
+                    "TENANT": tenant,
+                }
+            },
+        )
+
+    def test_the_button_is_hidden_until_credentials_exist(self):
+        """An offer that cannot work is worse than no offer."""
+        from django.test import override_settings
+
+        with override_settings(MICROSOFT_SIGN_IN_CONFIGURED=False):
+            response = self.client.get(reverse("account_login"))
+
+        self.assertNotContains(response, "Continue with Microsoft")
+
+    def test_the_button_appears_once_configured(self):
+        with self.configured():
+            response = self.client.get(reverse("account_login"))
+
+        self.assertContains(response, "Continue with Microsoft")
+
+    def test_the_route_exists(self):
+        self.assertEqual(reverse("microsoft_login"), "/accounts/microsoft/login/")
+
+    def test_it_sends_the_request_microsoft_expects(self):
+        from urllib.parse import parse_qs, urlparse
+
+        with self.configured():
+            response = self.client.post(reverse("microsoft_login"), {})
+
+        self.assertEqual(response.status_code, 302)
+        target = urlparse(response["Location"])
+        query = parse_qs(target.query)
+
+        self.assertEqual(target.netloc, "login.microsoftonline.com")
+        self.assertIn("/common/oauth2/v2.0/authorize", target.path)
+        self.assertEqual(query["client_id"][0], self.FAKE_ID)
+        self.assertEqual(query["response_type"][0], "code")
+
+    def test_the_callback_matches_what_the_documentation_registers(self):
+        """A redirect URI that disagrees with the portal fails at the last step.
+
+        .env.example tells somebody to register
+        /accounts/microsoft/login/callback/, and Microsoft refuses the sign-in
+        if what arrives differs by so much as a trailing slash.
+        """
+        from urllib.parse import parse_qs, urlparse
+
+        from django.conf import settings
+
+        with self.configured():
+            response = self.client.post(reverse("microsoft_login"), {})
+
+        sent = parse_qs(urlparse(response["Location"]).query)["redirect_uri"][0]
+        self.assertTrue(sent.endswith("/accounts/microsoft/login/callback/"))
+
+        documented = (settings.BASE_DIR / ".env.example").read_text(encoding="utf-8")
+        self.assertIn("/accounts/microsoft/login/callback/", documented)
+
+    def test_a_single_tenant_restricts_the_sign_in(self):
+        """The right setting for a hospital, the wrong one for a demonstration."""
+        from urllib.parse import urlparse
+
+        with self.configured(tenant="strathmore-tenant-id"):
+            response = self.client.post(reverse("microsoft_login"), {})
+
+        self.assertIn("/strathmore-tenant-id/", urlparse(response["Location"]).path)
