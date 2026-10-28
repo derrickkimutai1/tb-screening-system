@@ -56,14 +56,28 @@ def clinic(name="Kenyatta"):
 def make_image(name="chest.png", size=(256, 256), fmt="PNG"):
     """Build a small valid greyscale image in memory.
 
-    256 rather than 64, because the quality check now refuses anything below
-    the model's own 224 pixel input: a radiograph smaller than that could only
-    be screened by enlarging it first, which invents no detail and still
-    produces a confident-looking score. A 64 pixel chest X-ray was never a
-    realistic fixture; it only passed because nothing checked.
+    256 rather than 64, because the quality check refuses anything below the
+    model's own 224 pixel input: a radiograph smaller than that could only be
+    screened by enlarging it first, which invents no detail and still produces
+    a confident-looking score.
+
+    Varied rather than a flat fill, because the check also refuses an image
+    with no range between its lightest and darkest point. A uniform rectangle
+    is not a radiograph, and the fixture used to be exactly that - which is
+    why a real decoding fault that turned films into black rectangles went
+    unnoticed by three hundred tests.
     """
+    width, height = size
+    image = Image.new("L", size)
+    image.putdata(
+        [
+            40 + ((x * 180) // max(1, width)) + ((y * 30) // max(1, height)) % 36
+            for y in range(height)
+            for x in range(width)
+        ]
+    )
     buffer = io.BytesIO()
-    Image.new("L", size, color=110).save(buffer, format=fmt)
+    image.save(buffer, format=fmt)
     buffer.seek(0)
     content_type = "image/png" if fmt == "PNG" else "image/jpeg"
     return SimpleUploadedFile(name, buffer.read(), content_type=content_type)
@@ -328,13 +342,34 @@ class QualityCheckerTests(TestCase):
         self.assertEqual(report.status, "ACCEPTABLE")
         self.assertEqual(report.message, "")
 
-    def test_a_flat_image_is_flagged_as_blurred(self):
-        flat = np.full((512, 512), 150.0)
-        report = self.checker.check(self.write(flat))
+    def test_a_barely_textured_image_is_flagged_as_blurred(self):
+        """Low detail warns. It used to be tested with a flat fill, which is
+        now refused outright, so the fixture carries just enough variation to
+        be an image at all."""
+        # A smooth gradient: plenty of range, so it is not blank, and almost
+        # no high-frequency detail, so it is genuinely low in detail. Faint
+        # noise would not do - noise is high-frequency and reads as sharp
+        # however small its amplitude.
+        ramp = np.linspace(40, 230, 512)
+        soft = np.tile(ramp, (512, 1))
+        report = self.checker.check(self.write(soft))
 
         self.assertEqual(report.status, "DEGRADED")
         self.assertIn("blurred", report.message)
         self.assertLess(report.blur_score, 100)
+
+    def test_a_flat_image_is_refused_rather_than_merely_flagged(self):
+        """It carries nothing to screen, whatever the sharpness check makes of it.
+
+        This used to be DEGRADED, so a uniform rectangle was screened and came
+        back with a confident label. That is a way of producing false
+        negatives, not a quality caution.
+        """
+        report = self.checker.check(self.write(np.full((512, 512), 150.0)))
+
+        self.assertEqual(report.status, "INVALID")
+        self.assertFalse(report.is_usable)
+        self.assertIn("blank", report.message.lower())
 
     def test_a_dark_image_is_flagged(self):
         report = self.checker.check(self.write(self.textured(brightness=30)))
@@ -358,7 +393,9 @@ class QualityCheckerTests(TestCase):
 
     def test_a_degraded_image_is_still_usable(self):
         """Poor quality warns the clinician; it does not block the screening."""
-        report = self.checker.check(self.write(np.full((512, 512), 150.0)))
+        report = self.checker.check(self.write(self.textured(brightness=30)))
+
+        self.assertEqual(report.status, "DEGRADED")
         self.assertTrue(report.is_usable)
 
 
@@ -3513,7 +3550,12 @@ class MinimumImageSizeTests(TestCase):
         directory = Path(tempfile.mkdtemp())
         try:
             path = directory / "image.png"
-            Image.new("L", size, color=130).save(path)
+            width, height = size
+            image = Image.new("L", size)
+            image.putdata(
+                [40 + ((x * 200) // max(1, width)) for _ in range(height) for x in range(width)]
+            )
+            image.save(path)
             return ImageQualityChecker().check(path)
         finally:
             shutil.rmtree(directory, ignore_errors=True)
@@ -3960,3 +4002,104 @@ class DataRightsTests(TestCase):
         self.assertEqual(
             self.client.get(reverse("screening:delete_my_account")).status_code, 405
         )
+
+
+class PaletteImageTests(TestCase):
+    """A palette PNG has to survive being stripped of its metadata.
+
+    Half of this project's own dataset is palette-mode PNG. Copying one into
+    a new image of the same mode moves the palette indices into an image with
+    no palette, so a 5.6 MB radiograph became a 6 KB black rectangle - which
+    was then screened, and came back "Unlikely TB" on an image containing
+    nothing at all.
+    """
+
+    def palette_radiograph(self, name="palette.png"):
+        """A greyscale gradient stored as a palette image, as the dataset is."""
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        base = Image.new("L", (300, 300))
+        base.putdata([(x * 255) // 300 for _ in range(300) for x in range(300)])
+        paletted = base.convert("P")
+        buffer = io.BytesIO()
+        paletted.save(buffer, format="PNG")
+        buffer.seek(0)
+        return SimpleUploadedFile(name, buffer.read(), "image/png")
+
+    def test_a_palette_image_keeps_its_pixels(self):
+        from screening.services.sanitise import strip_metadata
+
+        cleaned = strip_metadata(self.palette_radiograph())
+        image = Image.open(cleaned)
+
+        low, high = image.convert("L").getextrema()
+        self.assertGreater(high - low, 16, "the image came back blank")
+
+    def test_the_palette_itself_does_not_survive(self):
+        """The indirection is dropped; the picture is not."""
+        from screening.services.sanitise import strip_metadata
+
+        image = Image.open(strip_metadata(self.palette_radiograph()))
+
+        self.assertIn(image.mode, {"RGB", "RGBA"})
+
+    def test_metadata_is_still_removed(self):
+        """Fixing the palette must not quietly stop the stripping."""
+        from screening.services.sanitise import strip_metadata
+
+        image = Image.open(strip_metadata(self.palette_radiograph()))
+
+        self.assertEqual(dict(image.info), {})
+
+
+class BlankImageTests(TestCase):
+    """An image with no range carries nothing to screen.
+
+    A uniform rectangle is not a degraded radiograph. Before this it was
+    called blurred and dark, screened anyway, and returned a confident
+    negative - which in a screening tool is a mechanism for producing false
+    negatives rather than a cosmetic complaint.
+    """
+
+    def report_for(self, fill):
+        from screening.services.quality import ImageQualityChecker
+
+        directory = Path(tempfile.mkdtemp())
+        try:
+            path = directory / "image.png"
+            Image.new("L", (400, 400), color=fill).save(path)
+            return ImageQualityChecker().check(path)
+        finally:
+            shutil.rmtree(directory, ignore_errors=True)
+
+    def test_a_black_rectangle_is_refused(self):
+        report = self.report_for(0)
+
+        self.assertEqual(report.status, "INVALID")
+        self.assertFalse(report.is_usable)
+
+    def test_a_white_rectangle_is_refused(self):
+        """Blank is blank whichever end of the scale it sits at."""
+        self.assertEqual(self.report_for(255).status, "INVALID")
+
+    def test_the_message_says_what_is_wrong_rather_than_that_it_is_dark(self):
+        report = self.report_for(0)
+
+        self.assertIn("blank", report.message.lower())
+        self.assertNotIn("darker than expected", report.message)
+
+    def test_a_real_radiograph_is_not_caught_by_this(self):
+        """The limit has to sit far below anything diagnostic."""
+        from screening.services.quality import ImageQualityChecker
+
+        directory = Path(tempfile.mkdtemp())
+        try:
+            path = directory / "real.png"
+            image = Image.new("L", (400, 400))
+            image.putdata([100 + ((x + y) % 40) for y in range(400) for x in range(400)])
+            image.save(path)
+            report = ImageQualityChecker().check(path)
+        finally:
+            shutil.rmtree(directory, ignore_errors=True)
+
+        self.assertNotEqual(report.status, "INVALID")

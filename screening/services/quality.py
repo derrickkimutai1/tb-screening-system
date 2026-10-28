@@ -5,9 +5,11 @@ A radiograph that is badly blurred or poorly exposed is harder for the model to
 read, and the clinician should know that before trusting the result. This check
 runs before prediction and usually produces a warning rather than a rejection:
 a usable but poor image still gets a prediction, shown alongside a caution.
-Two things are refused outright - a file that cannot be decoded at all, and one
+Three things are refused outright - a file that cannot be decoded at all, one
 smaller than the model's own input, which could only be screened by enlarging
-it first.
+it first, and one with no range between its lightest and darkest point, which
+carries nothing to read however sharp or bright the rest of the check finds
+it.
 
 The thresholds were measured rather than guessed. Blur and brightness were
 computed across all 559 training radiographs, which are diagnostically usable
@@ -33,6 +35,18 @@ MAXIMUM_BRIGHTNESS = 200.0
 # Measured at a fixed size so the figures do not depend on the source
 # resolution, which varies from 1130 to 4892 pixels across the datasets.
 ASSESSMENT_SIZE = (512, 512)
+
+# An image with no range at all carries nothing to read.
+#
+# A uniform rectangle is not a degraded radiograph, it is not a radiograph.
+# This was found when half the project's own dataset arrived as a black
+# rectangle through a decoding fault: the checks below called it blurred and
+# dark, the screening went ahead, and the model returned "Unlikely TB" on an
+# image containing no information. A caution is the wrong answer to that; a
+# refusal is the right one. A real chest film spans most of the scale, so this
+# limit is far below anything diagnostic and will not refuse a flat-looking
+# but genuine image.
+MINIMUM_RANGE = 16
 
 # The model's input size, and the smallest image worth screening.
 #
@@ -85,6 +99,20 @@ class ImageQualityChecker:
                 ),
                 blur_score=None,
                 brightness_mean=None,
+            )
+
+        spread = int(image.max()) - int(image.min())
+        if spread < MINIMUM_RANGE:
+            return QualityReport(
+                status="INVALID",
+                message=(
+                    "This image is blank or very nearly so, with almost no "
+                    "difference between its lightest and darkest point. It "
+                    "carries nothing to screen. Check that it exported "
+                    "correctly and upload it again."
+                ),
+                blur_score=None,
+                brightness_mean=round(float(np.mean(image)), 2),
             )
 
         resized = cv2.resize(image, ASSESSMENT_SIZE, interpolation=cv2.INTER_AREA)

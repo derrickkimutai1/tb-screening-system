@@ -49,6 +49,18 @@ def strip_metadata(uploaded):
             upright = ImageOps.exif_transpose(image)
             fmt = (image.format or "PNG").upper()
 
+            # A palette image has to leave its palette behind first.
+            #
+            # Half of this project's own dataset is palette-mode PNG, and the
+            # copy below creates a new image with an empty palette: pasting
+            # into it moves the indices and leaves them pointing at nothing,
+            # so a 5.6 MB radiograph became a 6 KB black rectangle. It was
+            # then screened, and returned "Unlikely TB" on an image with no
+            # information in it at all. Converting first keeps the pixels and
+            # drops only the indirection.
+            if upright.mode in {"P", "PA"}:
+                upright = upright.convert("RGBA" if "transparency" in upright.info else "RGB")
+
             # A new image with nothing in its info dictionary, so no metadata
             # can survive into the copy. paste moves the pixels inside Pillow;
             # the earlier putdata(list(getdata())) built a Python list of every
