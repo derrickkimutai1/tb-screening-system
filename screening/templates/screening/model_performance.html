@@ -169,6 +169,61 @@
   </div>
 </div>
 
+{% if architectures %}
+<div class="panel mt-3 rise">
+  <div class="panel-head">
+    <h2 class="panel-title">Why this model and not a larger one</h2>
+    <span class="micro">{{ architectures|length }} architectures, one schedule</span>
+  </div>
+  <div class="table-scroll">
+    <table class="table mb-0">
+      <thead>
+        <tr>
+          <th>Architecture</th>
+          <th class="text-end">Parameters</th>
+          <th class="text-end">Validation AUC</th>
+          <th class="text-end">Sensitivity</th>
+          <th class="text-end">AUC against the model in use</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for run in architectures %}
+        <tr>
+          <td>
+            {% if run.in_use %}<strong>{{ run.name }}</strong>{% else %}{{ run.name }}{% endif %}
+            {% if run.in_use %}<span class="micro micro-acid ms-2">in use</span>{% endif %}
+          </td>
+          <td class="text-end numeric">{{ run.parameter_count }}</td>
+          <td class="text-end numeric">{{ run.auc|floatformat:4 }}</td>
+          <td class="text-end numeric">{{ run.recall|floatformat:4 }}</td>
+          <td class="text-end numeric">
+            {{ run.gap_label }}
+            {% if not run.in_use %}
+              <span class="micro d-block">{{ run.times_larger|floatformat:1 }}&times; the size</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="panel-body">
+    <p class="field-hint mb-0">
+      Same manifest, same head, same two-stage schedule, same seed; only the
+      network differs. <strong>The largest one scores highest and is not the
+      one running here.</strong> A model that scores better but cannot run on
+      a clinic's CPU has no sensitivity at all, so the choice was made on
+      deployment and the cost of making it is the figure in the last column.
+      The run with no pretraining is in the table to show what the ImageNet
+      weights are worth: without them the same data barely separates the two
+      classes. Selection was on validation only, one run each, so these
+      figures carry no estimate of how much a second run with a different
+      seed would move them.
+    </p>
+  </div>
+</div>
+{% endif %}
+
 {% if across %}
 <div class="panel mt-3 rise">
   <div class="panel-head">

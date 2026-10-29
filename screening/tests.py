@@ -3839,6 +3839,131 @@ class ModelPerformancePageTests(TestCase):
         self.assertFalse(response.context["available"])
         self.assertContains(response, "does not carry the evaluation artifacts")
 
+    # ---- which architecture, and what the choice cost --------------------
+
+    def logged_architectures(self):
+        """The comparison runs as the experiments log records them."""
+        from django.conf import settings
+
+        path = Path(settings.BASE_DIR) / "ml" / "artifacts" / "experiments.csv"
+        with open(path, encoding="utf-8") as handle:
+            return [r for r in csv.DictReader(handle) if r["tag"].startswith("arch-")]
+
+    def test_every_compared_architecture_reaches_the_page(self):
+        """The comparison was run and then visible only to whoever had the repository.
+
+        It is the evidence for the one design decision a reader is most
+        likely to question - why a small network - so leaving it in a file
+        beside the training scripts meant the answer could not be seen from
+        the system it justifies.
+        """
+        self.client.force_login(self.user)
+
+        body = self.client.get(reverse("screening:model_performance")).content.decode()
+
+        for run in self.logged_architectures():
+            self.assertIn(run["architecture"].replace("SmallCNN", "Small CNN"), body)
+
+    def test_the_figures_are_read_from_the_log_rather_than_typed(self):
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("screening:model_performance"))
+
+        shown = {r["architecture"]: r["auc"] for r in response.context["architectures"]}
+        for run in self.logged_architectures():
+            self.assertEqual(shown[run["architecture"]], float(run["val_auc"]))
+            self.assertContains(response, f"{float(run['val_auc']):.4f}")
+
+    def test_the_model_in_use_is_marked_as_the_one_in_use(self):
+        """Taken from the installed model's metadata, not named in the page."""
+        from django.conf import settings
+
+        described = json.loads(
+            (Path(settings.BASE_DIR) / "ml" / "models" / "metadata.json").read_text(
+                encoding="utf-8"
+            )
+        )["architecture"]
+        self.client.force_login(self.user)
+
+        runs = self.client.get(reverse("screening:model_performance")).context["architectures"]
+
+        in_use = [r for r in runs if r["in_use"]]
+        self.assertEqual(len(in_use), 1)
+        self.assertTrue(described.startswith(in_use[0]["architecture"]))
+
+    def test_the_page_does_not_hide_that_a_larger_network_scored_higher(self):
+        """The comparison is worth nothing if it only reports the flattering half.
+
+        ResNet50 beats the deployed model on validation AUC. The honest
+        account is that the choice was made on deployment and cost accuracy,
+        so the better-scoring row has to be on the page and the difference
+        has to be stated as a number.
+        """
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("screening:model_performance"))
+        runs = response.context["architectures"]
+
+        best = max(runs, key=lambda run: run["auc"])
+        self.assertFalse(best["in_use"])
+        self.assertContains(response, best["gap_label"])
+        self.assertGreater(best["gap"], 0)
+
+    def test_the_comparison_is_ordered_by_what_it_measured(self):
+        self.client.force_login(self.user)
+
+        runs = self.client.get(reverse("screening:model_performance")).context["architectures"]
+
+        self.assertEqual(
+            [r["auc"] for r in runs], sorted((r["auc"] for r in runs), reverse=True)
+        )
+
+    def test_a_build_without_the_log_shows_the_rest_of_the_page(self):
+        """The desktop build is assembled file by file and may not carry it."""
+        self.client.force_login(self.user)
+
+        with mock.patch("screening.views._architectures", return_value=[]):
+            response = self.client.get(reverse("screening:model_performance"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "Why this model and not a larger one")
+        self.assertContains(response, "Read the miss rate before the accuracy")
+
+    def test_a_row_written_by_an_older_script_is_skipped_rather_than_guessed(self):
+        """Half a comparison is better than one with an invented figure in it."""
+        from screening.views import _architectures
+
+        elsewhere = Path(tempfile.mkdtemp())
+        artifacts = elsewhere / "ml" / "artifacts"
+        artifacts.mkdir(parents=True)
+        rows = [
+            "tag,architecture,parameters,val_auc,val_recall",
+            "arch-resnet50,ResNet50,23866497,0.9478,0.8",
+            # Written before the log carried these columns.
+            "arch-older,MobileNetV2,,,",
+        ]
+        (artifacts / "experiments.csv").write_text(
+            chr(10).join(rows) + chr(10), encoding="utf-8"
+        )
+
+        try:
+            with override_settings(BASE_DIR=elsewhere):
+                runs = _architectures()
+        finally:
+            shutil.rmtree(elsewhere, ignore_errors=True)
+
+        self.assertEqual([r["architecture"] for r in runs], ["ResNet50"])
+
+    def test_no_log_at_all_is_an_empty_comparison_not_an_error(self):
+        from screening.views import _architectures
+
+        empty = Path(tempfile.mkdtemp())
+        try:
+            with override_settings(BASE_DIR=empty):
+                self.assertEqual(_architectures(), [])
+        finally:
+            shutil.rmtree(empty, ignore_errors=True)
+
 
 @override_settings(MEDIA_ROOT=MEDIA_FOR_TESTS)
 class DataRightsTests(TestCase):

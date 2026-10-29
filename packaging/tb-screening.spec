@@ -40,6 +40,9 @@ datas = [
     (str(ROOT / "ml" / "artifacts" / "calibration.json"), "ml/artifacts"),
     (str(ROOT / "ml" / "artifacts" / "cross_dataset.json"), "ml/artifacts"),
     (str(ROOT / "ml" / "artifacts" / "response_times.json"), "ml/artifacts"),
+    # The architecture comparison is read out of the experiments log rather
+    # than from a file of its own, so the log travels with the build.
+    (str(ROOT / "ml" / "artifacts" / "experiments.csv"), "ml/artifacts"),
     (
         str(ROOT / "ml" / "artifacts" / "explanation_comparison-all.json"),
         "ml/artifacts",

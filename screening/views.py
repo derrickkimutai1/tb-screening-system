@@ -976,6 +976,91 @@ def _artifact(name):
         return None
 
 
+# How the comparison runs are labelled in the experiments log, and how they
+# should read on the page. The log records the class name the training script
+# instantiated; "SmallCNN" says nothing about the point of that run, which was
+# to show what the ImageNet weights are worth.
+ARCHITECTURE_NAMES = {"SmallCNN": "Small CNN, no pretraining"}
+
+
+def _architectures():
+    """The architectures that were compared before this one was settled on.
+
+    Proposal section 3.2.3 names MobileNetV2 and justifies it by deployment:
+    a clinic runs this on a CPU, so the model has to be small. That is a
+    reason to prefer a compact network, not evidence that a compact network
+    scores well enough, and the two are different claims. Three alternatives
+    were trained under the same schedule to settle the second one.
+
+    Those runs are rows in the experiments log, and the comparison existed
+    only as a file beside the training scripts. It is read back here so that
+    the choice of model can be seen from the application, by whoever is
+    relying on the score rather than only by whoever has the repository open.
+
+    Selection was on validation, which is why the figures below are validation
+    figures and the held-out test set appears nowhere in this table.
+    """
+    path = Path(settings.BASE_DIR) / "ml" / "artifacts" / "experiments.csv"
+    try:
+        rows = list(csv.DictReader(path.read_text(encoding="utf-8").splitlines()))
+    except (OSError, ValueError):
+        return []
+
+    runs = []
+    for row in rows:
+        if not row.get("tag", "").startswith("arch-"):
+            continue
+        try:
+            runs.append(
+                {
+                    "name": ARCHITECTURE_NAMES.get(row["architecture"], row["architecture"]),
+                    "architecture": row["architecture"],
+                    "parameters": int(row["parameters"]),
+                    # Grouped here rather than in the page, which would need
+                    # another installed application to put the commas in.
+                    "parameter_count": f"{int(row['parameters']):,}",
+                    "auc": float(row["val_auc"]),
+                    "recall": float(row["val_recall"]),
+                }
+            )
+        except (KeyError, ValueError):
+            # A row written by an older version of the training script. Skipped
+            # rather than guessed at, because a comparison with an invented
+            # figure in it is worse than a shorter one.
+            continue
+
+    deployed = _deployed_architecture()
+    reference = next((r for r in runs if r["architecture"] == deployed), None)
+    for run in runs:
+        run["in_use"] = run is reference
+        if reference:
+            gap = run["auc"] - reference["auc"]
+            run["gap"] = gap
+            # Formatted here because a difference reads wrongly without its
+            # sign, and the template has no way to put one in front of a
+            # positive number.
+            run["gap_label"] = "reference" if run is reference else f"{gap:+.4f}"
+            run["times_larger"] = run["parameters"] / reference["parameters"]
+
+    return sorted(runs, key=lambda run: run["auc"], reverse=True)
+
+
+def _deployed_architecture():
+    """Which of the compared networks the installed model actually is.
+
+    Taken from the model's own metadata rather than named here, so that
+    replacing the model moves the marker on the page with it. The metadata
+    spells the architecture out in a sentence; the comparison records the
+    class name, so only the first word of it can be matched.
+    """
+    path = Path(settings.BASE_DIR) / "ml" / "models" / "metadata.json"
+    try:
+        described = json.loads(path.read_text(encoding="utf-8"))["architecture"]
+    except (OSError, ValueError, KeyError):
+        return None
+    return described.split(",")[0].strip()
+
+
 @login_required
 def model_performance(request):
     """What the model is measured to do, in the application that uses it.
@@ -998,6 +1083,7 @@ def model_performance(request):
     occlusion = _artifact("occlusion-p32s16-all-tb_evaluation.json")
     gradcam = _artifact("gradcam-block_13_expand_relu-all-tb_evaluation.json")
     timing = _artifact("response_times.json")
+    architectures = _architectures()
 
     matrix = (test or {}).get("confusion_matrix") or {}
     missed = matrix.get("false_negative")
@@ -1014,6 +1100,7 @@ def model_performance(request):
             "occlusion": occlusion,
             "gradcam": gradcam,
             "timing": timing,
+            "architectures": architectures,
             "matrix": matrix,
             "missed": missed,
             "positives": positives,
