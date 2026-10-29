@@ -709,10 +709,15 @@ def case_explanation(request, case_id):
     relative = f"heatmaps/{record.created_at:%Y/%m}/{record.case_id}.png"
     destination = Path(settings.MEDIA_ROOT) / relative
 
+    # Grad-CAM carries the result, because SO4 names it and that is the
+    # objective this system was approved against. Its measured limitation is
+    # not hidden by that decision: the case page prints its lift of 1.11 next
+    # to the occlusion map's 1.63 and the 1.00 a random map scores, so a
+    # reader sees the method and the figure together.
     engine = PredictionEngine()
     try:
         prepared = engine.processor.prepare(source)
-        OcclusionGenerator().overlay(source, engine.model(), prepared, destination)
+        GradCAMGenerator().overlay(source, engine.model(), prepared, destination)
     except (ExplanationUnavailable, OSError, ValueError):
         logger.exception("The explanation failed for case %s", record.case_id)
         record.explanation_status = PredictionRecord.ExplanationStatus.FAILED
@@ -721,25 +726,23 @@ def case_explanation(request, case_id):
 
     record.explanation_image = relative
     record.explanation_status = PredictionRecord.ExplanationStatus.GENERATED
-    record.explanation_method = METHOD_NAME
+    record.explanation_method = GRADCAM_METHOD_NAME
 
-    # The map the proposal named, built beside the one that replaced it.
-    #
-    # It costs about half a second against the occlusion map's three, and it
-    # answers the objective as written. A failure here must not lose the
-    # explanation that does work, so it is caught separately and the record is
-    # saved either way: the comparison is the part that can be missing.
-    comparison = f"gradcam/{record.created_at:%Y/%m}/{record.case_id}.png"
+    # The occlusion map, kept as the comparison that justifies the figures
+    # above. It costs about three seconds against Grad-CAM's half, and it is
+    # the one that measured better, so losing it must not lose the result: the
+    # failure is caught separately and the record saves either way.
+    comparison = f"occlusion/{record.created_at:%Y/%m}/{record.case_id}.png"
     fields = ["explanation_image", "explanation_status", "explanation_method"]
     try:
-        GradCAMGenerator().overlay(
+        OcclusionGenerator().overlay(
             source, engine.model(), prepared, Path(settings.MEDIA_ROOT) / comparison
         )
     except (ExplanationUnavailable, OSError, ValueError):
-        logger.warning("The Grad-CAM comparison failed for case %s", record.case_id)
+        logger.warning("The occlusion comparison failed for case %s", record.case_id)
     else:
         record.comparison_image = comparison
-        record.comparison_method = GRADCAM_METHOD_NAME
+        record.comparison_method = METHOD_NAME
         fields += ["comparison_image", "comparison_method"]
 
     record.save(update_fields=[*fields, "updated_at"])

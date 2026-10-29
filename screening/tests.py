@@ -969,7 +969,7 @@ class FailureScenarioTests(SignedIn, TestCase):
         record = PredictionRecord.objects.get()
 
         with mock.patch(
-            "screening.views.OcclusionGenerator.overlay",
+            "screening.views.GradCAMGenerator.overlay",
             side_effect=ExplanationUnavailable("no gradients"),
         ):
             response = self.client.post(
@@ -3269,7 +3269,7 @@ class LazyExplanationTests(TestCase):
 
             return Explanation(path=destination, coverage=0.2)
 
-        return mock.patch("screening.views.OcclusionGenerator.overlay", side_effect=write)
+        return mock.patch("screening.views.GradCAMGenerator.overlay", side_effect=write)
 
     def test_a_new_screening_leaves_the_explanation_pending(self):
         record = self.record()
@@ -3295,14 +3295,14 @@ class LazyExplanationTests(TestCase):
 
     def test_the_method_that_produced_the_map_is_recorded_with_it(self):
         """An old Grad-CAM image must never be read as a current occlusion map."""
-        from screening.services.occlusion import METHOD_NAME
+        from screening.services.gradcam import GRADCAM_METHOD_NAME
 
         record = self.record()
         with self.generated(), mock.patch("screening.views.PredictionEngine"):
             self.client.post(reverse("screening:case_explanation", args=[record.case_id]))
 
         record.refresh_from_db()
-        self.assertEqual(record.explanation_method, METHOD_NAME)
+        self.assertEqual(record.explanation_method, GRADCAM_METHOD_NAME)
 
     def test_a_second_open_does_not_build_it_again(self):
         """625 forward passes is not something to repeat on every page load."""
@@ -3310,7 +3310,7 @@ class LazyExplanationTests(TestCase):
         with self.generated(), mock.patch("screening.views.PredictionEngine"):
             self.client.post(reverse("screening:case_explanation", args=[record.case_id]))
 
-        with mock.patch("screening.views.OcclusionGenerator.overlay") as again:
+        with mock.patch("screening.views.GradCAMGenerator.overlay") as again:
             self.client.post(reverse("screening:case_explanation", args=[record.case_id]))
 
         again.assert_not_called()
@@ -3319,7 +3319,7 @@ class LazyExplanationTests(TestCase):
         """It would spend the same work to fail the same way."""
         record = self.record(status=PredictionRecord.ExplanationStatus.FAILED)
 
-        with mock.patch("screening.views.OcclusionGenerator.overlay") as attempted:
+        with mock.patch("screening.views.GradCAMGenerator.overlay") as attempted:
             response = self.client.post(
                 reverse("screening:case_explanation", args=[record.case_id])
             )
@@ -3338,7 +3338,7 @@ class LazyExplanationTests(TestCase):
     def test_another_clinic_cannot_make_one_built(self):
         theirs = self.record("EXP-THEIRS", facility=clinic("Mbagathi"))
 
-        with mock.patch("screening.views.OcclusionGenerator.overlay") as attempted:
+        with mock.patch("screening.views.GradCAMGenerator.overlay") as attempted:
             response = self.client.post(
                 reverse("screening:case_explanation", args=[theirs.case_id])
             )
@@ -4408,8 +4408,8 @@ class GradCamComparisonTests(TestCase):
         self.build(record)
         record.refresh_from_db()
 
-        self.assertEqual(record.explanation_method, METHOD_NAME)
-        self.assertEqual(record.comparison_method, GRADCAM_METHOD_NAME)
+        self.assertEqual(record.explanation_method, GRADCAM_METHOD_NAME)
+        self.assertEqual(record.comparison_method, METHOD_NAME)
 
     def test_they_are_stored_apart(self):
         record = self.record()
@@ -4429,10 +4429,10 @@ class GradCamComparisonTests(TestCase):
 
         with (
             mock.patch("screening.views.PredictionEngine"),
-            mock.patch("screening.views.OcclusionGenerator.overlay", side_effect=wrote),
+            mock.patch("screening.views.GradCAMGenerator.overlay", side_effect=wrote),
             mock.patch(
-                "screening.views.GradCAMGenerator.overlay",
-                side_effect=ExplanationUnavailable("no gradients"),
+                "screening.views.OcclusionGenerator.overlay",
+                side_effect=ExplanationUnavailable("no map"),
             ),
         ):
             answer = self.client.post(
@@ -4452,8 +4452,8 @@ class GradCamComparisonTests(TestCase):
 
         response = self.client.get(reverse("screening:case_detail", args=[record.case_id]))
 
-        self.assertContains(response, "Grad-CAM, for comparison")
-        self.assertContains(response, "Not used for this result")
+        self.assertContains(response, "Occlusion map, for comparison")
+        self.assertContains(response, "Measured higher than the map above")
 
     def test_the_page_carries_both_measurements_and_the_random_baseline(self):
         """A figure without its baseline persuades of nothing."""
@@ -4488,5 +4488,5 @@ class GradCamComparisonTests(TestCase):
             reverse("screening:case_report", args=[record.case_id])
         ).content.decode()
 
-        self.assertNotIn("Grad-CAM, for comparison", body)
-        self.assertIn("Occlusion map", body)
+        self.assertNotIn("Occlusion map, for comparison", body)
+        self.assertIn("Grad-CAM", body)

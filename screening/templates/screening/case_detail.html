@@ -126,7 +126,7 @@
         <div class="radiograph-frame" data-explanation-frame>
           {% if record.has_explanation %}
             <img src="{{ record.explanation_image.url }}"
-                 alt="Occlusion heatmap overlay for {{ record.patient_reference }}">
+                 alt="Grad-CAM heatmap overlay for {{ record.patient_reference }}">
           {% else %}
             <p class="placeholder-note mb-0" data-explanation-note>
               {% if record.explanation_awaited %}
@@ -141,9 +141,10 @@
         </div>
         <p class="field-hint mt-2 mb-0" data-explanation-caption
            {% if not record.has_explanation %}hidden{% endif %}>
-          Brighter areas are the regions the model's score depended on: covering
-          one of them is what made the score fall. They show what the model used,
-          not confirmed disease locations.
+          Grad-CAM. Brighter areas are where the network's activations
+          correlated most with the score. They are not confirmed disease
+          locations, and on this model the map localises weakly: see the
+          measurement below.
         </p>
       </div>
     </div>
@@ -162,8 +163,8 @@
 <div class="panel mt-3 rise" data-comparison-panel
      {% if not record.has_comparison and not record.explanation_awaited %}hidden{% endif %}>
   <div class="panel-head">
-    <h2 class="panel-title">Grad-CAM, for comparison</h2>
-    <span class="micro">Not used for this result</span>
+    <h2 class="panel-title">Occlusion map, for comparison</h2>
+    <span class="micro">Measured higher than the map above</span>
   </div>
   <div class="panel-body">
     <div class="row g-4 align-items-start">
@@ -171,7 +172,7 @@
         <div class="radiograph-frame" data-comparison-frame>
           {% if record.has_comparison %}
             <img src="{{ record.comparison_image.url }}"
-                 alt="Grad-CAM heatmap overlay for {{ record.patient_reference }}">
+                 alt="Occlusion heatmap overlay for {{ record.patient_reference }}">
           {% else %}
             <p class="placeholder-note mb-0" data-comparison-note>
               Building the comparison.
@@ -181,9 +182,10 @@
       </div>
       <div class="col-md-7">
         <p class="field-hint">
-          The project proposal names Grad-CAM as the explanation. It was
-          implemented, and then measured against Montgomery's hand-drawn lung
-          masks to find out whether it points at the lungs.
+          The project proposal names Grad-CAM as the explanation, and the map
+          above is Grad-CAM. Both methods were measured against Montgomery's
+          hand-drawn lung masks to find out whether they point at the lungs,
+          and the occlusion map here measured higher.
         </p>
         <div class="table-scroll">
           <table class="table mb-0">
@@ -192,18 +194,20 @@
             </thead>
             <tbody>
               <tr><td>A map placed at random</td><td class="text-end numeric">1.00</td></tr>
-              <tr><td>Grad-CAM, shown here</td><td class="text-end numeric">1.11</td></tr>
-              <tr><td><strong>Occlusion, used above</strong></td><td class="text-end numeric"><strong>1.63</strong></td></tr>
+              <tr><td><strong>Grad-CAM, used above</strong></td><td class="text-end numeric"><strong>1.11</strong></td></tr>
+              <tr><td>Occlusion, shown here</td><td class="text-end numeric">1.63</td></tr>
             </tbody>
           </table>
         </div>
         <p class="field-hint mt-2 mb-0">
-          Grad-CAM lands barely above chance on this model, so the result above
-          does not rest on it. Paired across the 58 masked TB radiographs the
-          occlusion map gains +0.447 of lift, 95% CI [+0.125, +0.780]; on the 9
-          held-out films that interval includes zero, so the improvement is
-          measured rather than proven. Full comparison in
-          <code>ml/artifacts/explanation_methods.md</code>.
+          <strong>Read the map above with this in mind.</strong> Grad-CAM lands
+          barely above the 1.00 a random map scores, so it should not be taken
+          as showing where disease is. Paired across the 58 masked TB
+          radiographs the occlusion map gains +0.447 of lift, 95% CI [+0.125,
+          +0.780]; on the 9 held-out films that interval includes zero, so the
+          improvement is measured rather than proven. Grad-CAM is shown as the
+          explanation because the approved objective specifies it. Full
+          comparison in <code>ml/artifacts/explanation_methods.md</code>.
         </p>
       </div>
     </div>
@@ -361,7 +365,7 @@
         if (result.url) {
           const image = new Image();
           image.src = result.url;
-          image.alt = "Occlusion heatmap overlay for {{ record.patient_reference }}";
+          image.alt = "Grad-CAM heatmap overlay for {{ record.patient_reference }}";
           frame.replaceChildren(image);
           if (caption) caption.hidden = false;
           if (status) status.textContent = "Generated";
@@ -371,7 +375,7 @@
           if (result.comparison_url && compareFrame) {
             const other = new Image();
             other.src = result.comparison_url;
-            other.alt = "Grad-CAM heatmap overlay for {{ record.patient_reference }}";
+            other.alt = "Occlusion heatmap overlay for {{ record.patient_reference }}";
             compareFrame.replaceChildren(other);
             if (panel) panel.hidden = false;
           } else if (panel) {

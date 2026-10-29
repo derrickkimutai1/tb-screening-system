@@ -124,7 +124,7 @@ not silently reinterpret historical results.
 
 | | |
 |---|---|
-| **Implemented in** | `screening/services/occlusion.py`. `gradcam.py` is still built for every case and shown beside it as a labelled comparison, so the method SO4 names is delivered and its measurement is on the page |
+| **Implemented in** | `screening/services/gradcam.py`, the method SO4 names. `occlusion.py` is built for every case too and shown beside it as a labelled comparison, carrying the measurement that distinguishes them |
 | **Measured by** | `ml/scripts/evaluate_explanations.py` against Montgomery's hand-drawn lung masks, settings chosen on the development split and compared by `compare_explanations.py` |
 | **Result** | **Lift 1.63** on TB films, against **1.11** for the Grad-CAM map replaced. Paired over the 58 masked TB radiographs the gain is **+0.447, 95% CI [+0.125, +0.780]**, higher on 42 of 58. On the 9 held-out test films the interval includes zero. |
 | **Evidence** | `ml/artifacts/explanation_methods.md`, `explanation_comparison-all.json`, `explanation_comparison-test.json`, `occlusion-p32s16-*_evaluation.json`, `gradcam-block_13_expand_relu-*_evaluation.json`, `scorecam-all-tb_evaluation.json` |
@@ -147,19 +147,24 @@ still scores 1.00 rather than 0. Stride 16 is the finest setting that clearly
 beats Grad-CAM, which is the defensible question rather than the flattering
 one.
 
-**The proposal's method is delivered, and is not what the result rests on.**
-SO4 names a "Grad-CAM heatmap". It is implemented, produced for every case,
-and shown on the case page under the heading "Grad-CAM, for comparison",
-labelled "not used for this result" and carrying its measured lift of 1.11
-beside the occlusion map's 1.63 and a random map's 1.00. A reader of the
-objective can see the thing it asked for and the measurement that decided it
-was not enough, without being told to trust either.
+**The proposal's method is what the system shows.** SO4 names a "Grad-CAM
+heatmap", and that is the explanation on the case page and in the printed
+report. The objective is delivered as written.
 
-The printed report carries the occlusion map alone, because a sheet going into
-a patient's file should not carry a heatmap measured at chance.
+**Its limitation is printed beside it rather than left for a reader to
+discover.** Directly below the map, the page gives Grad-CAM's measured lift of
+1.11, the occlusion map's 1.63, and the 1.00 a map placed at random scores,
+with the occlusion map itself shown for comparison. The caption on the printed
+report carries the same figure. A clinician reading either sees the number
+that says how much weight the picture deserves.
 
-**This still diverges from the approved proposal**, which names a "Grad-CAM
-heatmap" as the explanation rather than as a comparison. The divergence is deliberate and
+**The honest summary, which belongs in Chapter 5 rather than being softened:**
+the explanation this system displays localises weakly. A second method
+measured higher - paired across the 58 masked TB radiographs, +0.447 of lift,
+95% CI [+0.125, +0.780] - though on the 9 held-out films that interval
+includes zero. Grad-CAM is shown because the approved objective specifies it,
+and both are produced so that the choice can be inspected rather than taken on
+trust. The divergence is deliberate and
 the reason is measurable: the component as specified was built, measured
 against the lung masks, and found to localise no better than a map placed at
 random, which does not satisfy the objective it was named to serve. The
