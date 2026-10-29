@@ -203,6 +203,13 @@ but it cannot remove a name printed into the pixels.
 The system stores your name and email address and nothing else about you. It
 never receives a password.
 
+Removing a case removes the row that describes it and leaves the image file on
+disk, where nothing can look it up and nothing deletes it. An administrator can
+list what is left with `manage.py prunemedia`, and remove it with
+`manage.py prunemedia --delete`. Anything written in the last hour is left
+alone, because a screening part-way through has an image on disk before it has
+a record.
+
 ---
 
 ## When something goes wrong

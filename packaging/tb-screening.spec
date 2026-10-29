@@ -2,6 +2,10 @@
 #
 #   .venv/Scripts/python.exe -m PyInstaller packaging/tb-screening.spec --noconfirm
 #
+# What that environment has to contain is requirements-package.txt: the runtime
+# list, plus PyInstaller and the server that serves the bundle, minus the
+# PostgreSQL driver the packaged build does not use because it runs on SQLite.
+#
 # Django finds most of what it needs by importing it, which PyInstaller follows.
 # Three kinds of thing it cannot follow are listed here explicitly:
 #

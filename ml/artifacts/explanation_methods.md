@@ -65,7 +65,8 @@ cannot point at a lesion, and a map that marks the middle of the chest overlaps
 the lungs well while telling a clinician nothing. The control shows the floor:
 a map that is hot everywhere, carrying no information at all, still scores 1.00
 rather than 0. A 7×7 map being too coarse to hold a lesion is exactly why
-Grad-CAM was moved off `out_relu` in the first place.
+Grad-CAM was moved off `out_relu` in the first place: measured there it scored
+a lift of 0.4852 over 114 images, recorded in `gradcam_evaluation_out_relu.json`.
 
 So the setting is **the finest one that clearly beats Grad-CAM**, not the one
 with the best number. Maximising this metric would have produced a worse

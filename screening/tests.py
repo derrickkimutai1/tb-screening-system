@@ -29,12 +29,25 @@ from django.urls import reverse
 from django.utils import timezone
 from PIL import Image
 
-from .models import PredictionRecord, ReviewNote
+from .models import PredictionRecord, Profile, ReviewNote
 
 sys.path.insert(0, str(settings.ML_DIR))
 import preprocessing  # noqa: E402
 
 MEDIA_FOR_TESTS = tempfile.mkdtemp()
+
+
+def tearDownModule():
+    """Remove the uploads every test in this file wrote.
+
+    One directory is shared by every class that stores a file, so it is
+    emptied once at the end rather than by each class in turn. Eleven classes
+    were carrying the same three-line teardown, and a class that forgot it
+    left a temporary directory of radiographs behind on the machine.
+
+    Names are uuids, so nothing collides while the run is in progress.
+    """
+    shutil.rmtree(MEDIA_FOR_TESTS, ignore_errors=True)
 
 
 # Templates that are documents rather than pages of the interface: they do not
@@ -84,6 +97,73 @@ def make_image(name="chest.png", size=(256, 256), fmt="PNG"):
     return SimpleUploadedFile(name, buffer.read(), content_type=content_type)
 
 
+def screened_case(**named):
+    """A stored screening, with the columns a test does not care about filled in.
+
+    PredictionRecord has seven fields with no default, because a result has to
+    stay readable after the thresholds are revised: the score it was compared
+    against is written into the row rather than looked up later. Spelling all
+    seven out wherever a test needed a record meant fourteen copies of the
+    same block, and a column added to the model had to be added fourteen
+    times or the suite stopped running.
+
+    A test names the one or two values it is about. Everything else stands at
+    a value that means nothing in particular, which is the point: a figure
+    that no assertion depends on should not look like one that does.
+
+    days_ago backdates the row in the database rather than on the instance,
+    because created_at is set on insert and a case that has been waiting
+    cannot be aged any other way.
+    """
+    days_ago = named.pop("days_ago", 0)
+    fields = {
+        "xray_image": "x.png",
+        "tb_probability": Decimal("0.5"),
+        "triage_level": PredictionRecord.TriageLevel.MEDIUM,
+        "model_version": "test",
+        "decision_threshold": Decimal("0.102"),
+        "triage_low_medium_threshold": Decimal("0.102"),
+        "triage_medium_high_threshold": Decimal("0.546"),
+    }
+    fields.update(named)
+
+    record = PredictionRecord.objects.create(**fields)
+    if days_ago:
+        stamp = timezone.now() - timedelta(days=days_ago)
+        PredictionRecord.objects.filter(pk=record.pk).update(created_at=stamp)
+        record.refresh_from_db()
+    return record
+
+
+def staff_at(facility, username, role=None, email=None):
+    """A user who works at this clinic, with the profile that says so.
+
+    Scoping is by the profile's facility, so a test about one clinic not
+    seeing another's cases has to establish the profile as well as the user.
+    Six classes were doing that in six near-identical blocks.
+
+    The role is left at whatever the model defaults to unless a test asks for
+    one, because which role a user holds decides whether they may record a
+    review, and a helper that quietly promoted everybody would make the tests
+    about that agree with anything.
+
+    The address is made up from the username unless a test names one. Some do:
+    whether an address is allowed to sign in depends on its domain, and the
+    trail records the address rather than the username.
+    """
+    from .models import profile_for
+
+    user = get_user_model().objects.create_user(
+        username=username, email=email or f"{username}@example.org"
+    )
+    profile = profile_for(user)
+    profile.facility = facility
+    if role is not None:
+        profile.role = role
+    profile.save()
+    return user
+
+
 class SignedIn:
     """Puts a signed-in clinician behind the client.
 
@@ -105,11 +185,6 @@ class SignedIn:
 @override_settings(MEDIA_ROOT=MEDIA_FOR_TESTS)
 class UploadTests(SignedIn, TestCase):
     """Screening one radiograph: what is accepted, stored and refused."""
-
-    @classmethod
-    def tearDownClass(cls):
-        shutil.rmtree(MEDIA_FOR_TESTS, ignore_errors=True)
-        super().tearDownClass()
 
     def test_valid_upload_creates_record_and_redirects(self):
         response = self.client.post(
@@ -201,11 +276,6 @@ class UploadTests(SignedIn, TestCase):
 @override_settings(MEDIA_ROOT=MEDIA_FOR_TESTS)
 class ReportingTests(SignedIn, TestCase):
     """Reading stored cases back: the list, the dashboard and review."""
-
-    @classmethod
-    def tearDownClass(cls):
-        shutil.rmtree(MEDIA_FOR_TESTS, ignore_errors=True)
-        super().tearDownClass()
 
     def setUp(self):
         super().setUp()
@@ -437,11 +507,6 @@ class TriageTests(TestCase):
 class BatchUploadTests(SignedIn, TestCase):
     """Several radiographs in one submission, per the examiner's request."""
 
-    @classmethod
-    def tearDownClass(cls):
-        shutil.rmtree(MEDIA_FOR_TESTS, ignore_errors=True)
-        super().tearDownClass()
-
     def post(self, images, reference="BATCH-01"):
         return self.client.post(
             reverse("screening:upload"),
@@ -542,15 +607,8 @@ class SignInTests(TestCase):
                 self.assertRedirects(response, f"{reverse('account_login')}?next={url}")
 
     def test_a_case_record_is_not_readable_without_a_session(self):
-        record = PredictionRecord.objects.create(
+        record = screened_case(
             patient_reference="DEMO-900",
-            xray_image="x.png",
-            tb_probability=Decimal("0.5"),
-            triage_level=PredictionRecord.TriageLevel.MEDIUM,
-            model_version="test",
-            decision_threshold=Decimal("0.102"),
-            triage_low_medium_threshold=Decimal("0.102"),
-            triage_medium_high_threshold=Decimal("0.546"),
         )
         url = reverse("screening:case_detail", args=[record.case_id])
 
@@ -729,22 +787,10 @@ class ProfileTests(SignedIn, TestCase):
 class ReviewPermissionTests(SignedIn, TestCase):
     """Who may record a clinical review, enforced on the POST and not just hidden."""
 
-    @classmethod
-    def tearDownClass(cls):
-        shutil.rmtree(MEDIA_FOR_TESTS, ignore_errors=True)
-        super().tearDownClass()
-
     def setUp(self):
         super().setUp()
-        self.record = PredictionRecord.objects.create(
+        self.record = screened_case(
             patient_reference="DEMO-700",
-            xray_image="x.png",
-            tb_probability=Decimal("0.5"),
-            triage_level=PredictionRecord.TriageLevel.MEDIUM,
-            model_version="test",
-            decision_threshold=Decimal("0.102"),
-            triage_low_medium_threshold=Decimal("0.102"),
-            triage_medium_high_threshold=Decimal("0.546"),
         )
         self.url = reverse("screening:case_detail", args=[self.record.case_id])
 
@@ -894,11 +940,6 @@ class FailureScenarioTests(SignedIn, TestCase):
     expected to do, so a reader can tell a handled failure from an unhandled
     one.
     """
-
-    @classmethod
-    def tearDownClass(cls):
-        shutil.rmtree(MEDIA_FOR_TESTS, ignore_errors=True)
-        super().tearDownClass()
 
     def upload(self, *files, reference="FAIL-01"):
         return self.client.post(
@@ -1151,15 +1192,8 @@ class ProfileWithoutSignalTests(TestCase):
     def test_a_case_page_opens_for_a_legacy_account(self):
         user = self.make_user_without_a_profile()
         self.client.force_login(user)
-        record = PredictionRecord.objects.create(
+        record = screened_case(
             patient_reference="LEGACY-01",
-            xray_image="x.png",
-            tb_probability=Decimal("0.5"),
-            triage_level=PredictionRecord.TriageLevel.MEDIUM,
-            model_version="test",
-            decision_threshold=Decimal("0.102"),
-            triage_low_medium_threshold=Decimal("0.102"),
-            triage_medium_high_threshold=Decimal("0.546"),
         )
 
         response = self.client.get(reverse("screening:case_detail", args=[record.case_id]))
@@ -1364,6 +1398,21 @@ class EmailCodeSignInTests(TestCase):
         )
 
         self.assertFalse(response.context["user"].is_authenticated)
+
+    def test_a_wrong_code_is_explained_on_the_page(self):
+        """Four sign-in pages share one partial for this; a silent form strands people.
+
+        Being refused with nothing on the screen is indistinguishable from
+        the page having done nothing at all, and the next thing somebody does
+        is request another code they do not need.
+        """
+        self.request_code()
+
+        response = self.client.post(
+            reverse("account_confirm_login_code"), {"code": "000000"}, follow=True
+        )
+
+        self.assertContains(response, "notice-caution")
 
     def test_a_code_cannot_be_spent_twice(self):
         """Otherwise a code read from a forwarded message stays usable."""
@@ -1952,15 +2001,8 @@ class ErrorPageTests(TestCase):
         self.client.force_login(self.user)
 
     def record(self):
-        return PredictionRecord.objects.create(
+        return screened_case(
             patient_reference="ERR-01",
-            xray_image="x.png",
-            tb_probability=Decimal("0.5"),
-            triage_level=PredictionRecord.TriageLevel.MEDIUM,
-            model_version="test",
-            decision_threshold=Decimal("0.102"),
-            triage_low_medium_threshold=Decimal("0.102"),
-            triage_medium_high_threshold=Decimal("0.546"),
         )
 
     @override_settings(DEBUG=False, ALLOWED_HOSTS=["testserver"])
@@ -2141,37 +2183,15 @@ class FacilityScopeTests(TestCase):
     everything.
     """
 
-    @classmethod
-    def tearDownClass(cls):
-        shutil.rmtree(MEDIA_FOR_TESTS, ignore_errors=True)
-        super().tearDownClass()
-
     def member_of(self, facility, role=None, username=None):
-        from .models import profile_for
-
-        user = get_user_model().objects.create_user(
-            username=username or f"u{get_user_model().objects.count()}",
-            email=f"{username or 'u'}{get_user_model().objects.count()}@example.org",
-        )
-        profile = profile_for(user)
-        profile.facility = clinic(facility) if facility else None
-        if role:
-            profile.role = role
-        profile.save()
-        return user
+        name = username or f"u{get_user_model().objects.count()}"
+        return staff_at(clinic(facility) if facility else None, name, role)
 
     def record_at(self, facility, reference, screener=None):
-        return PredictionRecord.objects.create(
+        return screened_case(
             patient_reference=reference,
-            xray_image="x.png",
             facility=clinic(facility) if facility else None,
             screened_by=screener,
-            tb_probability=Decimal("0.5"),
-            triage_level=PredictionRecord.TriageLevel.MEDIUM,
-            model_version="test",
-            decision_threshold=Decimal("0.102"),
-            triage_low_medium_threshold=Decimal("0.102"),
-            triage_medium_high_threshold=Decimal("0.546"),
         )
 
     def test_a_colleague_at_the_same_clinic_sees_the_case(self):
@@ -2335,16 +2355,9 @@ class NoFacilityNoticeTests(TestCase):
 
     def test_setting_a_clinic_from_the_profile_joins_the_caseload(self):
         """The whole point: a record at that clinic becomes visible."""
-        PredictionRecord.objects.create(
+        screened_case(
             patient_reference="JOIN-01",
-            xray_image="x.png",
             facility=clinic("Kenyatta"),
-            tb_probability=Decimal("0.5"),
-            triage_level=PredictionRecord.TriageLevel.MEDIUM,
-            model_version="test",
-            decision_threshold=Decimal("0.102"),
-            triage_low_medium_threshold=Decimal("0.102"),
-            triage_medium_high_threshold=Decimal("0.546"),
         )
         self.assertNotContains(self.client.get(reverse("screening:case_list")), "JOIN-01")
 
@@ -2362,20 +2375,8 @@ class AccessTrailTests(TestCase):
     than not claiming it.
     """
 
-    @classmethod
-    def tearDownClass(cls):
-        shutil.rmtree(MEDIA_FOR_TESTS, ignore_errors=True)
-        super().tearDownClass()
-
     def setUp(self):
-        from .models import profile_for
-
-        self.user = get_user_model().objects.create_user(
-            username="audited", email="audited@strathmore.edu"
-        )
-        profile = profile_for(self.user)
-        profile.facility = clinic("Kenyatta")
-        profile.save()
+        self.user = staff_at(clinic("Kenyatta"), "audited", email="audited@strathmore.edu")
         self.client.force_login(self.user)
 
     def events(self, action=None):
@@ -2385,16 +2386,9 @@ class AccessTrailTests(TestCase):
         return rows.filter(action=action) if action else rows
 
     def a_case(self):
-        return PredictionRecord.objects.create(
+        return screened_case(
             patient_reference="AUD-01",
-            xray_image="x.png",
             facility=clinic("Kenyatta"),
-            tb_probability=Decimal("0.5"),
-            triage_level=PredictionRecord.TriageLevel.MEDIUM,
-            model_version="test",
-            decision_threshold=Decimal("0.102"),
-            triage_low_medium_threshold=Decimal("0.102"),
-            triage_medium_high_threshold=Decimal("0.546"),
         )
 
     def test_opening_a_case_is_recorded(self):
@@ -2927,6 +2921,133 @@ class AuditChainTests(TestCase):
             call_command("verifyaudit", stdout=io.StringIO())
 
 
+class PruneMediaTests(TestCase):
+    """Files left on disk by records that were removed.
+
+    Deleting a record deletes the row and nothing else, so a clinic that
+    removes a case keeps the chest X-ray behind it indefinitely under a name
+    nothing can look up. These cover what the command will and will not
+    remove, because the half that matters is the half it refuses to touch.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.media = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.media, True)
+
+    def file(self, name, hours_old=5):
+        """Put a file in the media tree, aged so the settling period is past."""
+        path = self.media / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"not really a radiograph")
+        if hours_old:
+            old = timezone.now().timestamp() - hours_old * 3600
+            os.utime(path, (old, old))
+        return path
+
+    def run_command(self, *flags):
+        from django.core.management import call_command
+
+        output = io.StringIO()
+        with override_settings(MEDIA_ROOT=str(self.media)):
+            call_command("prunemedia", *flags, stdout=output)
+        return output.getvalue()
+
+    def record_for(self, name):
+        return screened_case(
+            patient_reference="PRUNE-001",
+            xray_image=name,
+            facility=clinic(),
+            predicted_label=PredictionRecord.PredictedLabel.LIKELY_TB,
+            quality_status=PredictionRecord.QualityStatus.ACCEPTABLE,
+        )
+
+    def test_a_file_with_no_record_is_reported(self):
+        self.file("uploads/2026/08/orphan.png")
+
+        report = self.run_command()
+
+        self.assertIn("orphan.png", report)
+        self.assertIn("Nothing was removed", report)
+
+    def test_reporting_does_not_remove_anything(self):
+        """The default has to be safe, because this cannot be undone."""
+        left = self.file("uploads/2026/08/orphan.png")
+
+        self.run_command()
+
+        self.assertTrue(left.exists())
+
+    def test_delete_removes_it(self):
+        gone = self.file("uploads/2026/08/orphan.png")
+
+        report = self.run_command("--delete")
+
+        self.assertFalse(gone.exists())
+        self.assertIn("Removed 1", report)
+
+    def test_a_file_a_record_points_at_is_never_touched(self):
+        kept = self.file("uploads/2026/08/inuse.png")
+        self.record_for("uploads/2026/08/inuse.png")
+
+        report = self.run_command("--delete")
+
+        self.assertTrue(kept.exists())
+        self.assertIn("belongs to a record", report)
+
+    def test_an_overlay_a_record_points_at_is_never_touched(self):
+        """The explanation and the comparison are stored in their own fields."""
+        kept = self.file("heatmaps/2026/08/map.png")
+        beside = self.file("occlusion/2026/08/map.png")
+        row = self.record_for("uploads/2026/08/inuse.png")
+        row.explanation_image = "heatmaps/2026/08/map.png"
+        row.comparison_image = "occlusion/2026/08/map.png"
+        row.save()
+
+        self.run_command("--delete")
+
+        self.assertTrue(kept.exists())
+        self.assertTrue(beside.exists())
+
+    def test_a_file_written_in_the_last_hour_is_left_alone(self):
+        """An upload writes the image before the row describing it commits.
+
+        Without this, running the command during a screening would delete the
+        radiograph of the case being screened.
+        """
+        halfway = self.file("uploads/2026/10/in-flight.png", hours_old=0)
+
+        report = self.run_command("--delete")
+
+        self.assertTrue(halfway.exists())
+        self.assertIn("belongs to a record", report)
+
+    def test_the_dated_folders_go_once_they_are_empty(self):
+        self.file("uploads/2026/08/orphan.png")
+
+        self.run_command("--delete")
+
+        self.assertFalse((self.media / "uploads" / "2026" / "08").exists())
+
+    def test_it_says_how_much_was_removed(self):
+        for index in range(3):
+            self.file(f"uploads/2026/08/orphan-{index}.png")
+
+        report = self.run_command("--delete")
+
+        self.assertIn("Removed 3", report)
+
+    def test_no_media_directory_is_not_an_error(self):
+        """A fresh clone has never stored anything."""
+        from django.core.management import call_command
+
+        output = io.StringIO()
+        with override_settings(MEDIA_ROOT=str(self.media / "never-written")):
+            call_command("prunemedia", stdout=output)
+
+        self.assertIn("no media directory", output.getvalue())
+
+
 class ClinicalWorkflowTests(TestCase):
     """The worklist, the printable report, patient history and the export.
 
@@ -2938,33 +3059,19 @@ class ClinicalWorkflowTests(TestCase):
 
     def setUp(self):
         super().setUp()
-        from .models import Profile, profile_for
-
         self.clinic = clinic("Kenyatta")
-        self.clinician = get_user_model().objects.create_user(
-            username="queue-clinician", email="queue@example.org"
-        )
-        profile = profile_for(self.clinician)
-        profile.facility = self.clinic
-        profile.role = Profile.Role.CLINICIAN
-        profile.save()
+        self.clinician = staff_at(self.clinic, "queue-clinician", Profile.Role.CLINICIAN)
         self.client.force_login(self.clinician)
 
     def record(self, reference, triage=None, status=None, days_ago=0, facility=None):
-        row = PredictionRecord.objects.create(
+        row = screened_case(
             patient_reference=reference,
-            xray_image="x.png",
             facility=facility if facility is not None else self.clinic,
             screened_by=self.clinician,
-            tb_probability=Decimal("0.500"),
             predicted_label=PredictionRecord.PredictedLabel.LIKELY_TB,
             quality_status=PredictionRecord.QualityStatus.ACCEPTABLE,
             triage_level=triage or PredictionRecord.TriageLevel.MEDIUM,
             review_status=status or PredictionRecord.ReviewStatus.PENDING,
-            model_version="test",
-            decision_threshold=Decimal("0.102"),
-            triage_low_medium_threshold=Decimal("0.102"),
-            triage_medium_high_threshold=Decimal("0.546"),
         )
         if days_ago:
             # created_at is set on insert, so a case that has been waiting has
@@ -3232,33 +3339,18 @@ class LazyExplanationTests(TestCase):
 
     def setUp(self):
         super().setUp()
-        from .models import Profile, profile_for
-
         self.clinic = clinic("Kenyatta")
-        self.user = get_user_model().objects.create_user(
-            username="explainer", email="explainer@example.org"
-        )
-        profile = profile_for(self.user)
-        profile.facility = self.clinic
-        profile.role = Profile.Role.CLINICIAN
-        profile.save()
+        self.user = staff_at(self.clinic, "explainer", Profile.Role.CLINICIAN)
         self.client.force_login(self.user)
 
     def record(self, reference="EXP-001", facility=None, status=None):
-        return PredictionRecord.objects.create(
+        return screened_case(
             patient_reference=reference,
-            xray_image="x.png",
             facility=facility if facility is not None else self.clinic,
             screened_by=self.user,
-            tb_probability=Decimal("0.500"),
             predicted_label=PredictionRecord.PredictedLabel.LIKELY_TB,
             quality_status=PredictionRecord.QualityStatus.ACCEPTABLE,
-            triage_level=PredictionRecord.TriageLevel.MEDIUM,
             explanation_status=status or PredictionRecord.ExplanationStatus.PENDING,
-            model_version="test",
-            decision_threshold=Decimal("0.102"),
-            triage_low_medium_threshold=Decimal("0.102"),
-            triage_medium_high_threshold=Decimal("0.546"),
         )
 
     def generated(self):
@@ -3450,35 +3542,17 @@ class ProtectedMediaTests(TestCase):
     means the clinic boundary applies to it too.
     """
 
-    @classmethod
-    def tearDownClass(cls):
-        shutil.rmtree(MEDIA_FOR_TESTS, ignore_errors=True)
-        super().tearDownClass()
-
     def setUp(self):
         super().setUp()
-        from .models import profile_for
-
         self.clinic = clinic("Kenyatta")
-        self.user = get_user_model().objects.create_user(
-            username="viewer", email="viewer@example.org"
-        )
-        profile = profile_for(self.user)
-        profile.facility = self.clinic
-        profile.save()
+        self.user = staff_at(self.clinic, "viewer")
 
     def stored(self, reference="MED-001", facility=None):
         """A record whose image really exists on disk."""
-        record = PredictionRecord.objects.create(
+        record = screened_case(
             patient_reference=reference,
             facility=facility if facility is not None else self.clinic,
             screened_by=self.user,
-            tb_probability=Decimal("0.500"),
-            triage_level=PredictionRecord.TriageLevel.MEDIUM,
-            model_version="test",
-            decision_threshold=Decimal("0.102"),
-            triage_low_medium_threshold=Decimal("0.102"),
-            triage_medium_high_threshold=Decimal("0.546"),
         )
         relative = f"uploads/2026/10/{record.case_id}.png"
         destination = Path(MEDIA_FOR_TESTS) / relative
@@ -3664,24 +3738,9 @@ class AccessTrailPageTests(TestCase):
 
     def setUp(self):
         super().setUp()
-        from .models import Profile, profile_for
-
         self.clinic = clinic("Kenyatta")
-        self.clinician = get_user_model().objects.create_user(
-            username="trail-clinician", email="trail@example.org"
-        )
-        profile = profile_for(self.clinician)
-        profile.facility = self.clinic
-        profile.role = Profile.Role.CLINICIAN
-        profile.save()
-
-        self.admin = get_user_model().objects.create_user(
-            username="trail-admin", email="trailadmin@example.org"
-        )
-        other = profile_for(self.admin)
-        other.facility = clinic("Mbagathi")
-        other.role = Profile.Role.ADMINISTRATOR
-        other.save()
+        self.clinician = staff_at(self.clinic, "trail-clinician", Profile.Role.CLINICIAN)
+        self.admin = staff_at(clinic("Mbagathi"), "trail-admin", Profile.Role.ADMINISTRATOR)
 
     def entry(self, user, facility, detail="something"):
         from .models import AccessEvent
@@ -3976,11 +4035,6 @@ class DataRightsTests(TestCase):
     not merely described in the interface.
     """
 
-    @classmethod
-    def tearDownClass(cls):
-        shutil.rmtree(MEDIA_FOR_TESTS, ignore_errors=True)
-        super().tearDownClass()
-
     def setUp(self):
         super().setUp()
         from .models import Profile, profile_for
@@ -3996,17 +4050,10 @@ class DataRightsTests(TestCase):
         self.client.force_login(self.user)
 
     def record(self, reference="RIGHTS-001"):
-        return PredictionRecord.objects.create(
+        return screened_case(
             patient_reference=reference,
-            xray_image="x.png",
             facility=self.clinic,
             screened_by=self.user,
-            tb_probability=Decimal("0.500"),
-            triage_level=PredictionRecord.TriageLevel.MEDIUM,
-            model_version="test",
-            decision_threshold=Decimal("0.102"),
-            triage_low_medium_threshold=Decimal("0.102"),
-            triage_medium_high_threshold=Decimal("0.546"),
         )
 
     # ---- taking a copy ---------------------------------------------------
@@ -4240,39 +4287,20 @@ class AwkwardRecordTests(TestCase):
     that only appear when the data is awkward rather than tidy.
     """
 
-    @classmethod
-    def tearDownClass(cls):
-        shutil.rmtree(MEDIA_FOR_TESTS, ignore_errors=True)
-        super().tearDownClass()
-
     def setUp(self):
         super().setUp()
-        from .models import Profile, profile_for
-
         self.clinic = clinic("Kenyatta")
-        self.user = get_user_model().objects.create_user(
-            username="awkward", email="awkward@example.org"
-        )
-        profile = profile_for(self.user)
-        profile.facility = self.clinic
-        profile.role = Profile.Role.CLINICIAN
-        profile.save()
+        self.user = staff_at(self.clinic, "awkward", Profile.Role.CLINICIAN)
         self.client.force_login(self.user)
 
     def record(self, reference, image="x.png"):
-        return PredictionRecord.objects.create(
+        return screened_case(
             patient_reference=reference,
             xray_image=image,
             facility=self.clinic,
             screened_by=self.user,
-            tb_probability=Decimal("0.500"),
             predicted_label=PredictionRecord.PredictedLabel.LIKELY_TB,
             quality_status=PredictionRecord.QualityStatus.ACCEPTABLE,
-            triage_level=PredictionRecord.TriageLevel.MEDIUM,
-            model_version="test",
-            decision_threshold=Decimal("0.102"),
-            triage_low_medium_threshold=Decimal("0.102"),
-            triage_medium_high_threshold=Decimal("0.546"),
         )
 
     # ---- the export a colleague opens in Excel --------------------------
@@ -4460,39 +4488,19 @@ class GradCamComparisonTests(TestCase):
     produced alongside and labelled with what it measured.
     """
 
-    @classmethod
-    def tearDownClass(cls):
-        shutil.rmtree(MEDIA_FOR_TESTS, ignore_errors=True)
-        super().tearDownClass()
-
     def setUp(self):
         super().setUp()
-        from .models import Profile, profile_for
-
         self.clinic = clinic("Kenyatta")
-        self.user = get_user_model().objects.create_user(
-            username="comparer", email="comparer@example.org"
-        )
-        profile = profile_for(self.user)
-        profile.facility = self.clinic
-        profile.role = Profile.Role.CLINICIAN
-        profile.save()
+        self.user = staff_at(self.clinic, "comparer", Profile.Role.CLINICIAN)
         self.client.force_login(self.user)
 
     def record(self, reference="CMP-001"):
-        return PredictionRecord.objects.create(
+        return screened_case(
             patient_reference=reference,
-            xray_image="x.png",
             facility=self.clinic,
             screened_by=self.user,
-            tb_probability=Decimal("0.500"),
             predicted_label=PredictionRecord.PredictedLabel.LIKELY_TB,
             quality_status=PredictionRecord.QualityStatus.ACCEPTABLE,
-            triage_level=PredictionRecord.TriageLevel.MEDIUM,
-            model_version="test",
-            decision_threshold=Decimal("0.102"),
-            triage_low_medium_threshold=Decimal("0.102"),
-            triage_medium_high_threshold=Decimal("0.546"),
         )
 
     def both_succeed(self):

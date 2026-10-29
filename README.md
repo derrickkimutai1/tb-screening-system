@@ -258,8 +258,14 @@ limits how far the results generalise. This is measured and reported rather than
 | `docs/usability-study.md` | Protocol and recording sheet for the usability evaluation |
 | `docs/devlog.md` | Development log, decisions and the reasoning behind them |
 | `docs/google-sign-in-setup.md` | Creating the Google OAuth credentials |
+| `docs/demo-runbook.md` | Running a demonstration from a cold machine, in order |
+| `docs/sprint-backlog.md` | The stories each sprint took on |
+| `docs/sprint-1-review.md` | What sprint 1 delivered, and what it did not |
+| `docs/sprint-1-demo-checklist.md` | What was shown at the sprint 1 demonstration |
+| `docs/sprint-2-test-record.md` | The suite as it stood at the end of sprint 2 |
 | `ml/artifacts/OPERATING_POINT.md` | What each stored metric describes, and what it does not |
 | `ml/artifacts/architecture_comparison.md` | Why MobileNetV2, measured against three alternatives |
+| `ml/artifacts/explanation_methods.md` | Grad-CAM and occlusion, how each was measured against lung masks |
 
 ## Status
 

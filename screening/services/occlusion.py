@@ -31,7 +31,6 @@ shortcut investigation was looking for. The result page and the printed report
 both say so.
 """
 
-from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
@@ -139,11 +138,3 @@ class OcclusionGenerator:
     def overlay(self, source, model, prepared_image, destination):
         """Write an occlusion map overlaid on the original radiograph."""
         return render(Path(source), self.heatmap(model, prepared_image), Path(destination))
-
-
-@dataclass(frozen=True)
-class OcclusionSettings:
-    """What the shipped map was produced at, for recording beside a result."""
-
-    patch: int = PATCH
-    stride: int = STRIDE

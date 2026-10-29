@@ -28,13 +28,7 @@
     <span class="micro gate-state gate-state-ready">Code sent</span>
   </div>
 
-  {% if form.errors %}
-    {% for field, errors in form.errors.items %}
-      {% for error in errors %}
-        <div class="notice notice-caution mb-3">{{ error }}</div>
-      {% endfor %}
-    {% endfor %}
-  {% endif %}
+  {% include "account/form_errors.html" %}
 
   {% development_code as dev_code %}
   {% if dev_code %}
