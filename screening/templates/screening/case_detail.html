@@ -150,6 +150,66 @@
   </div>
 </div>
 
+{% comment %}
+  The method the proposal named, shown next to the one that replaced it.
+
+  SO4 specifies a Grad-CAM heatmap. It was built and then measured against
+  hand-drawn lung masks, where it scored barely above a map placed at random,
+  so it is not what the result rests on. Showing it anyway, labelled with that
+  figure, answers the objective and lets anyone compare the two rather than
+  taking the replacement on trust.
+{% endcomment %}
+<div class="panel mt-3 rise" data-comparison-panel
+     {% if not record.has_comparison and not record.explanation_awaited %}hidden{% endif %}>
+  <div class="panel-head">
+    <h2 class="panel-title">Grad-CAM, for comparison</h2>
+    <span class="micro">Not used for this result</span>
+  </div>
+  <div class="panel-body">
+    <div class="row g-4 align-items-start">
+      <div class="col-md-5">
+        <div class="radiograph-frame" data-comparison-frame>
+          {% if record.has_comparison %}
+            <img src="{{ record.comparison_image.url }}"
+                 alt="Grad-CAM heatmap overlay for {{ record.patient_reference }}">
+          {% else %}
+            <p class="placeholder-note mb-0" data-comparison-note>
+              Building the comparison.
+            </p>
+          {% endif %}
+        </div>
+      </div>
+      <div class="col-md-7">
+        <p class="field-hint">
+          The project proposal names Grad-CAM as the explanation. It was
+          implemented, and then measured against Montgomery's hand-drawn lung
+          masks to find out whether it points at the lungs.
+        </p>
+        <div class="table-scroll">
+          <table class="table mb-0">
+            <thead>
+              <tr><th>Map</th><th class="text-end">Lift on lung masks</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>A map placed at random</td><td class="text-end numeric">1.00</td></tr>
+              <tr><td>Grad-CAM, shown here</td><td class="text-end numeric">1.11</td></tr>
+              <tr><td><strong>Occlusion, used above</strong></td><td class="text-end numeric"><strong>1.63</strong></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="field-hint mt-2 mb-0">
+          Grad-CAM lands barely above chance on this model, so the result above
+          does not rest on it. Paired across the 58 masked TB radiographs the
+          occlusion map gains +0.447 of lift, 95% CI [+0.125, +0.780]; on the 9
+          held-out films that interval includes zero, so the improvement is
+          measured rather than proven. Full comparison in
+          <code>ml/artifacts/explanation_methods.md</code>.
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="row g-3">
 
   <div class="col-lg-5">
@@ -305,6 +365,20 @@
           frame.replaceChildren(image);
           if (caption) caption.hidden = false;
           if (status) status.textContent = "Generated";
+
+          const panel = document.querySelector("[data-comparison-panel]");
+          const compareFrame = document.querySelector("[data-comparison-frame]");
+          if (result.comparison_url && compareFrame) {
+            const other = new Image();
+            other.src = result.comparison_url;
+            other.alt = "Grad-CAM heatmap overlay for {{ record.patient_reference }}";
+            compareFrame.replaceChildren(other);
+            if (panel) panel.hidden = false;
+          } else if (panel) {
+            // The comparison can fail without costing the explanation, so the
+            // panel goes away rather than sitting there saying it is building.
+            panel.hidden = true;
+          }
         } else if (note) {
           note.textContent = "The explanation could not be produced for this image.";
           if (status) status.textContent = "Failed";

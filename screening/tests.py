@@ -4322,3 +4322,171 @@ class MicrosoftSignInTests(TestCase):
             response = self.client.post(reverse("microsoft_login"), {})
 
         self.assertIn("/strathmore-tenant-id/", urlparse(response["Location"]).path)
+
+
+@override_settings(MEDIA_ROOT=MEDIA_FOR_TESTS)
+class GradCamComparisonTests(TestCase):
+    """The map the proposal named, kept beside the one that replaced it.
+
+    SO4 specifies a Grad-CAM heatmap. It was built, measured against
+    hand-drawn lung masks at a lift of 1.11 where a random map scores 1.00,
+    and replaced. Removing it would leave the approved objective unanswered
+    and the comparison unavailable to anyone wanting to check it, so it is
+    produced alongside and labelled with what it measured.
+    """
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(MEDIA_FOR_TESTS, ignore_errors=True)
+        super().tearDownClass()
+
+    def setUp(self):
+        super().setUp()
+        from .models import Profile, profile_for
+
+        self.clinic = clinic("Kenyatta")
+        self.user = get_user_model().objects.create_user(
+            username="comparer", email="comparer@example.org"
+        )
+        profile = profile_for(self.user)
+        profile.facility = self.clinic
+        profile.role = Profile.Role.CLINICIAN
+        profile.save()
+        self.client.force_login(self.user)
+
+    def record(self, reference="CMP-001"):
+        return PredictionRecord.objects.create(
+            patient_reference=reference,
+            xray_image="x.png",
+            facility=self.clinic,
+            screened_by=self.user,
+            tb_probability=Decimal("0.500"),
+            predicted_label=PredictionRecord.PredictedLabel.LIKELY_TB,
+            quality_status=PredictionRecord.QualityStatus.ACCEPTABLE,
+            triage_level=PredictionRecord.TriageLevel.MEDIUM,
+            model_version="test",
+            decision_threshold=Decimal("0.102"),
+            triage_low_medium_threshold=Decimal("0.102"),
+            triage_medium_high_threshold=Decimal("0.546"),
+        )
+
+    def both_succeed(self):
+        from screening.services.overlays import Explanation
+
+        def wrote(source, model, prepared, destination):
+            return Explanation(path=destination, coverage=0.2)
+
+        return (
+            mock.patch("screening.views.OcclusionGenerator.overlay", side_effect=wrote),
+            mock.patch("screening.views.GradCAMGenerator.overlay", side_effect=wrote),
+            mock.patch("screening.views.PredictionEngine"),
+        )
+
+    def build(self, record):
+        occ, grad, engine = self.both_succeed()
+        with occ, grad, engine:
+            return self.client.post(
+                reverse("screening:case_explanation", args=[record.case_id])
+            )
+
+    def test_both_maps_are_produced(self):
+        record = self.record()
+
+        answer = self.build(record).json()
+        record.refresh_from_db()
+
+        self.assertTrue(record.has_explanation)
+        self.assertTrue(record.has_comparison)
+        self.assertTrue(answer["comparison_url"])
+
+    def test_each_map_records_which_method_made_it(self):
+        """So a stored picture can always be traced to the method behind it."""
+        from screening.services.gradcam import GRADCAM_METHOD_NAME
+        from screening.services.occlusion import METHOD_NAME
+
+        record = self.record()
+        self.build(record)
+        record.refresh_from_db()
+
+        self.assertEqual(record.explanation_method, METHOD_NAME)
+        self.assertEqual(record.comparison_method, GRADCAM_METHOD_NAME)
+
+    def test_they_are_stored_apart(self):
+        record = self.record()
+        self.build(record)
+        record.refresh_from_db()
+
+        self.assertNotEqual(record.explanation_image.name, record.comparison_image.name)
+
+    def test_a_failed_comparison_does_not_cost_the_explanation(self):
+        """The comparison is the part allowed to be missing."""
+        from screening.services.overlays import Explanation, ExplanationUnavailable
+
+        record = self.record()
+
+        def wrote(source, model, prepared, destination):
+            return Explanation(path=destination, coverage=0.2)
+
+        with (
+            mock.patch("screening.views.PredictionEngine"),
+            mock.patch("screening.views.OcclusionGenerator.overlay", side_effect=wrote),
+            mock.patch(
+                "screening.views.GradCAMGenerator.overlay",
+                side_effect=ExplanationUnavailable("no gradients"),
+            ),
+        ):
+            answer = self.client.post(
+                reverse("screening:case_explanation", args=[record.case_id])
+            ).json()
+
+        record.refresh_from_db()
+        self.assertTrue(record.has_explanation)
+        self.assertFalse(record.has_comparison)
+        self.assertIsNone(answer["comparison_url"])
+
+    # ---- how the page presents it ---------------------------------------
+
+    def test_the_page_says_the_comparison_is_not_what_the_result_rests_on(self):
+        record = self.record()
+        self.build(record)
+
+        response = self.client.get(reverse("screening:case_detail", args=[record.case_id]))
+
+        self.assertContains(response, "Grad-CAM, for comparison")
+        self.assertContains(response, "Not used for this result")
+
+    def test_the_page_carries_both_measurements_and_the_random_baseline(self):
+        """A figure without its baseline persuades of nothing."""
+        record = self.record()
+        self.build(record)
+
+        body = self.client.get(
+            reverse("screening:case_detail", args=[record.case_id])
+        ).content.decode()
+
+        self.assertIn("1.11", body)
+        self.assertIn("1.63", body)
+        self.assertIn("1.00", body)
+
+    def test_the_page_admits_the_improvement_is_not_confirmed_held_out(self):
+        """Stating the limit first is the point of showing both."""
+        record = self.record()
+        self.build(record)
+
+        body = self.client.get(
+            reverse("screening:case_detail", args=[record.case_id])
+        ).content.decode()
+
+        self.assertIn("includes zero", body)
+
+    def test_the_printed_report_carries_only_the_explanation(self):
+        """A sheet for a patient file must not carry a map measured at chance."""
+        record = self.record()
+        self.build(record)
+
+        body = self.client.get(
+            reverse("screening:case_report", args=[record.case_id])
+        ).content.decode()
+
+        self.assertNotIn("Grad-CAM, for comparison", body)
+        self.assertIn("Occlusion map", body)

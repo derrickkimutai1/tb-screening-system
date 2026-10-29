@@ -49,6 +49,9 @@ from .overlays import (  # noqa: F401
 # The layer the heatmap is read from, and the fallback if a model does not have
 # it. EXPLANATION_LAYER must be a convolutional activation inside the base.
 EXPLANATION_LAYER = "block_13_expand_relu"
+
+# What a record stores when this map is kept beside the one that replaced it.
+GRADCAM_METHOD_NAME = f"gradcam-{EXPLANATION_LAYER}"
 LAST_CONV_LAYER = "out_relu"
 
 

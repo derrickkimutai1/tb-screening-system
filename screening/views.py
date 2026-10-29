@@ -54,6 +54,7 @@ from .models import (
     facility_name,
     profile_for,
 )
+from .services.gradcam import GRADCAM_METHOD_NAME, GradCAMGenerator
 from .services.occlusion import METHOD_NAME, OcclusionGenerator
 from .services.overlays import ExplanationUnavailable
 from .services.predict import ModelUnavailable, PredictionEngine
@@ -721,16 +722,35 @@ def case_explanation(request, case_id):
     record.explanation_image = relative
     record.explanation_status = PredictionRecord.ExplanationStatus.GENERATED
     record.explanation_method = METHOD_NAME
-    record.save(
-        update_fields=[
-            "explanation_image",
-            "explanation_status",
-            "explanation_method",
-            "updated_at",
-        ]
-    )
+
+    # The map the proposal named, built beside the one that replaced it.
+    #
+    # It costs about half a second against the occlusion map's three, and it
+    # answers the objective as written. A failure here must not lose the
+    # explanation that does work, so it is caught separately and the record is
+    # saved either way: the comparison is the part that can be missing.
+    comparison = f"gradcam/{record.created_at:%Y/%m}/{record.case_id}.png"
+    fields = ["explanation_image", "explanation_status", "explanation_method"]
+    try:
+        GradCAMGenerator().overlay(
+            source, engine.model(), prepared, Path(settings.MEDIA_ROOT) / comparison
+        )
+    except (ExplanationUnavailable, OSError, ValueError):
+        logger.warning("The Grad-CAM comparison failed for case %s", record.case_id)
+    else:
+        record.comparison_image = comparison
+        record.comparison_method = GRADCAM_METHOD_NAME
+        fields += ["comparison_image", "comparison_method"]
+
+    record.save(update_fields=[*fields, "updated_at"])
     return JsonResponse(
-        {"status": record.explanation_status, "url": record.explanation_image.url}
+        {
+            "status": record.explanation_status,
+            "url": record.explanation_image.url,
+            "comparison_url": (
+                record.comparison_image.url if record.comparison_image else None
+            ),
+        }
     )
 
 
