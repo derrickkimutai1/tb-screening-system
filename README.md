@@ -254,7 +254,8 @@ limits how far the results generalise. This is measured and reported rather than
 | `docs/user-guide.md` | How to use the system, for radiographers and clinicians |
 | `docs/traceability.md` | Each objective traced to its component, test, result and evidence, and what is not met |
 | `docs/test-record.md` | Generated from the suite by `scripts/build_test_record.py` |
-| `docs/deployment.md` | Deploying to a Hugging Face Space, and configuring mail |
+| `docs/deployment-azure.md` | Deploying the live release to Azure Container Apps |
+| `docs/deployment.md` | The Hugging Face route, kept for the day the university has a plan |
 | `docs/usability-study.md` | Protocol and recording sheet for the usability evaluation |
 | `docs/devlog.md` | Development log, decisions and the reasoning behind them |
 | `docs/google-sign-in-setup.md` | Creating the Google OAuth credentials |

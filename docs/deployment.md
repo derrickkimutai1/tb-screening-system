@@ -1,5 +1,13 @@
 # Deploying to a Hugging Face Space
 
+> **This route costs money as of 2 November 2026.** Hugging Face moved Docker
+> Spaces to its PRO plan at $9 a month; a free account may create a Static
+> Space only, which cannot run Django. The live deployment therefore uses
+> Azure Container Apps, and `docs/deployment-azure.md` is the guide to follow.
+> This one is kept because every word of it becomes correct again if the
+> Strathmore organisation turns out to have a paid plan, and because the
+> container it describes is the same container Azure runs.
+
 Sprint III asks for "a working operational release, accessible through HTTPS
 where applicable, with the actual backend, database, model or devices
 connected". This is how that release is produced.

@@ -1,0 +1,89 @@
+# Build the application image and publish it where a host can pull it.
+#
+# Hugging Face moved Docker Spaces behind a paid plan, so the release is a
+# container image rather than a Space. GitHub's own registry holds it: public
+# images there cost nothing and can be pulled without credentials, which keeps
+# the hosting side free of a registry bill and free of a second secret.
+#
+# The image is tagged with the commit that produced it. A tag like "latest"
+# alone would make it impossible to say afterwards which code is running,
+# which is exactly what the Build Phase notes ask to be recorded.
+name: publish image
+
+on:
+  workflow_run:
+    workflows: ["checks"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: publish-image
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    # Only a commit whose tests passed is worth publishing. A manual dispatch
+    # carries no such result and is allowed through deliberately, because that
+    # is what makes a rollback to an earlier commit possible.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Check out the commit being published
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.ref }}
+
+      - name: Work out the image name
+        id: image
+        env:
+          SOURCE_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+        run: |
+          set -euo pipefail
+          # Registry paths are lowercase; a repository name need not be.
+          repo="$(echo "${GITHUB_REPOSITORY}" | tr '[:upper:]' '[:lower:]')"
+          echo "name=ghcr.io/${repo}" >> "$GITHUB_OUTPUT"
+          echo "sha=${SOURCE_SHA}" >> "$GITHUB_OUTPUT"
+          echo "short=${SOURCE_SHA:0:12}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Sign in to the registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          # linux/amd64 only. The hosts this deploys to run on it, and building
+          # for arm64 as well would double a build that already spends most of
+          # its time installing TensorFlow.
+          platforms: linux/amd64
+          tags: |
+            ${{ steps.image.outputs.name }}:${{ steps.image.outputs.short }}
+            ${{ steps.image.outputs.name }}:latest
+          # Layers are cached between runs, so a change to the application code
+          # does not reinstall TensorFlow.
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Say what was published
+        run: |
+          echo "### Image published" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "    ${{ steps.image.outputs.name }}:${{ steps.image.outputs.short }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "From commit ${{ steps.image.outputs.sha }}." >> "$GITHUB_STEP_SUMMARY"
