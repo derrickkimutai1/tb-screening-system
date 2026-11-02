@@ -48,6 +48,13 @@ ENV PATH="/opt/venv/bin:$PATH" \
 # Hugging Face Spaces run the container as uid 1000 and expose port 7860.
 # Running as root would work and is not worth the risk for a web application.
 RUN useradd --create-home --uid 1000 app
+
+# /app has to belong to that user before the build switches to it. WORKDIR
+# creates the directory as root, and COPY --chown sets ownership on the files
+# it copies rather than on the directory holding them, so collectstatic could
+# not create staticfiles/ inside it and the build failed at that line. The same
+# would have stopped an upload being written at run time.
+RUN mkdir -p /app && chown app:app /app
 WORKDIR /app
 
 COPY --chown=app:app . .
