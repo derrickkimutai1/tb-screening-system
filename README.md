@@ -267,6 +267,8 @@ limits how far the results generalise. This is measured and reported rather than
 | `ml/artifacts/OPERATING_POINT.md` | What each stored metric describes, and what it does not |
 | `ml/artifacts/architecture_comparison.md` | Why MobileNetV2, measured against three alternatives |
 | `ml/artifacts/explanation_methods.md` | Grad-CAM and occlusion, how each was measured against lung masks |
+| `ml/model-card/README.md` | The model card: what the model is for, how it performs and where it fails |
+| `ml/model-card/publishing.md` | Putting that card on the Hugging Face Hub |
 
 ## Status
 
