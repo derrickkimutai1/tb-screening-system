@@ -8,11 +8,11 @@
 # a rollback possible: dispatch it against an earlier commit.
 name: deploy to hugging face
 
+# By hand only. Hugging Face moved Docker Spaces to a paid plan, so this route
+# is on hold and the live deployment is Azure. Left runnable rather than
+# deleted: the day the university has a plan, this is one click. Running on
+# every push would only produce a red cross for a Space that does not exist.
 on:
-  workflow_run:
-    workflows: ["checks"]
-    types: [completed]
-    branches: [main]
   workflow_dispatch:
 
 concurrency:
