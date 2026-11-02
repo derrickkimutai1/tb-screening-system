@@ -107,9 +107,26 @@ az containerapp env create \
     --location "$LOCATION" \
     --output none
 
-say "Creating the application ${APP_NAME}"
-# The host name is only known after the app exists, and three settings need to
-# contain it, so the app is created first and those three are set afterwards.
+# Django refuses a request whose Host header it does not recognise, and rejects
+# a form post from an origin it does not trust, so three settings have to carry
+# the name the app will answer at. That name is the app name joined to the
+# environment's default domain, which the environment knows as soon as it
+# exists, so asking it here makes those settings part of the creation.
+#
+# Setting them in a second update afterwards is what the first deployment did,
+# and it cost an hour. The container had already started by then, so it was
+# running with no allowed host and answered HTTP 400 to everything, including
+# the health check at the end of this script. An express environment rejects
+# --revision-suffix and a revision restart errored, so there was no clean way
+# to make it read the new values: it took a scale to zero and a wake.
+DOMAIN="$(az containerapp env show \
+    --name "$ENVIRONMENT" \
+    --resource-group "$RESOURCE_GROUP" \
+    --query properties.defaultDomain \
+    --output tsv)"
+HOST="${APP_NAME}.${DOMAIN}"
+
+say "Creating the application ${APP_NAME} at ${HOST}"
 az containerapp create \
     --name "$APP_NAME" \
     --resource-group "$RESOURCE_GROUP" \
@@ -139,26 +156,27 @@ az containerapp create \
         "EMAIL_HOST_USER=${EMAIL_USER}" \
         "DEFAULT_FROM_EMAIL=TB Screening <${EMAIL_USER}>" \
         "SIGN_IN_OPEN_REGISTRATION=True" \
-    --output none
-
-HOST="$(az containerapp show \
-    --name "$APP_NAME" \
-    --resource-group "$RESOURCE_GROUP" \
-    --query properties.configuration.ingress.fqdn \
-    --output tsv)"
-
-say "Telling the application its own address"
-# Django refuses a request whose Host header it does not recognise, and rejects
-# a form post whose origin it does not trust. Both need the name Azure just
-# assigned, which did not exist until the line above.
-az containerapp update \
-    --name "$APP_NAME" \
-    --resource-group "$RESOURCE_GROUP" \
-    --set-env-vars \
         "DJANGO_ALLOWED_HOSTS=${HOST}" \
         "DJANGO_CSRF_TRUSTED_ORIGINS=https://${HOST}" \
         "DJANGO_SITE_DOMAIN=${HOST}" \
     --output none
+
+# What Azure actually assigned, rather than what was worked out above. The two
+# agree, and if they ever stop agreeing this says so rather than leaving an app
+# that refuses every request and an address nobody can open.
+ASSIGNED="$(az containerapp show \
+    --name "$APP_NAME" \
+    --resource-group "$RESOURCE_GROUP" \
+    --query properties.configuration.ingress.fqdn \
+    --output tsv)"
+if [ "$ASSIGNED" != "$HOST" ]; then
+    echo "  It answers at ${ASSIGNED}, not the ${HOST} it was configured for," >&2
+    echo "  so it will refuse every request. Put that right with:" >&2
+    echo >&2
+    echo "    az containerapp update --name ${APP_NAME} --resource-group ${RESOURCE_GROUP} --set-env-vars DJANGO_ALLOWED_HOSTS=${ASSIGNED} DJANGO_CSRF_TRUSTED_ORIGINS=https://${ASSIGNED} DJANGO_SITE_DOMAIN=${ASSIGNED}" >&2
+    echo >&2
+    exit 1
+fi
 
 say "Waiting for it to report itself ready"
 # The first start pulls an image of a couple of gigabytes and then loads
