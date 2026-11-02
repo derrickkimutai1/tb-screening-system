@@ -299,6 +299,7 @@ def case_detail(request, case_id):
             "record": record,
             "review_form": review_form,
             "may_review": may_review,
+            "lifts": _explanation_lifts(),
             "notes": record.review_notes.select_related("reviewer"),
             "history": (
                 PredictionRecord.objects.visible_to(request.user)
@@ -711,9 +712,10 @@ def case_explanation(request, case_id):
 
     # Grad-CAM carries the result, because SO4 names it and that is the
     # objective this system was approved against. Its measured limitation is
-    # not hidden by that decision: the case page prints its lift of 1.11 next
-    # to the occlusion map's 1.63 and the 1.00 a random map scores, so a
-    # reader sees the method and the figure together.
+    # not hidden by that decision: the case page prints its lung-mask lift
+    # next to the occlusion map's and the 1.00 a random map scores, read from
+    # the evaluation artifacts, so a reader sees the method and the figure
+    # together and the figure is the one the measurement produced.
     engine = PredictionEngine()
     try:
         prepared = engine.processor.prepare(source)
@@ -976,6 +978,53 @@ def _artifact(name):
         return None
 
 
+def _explanation_lifts():
+    """How far each heatmap method beats chance at pointing into the lungs.
+
+    SO4 names Grad-CAM, so Grad-CAM is what a case shows. It was also
+    measured, and it lands close to a map placed at random, which is something
+    the person reading the map has to be told beside the map rather than in a
+    report they will never open.
+
+    These three figures were written into the case page and the printed report
+    by hand. The measurements were later re-run over all the masked films, and
+    the pages went on quoting a pair of numbers that no file in the repository
+    held any more: the page said 1.11 and 1.63 while the artifacts behind the
+    model performance page said 1.16 and 1.61. One quantity cannot have two
+    values in one system, so these are read from the evaluation artifacts now,
+    for the reason the performance page already reads its own.
+
+    None when the build does not carry the measurements, which is how the
+    desktop build behaves when it is assembled without them: the panel leaves
+    out the table rather than inventing a figure, and keeps the warning.
+    """
+    gradcam = _artifact("gradcam-block_13_expand_relu-all-tb_evaluation.json")
+    occlusion = _artifact("occlusion-p32s16-all-tb_evaluation.json")
+    if not gradcam or not occlusion:
+        return None
+    try:
+        lifts = {
+            "gradcam": float(gradcam["lift_mean"]),
+            "occlusion": float(occlusion["lift_mean"]),
+            "images": int(gradcam["images"]),
+        }
+    except (KeyError, TypeError, ValueError):
+        return None
+
+    # The paired comparison is a separate run and a separate file, so the
+    # table stands without it rather than the whole panel disappearing.
+    comparison = _artifact("explanation_comparison-all.json")
+    try:
+        low, high = comparison["difference_ci_95"]
+        lifts["gain"] = float(comparison["mean_difference"])
+        lifts["gain_low"] = float(low)
+        lifts["gain_high"] = float(high)
+        lifts["higher_on"] = int(comparison["candidate_higher_on"])
+    except (KeyError, TypeError, ValueError):
+        pass
+    return lifts
+
+
 # How the comparison runs are labelled in the experiments log, and how they
 # should read on the page. The log records the class name the training script
 # instantiated; "SmallCNN" says nothing about the point of that run, which was
@@ -1199,6 +1248,7 @@ def case_report(request, case_id):
         "screening/case_report.html",
         {
             "record": record,
+            "lifts": _explanation_lifts(),
             "notes": record.review_notes.select_related("reviewer"),
             "history": (
                 PredictionRecord.objects.visible_to(request.user)

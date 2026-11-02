@@ -4482,8 +4482,9 @@ class GradCamComparisonTests(TestCase):
     """The map the proposal named, kept beside the one that replaced it.
 
     SO4 specifies a Grad-CAM heatmap. It was built, measured against
-    hand-drawn lung masks at a lift of 1.11 where a random map scores 1.00,
-    and replaced. Removing it would leave the approved objective unanswered
+    hand-drawn lung masks at a lift barely above the 1.00 a random map
+    scores, and replaced. Removing it would leave the approved objective
+    unanswered
     and the comparison unavailable to anyone wanting to check it, so it is
     produced alongside and labelled with what it measured.
     """
@@ -4589,7 +4590,20 @@ class GradCamComparisonTests(TestCase):
         self.assertContains(response, "Measured higher than the map above")
 
     def test_the_page_carries_both_measurements_and_the_random_baseline(self):
-        """A figure without its baseline persuades of nothing."""
+        """A figure without its baseline persuades of nothing.
+
+        Both figures are read out of the evaluation artifacts rather than
+        asserted as literals, because asserting them as literals is how the
+        page came to show 1.11 and 1.63 long after the measurements had been
+        re-run over every masked film and become 1.16 and 1.61. A test that
+        hardcodes the number it expects agrees with a page that hardcodes the
+        number it prints, and neither notices the run that disagrees.
+        """
+        from .views import _explanation_lifts
+
+        measured = _explanation_lifts()
+        self.assertIsNotNone(measured, "the evaluation artifacts are missing")
+
         record = self.record()
         self.build(record)
 
@@ -4597,8 +4611,8 @@ class GradCamComparisonTests(TestCase):
             reverse("screening:case_detail", args=[record.case_id])
         ).content.decode()
 
-        self.assertIn("1.11", body)
-        self.assertIn("1.63", body)
+        self.assertIn(f"{measured['gradcam']:.2f}", body)
+        self.assertIn(f"{measured['occlusion']:.2f}", body)
         self.assertIn("1.00", body)
 
     def test_the_page_admits_the_improvement_is_not_confirmed_held_out(self):

@@ -239,8 +239,8 @@ class PredictionRecord(models.Model):
     # The explanation the proposal named, kept beside the one that works.
     #
     # SO4 specifies a Grad-CAM heatmap. It was built, and measured against
-    # Montgomery's hand-drawn lung masks at a lift of 1.11 where a map placed
-    # at random scores 1.00, so it is not what the system's conclusions rest
+    # Montgomery's hand-drawn lung masks at a lift barely above the 1.00 a map
+    # placed at random scores, so it is not what the system's conclusions rest
     # on. Removing it would leave the proposal unanswered and the comparison
     # unavailable to anyone wanting to check it, so it is produced alongside
     # and shown as a comparison, labelled with what it measured.

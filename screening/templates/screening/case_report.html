@@ -157,9 +157,15 @@
         <figcaption>
           Grad-CAM, the explanation named in the project objectives. Brighter
           areas are where the network's activations correlated with the score.
-          <strong>Indicative only.</strong> Measured against hand-drawn lung
-          masks this map scores 1.11 where a map placed at random scores 1.00,
-          so it must not be read as showing where disease is, and it is not a
+          <strong>Indicative only.</strong>
+          {% if lifts %}
+            Measured against hand-drawn lung masks this map scores
+            {{ lifts.gradcam|floatformat:2 }} where a map placed at random
+            scores 1.00, so it
+          {% else %}
+            It
+          {% endif %}
+          must not be read as showing where disease is, and it is not a
           substitute for reading the film.
         </figcaption>
       </figure>

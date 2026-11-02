@@ -187,25 +187,32 @@
           hand-drawn lung masks to find out whether they point at the lungs,
           and the occlusion map here measured higher.
         </p>
-        <div class="table-scroll">
-          <table class="table mb-0">
-            <thead>
-              <tr><th>Map</th><th class="text-end">Lift on lung masks</th></tr>
-            </thead>
-            <tbody>
-              <tr><td>A map placed at random</td><td class="text-end numeric">1.00</td></tr>
-              <tr><td><strong>Grad-CAM, used above</strong></td><td class="text-end numeric"><strong>1.11</strong></td></tr>
-              <tr><td>Occlusion, shown here</td><td class="text-end numeric">1.63</td></tr>
-            </tbody>
-          </table>
-        </div>
+        {% if lifts %}
+          <div class="table-scroll">
+            <table class="table mb-0">
+              <thead>
+                <tr><th>Map</th><th class="text-end">Lift on lung masks</th></tr>
+              </thead>
+              <tbody>
+                <tr><td>A map placed at random</td><td class="text-end numeric">1.00</td></tr>
+                <tr><td><strong>Grad-CAM, used above</strong></td><td class="text-end numeric"><strong>{{ lifts.gradcam|floatformat:2 }}</strong></td></tr>
+                <tr><td>Occlusion, shown here</td><td class="text-end numeric">{{ lifts.occlusion|floatformat:2 }}</td></tr>
+              </tbody>
+            </table>
+          </div>
+        {% endif %}
         <p class="field-hint mt-2 mb-0">
           <strong>Read the map above with this in mind.</strong> Grad-CAM lands
           barely above the 1.00 a random map scores, so it should not be taken
-          as showing where disease is. Paired across the 58 masked TB
-          radiographs the occlusion map gains +0.447 of lift, 95% CI [+0.125,
-          +0.780]; on the 9 held-out films that interval includes zero, so the
-          improvement is measured rather than proven. Grad-CAM is shown as the
+          as showing where disease is.
+          {% if lifts.gain %}
+            Paired across the {{ lifts.images }} masked TB radiographs the
+            occlusion map gains {{ lifts.gain|floatformat:3 }} of lift, 95% CI
+            [{{ lifts.gain_low|floatformat:3 }}, {{ lifts.gain_high|floatformat:3 }}];
+            on the 9 held-out films that interval includes zero, so the
+            improvement is measured rather than proven.
+          {% endif %}
+          Grad-CAM is shown as the
           explanation because the approved objective specifies it. Full
           comparison in <code>ml/artifacts/explanation_methods.md</code>.
         </p>
