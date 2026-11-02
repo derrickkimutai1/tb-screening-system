@@ -38,8 +38,35 @@ MEMORY="${MEMORY:-2.0Gi}"
 PORT="${PORT:-7860}"
 
 say() { printf '\n\033[1m%s\033[0m\n' "$*"; }
-ask() { local prompt="$1" var="$2" value; read -r -p "  ${prompt}: " value; printf -v "$var" '%s' "$value"; }
-ask_hidden() { local prompt="$1" var="$2" value; read -r -s -p "  ${prompt}: " value; echo; printf -v "$var" '%s' "$value"; }
+# Each answer can arrive in the environment instead of being typed:
+#
+#     export IMAGE=... DATABASE_URL=... SECRET_KEY=...
+#     bash azure-setup.sh
+#
+# which is the reliable way to hand it a connection string. A web terminal
+# does not always accept a paste, and read -s shows nothing while a value is
+# being entered, so a paste that never arrived looked exactly like one that
+# worked: the questions marched past and the run ended with empty answers.
+#
+# A variable that is already set is used rather than asked for, even when it
+# is deliberately empty, because deploying without Google sign-in is a valid
+# choice rather than a question worth insisting on.
+provided() { [ -n "${!1+set}" ]; }
+
+ask() {
+    local prompt="$1" var="$2" value
+    if provided "$var"; then printf '  %s: (from the environment)\n' "$prompt"; return; fi
+    read -r -p "  ${prompt}: " value
+    printf -v "$var" '%s' "$value"
+}
+
+ask_hidden() {
+    local prompt="$1" var="$2" value
+    if provided "$var"; then printf '  %s: (from the environment)\n' "$prompt"; return; fi
+    read -r -s -p "  ${prompt}: " value
+    echo
+    printf -v "$var" '%s' "$value"
+}
 
 say "Azure hosting for the TB screening system"
 echo "  Nothing is created until every question below is answered."
