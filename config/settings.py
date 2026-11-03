@@ -374,7 +374,14 @@ if GOOGLE_SIGN_IN_CONFIGURED:
         "SCOPE": ["profile", "email"],
         # No refresh token is wanted: the application acts only while the user
         # is present and never calls Google on their behalf later.
-        "AUTH_PARAMS": {"access_type": "online"},
+        #
+        # select_account makes Google always offer the account chooser. Without
+        # it, a browser holding one Google session is signed straight through,
+        # which is wrong here: a clinic workstation is shared, and the account
+        # the last person left signed in is not the account the next person
+        # means to screen under. Every record carries whoever was signed in, so
+        # an unnoticed sign-in attributes one clinician's reading to another.
+        "AUTH_PARAMS": {"access_type": "online", "prompt": "select_account"},
     }
 
 # Microsoft, because a Kenyan university or hospital issuing @strathmore.edu
