@@ -91,6 +91,7 @@ leak or reset.
 |---|---|---|
 | Google | OAuth credentials | `docs/google-sign-in-setup.md` |
 | Microsoft | An Azure app registration | optional, same pattern |
+| GitHub | An OAuth app, one form | `docs/github-sign-in-setup.md` |
 | A six-digit code by email | A mail provider | `docs/deployment.md`, step 1b |
 
 The gate asks for an address in one field and works out the rest. An address
@@ -259,6 +260,7 @@ limits how far the results generalise. This is measured and reported rather than
 | `docs/usability-study.md` | Protocol and recording sheet for the usability evaluation |
 | `docs/devlog.md` | Development log, decisions and the reasoning behind them |
 | `docs/google-sign-in-setup.md` | Creating the Google OAuth credentials |
+| `docs/github-sign-in-setup.md` | Registering the GitHub OAuth app, and why that route exists |
 | `docs/demo-runbook.md` | Running a demonstration from a cold machine, in order |
 | `docs/sprint-backlog.md` | The stories each sprint took on |
 | `docs/sprint-1-review.md` | What sprint 1 delivered, and what it did not |

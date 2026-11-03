@@ -61,6 +61,7 @@ INSTALLED_APPS = [
     "allauth.socialaccount",
     "allauth.socialaccount.providers.google",
     "allauth.socialaccount.providers.microsoft",
+    "allauth.socialaccount.providers.github",
     "screening",
 ]
 
@@ -405,6 +406,37 @@ if MICROSOFT_SIGN_IN_CONFIGURED:
             "key": "",
         },
         "TENANT": MICROSOFT_TENANT,
+    }
+
+# GitHub, on the same terms as the other two: registered only when its
+# credentials are present, absent from the page when they are not.
+#
+# It is the odd one out and the reason is worth stating rather than leaving to
+# be noticed. A GitHub account says nothing about whether somebody works at a
+# clinic, so it is not an identity a real deployment should accept; what it is
+# good for is that registering the callback takes one form and no project to
+# choose, which makes it the quickest way to demonstrate that the social
+# sign-in path works at all when another provider's console is in the way.
+# SIGN_IN_ALLOWED_DOMAINS still applies to it, so a deployment that sets one
+# shuts this route as firmly as any other.
+GITHUB_OAUTH_CLIENT_ID = os.environ.get("GITHUB_OAUTH_CLIENT_ID", "").strip()
+GITHUB_OAUTH_CLIENT_SECRET = os.environ.get("GITHUB_OAUTH_CLIENT_SECRET", "").strip()
+
+GITHUB_SIGN_IN_CONFIGURED = bool(GITHUB_OAUTH_CLIENT_ID and GITHUB_OAUTH_CLIENT_SECRET)
+
+if GITHUB_SIGN_IN_CONFIGURED:
+    SOCIALACCOUNT_PROVIDERS["github"] = {
+        "APP": {
+            "client_id": GITHUB_OAUTH_CLIENT_ID,
+            "secret": GITHUB_OAUTH_CLIENT_SECRET,
+            "key": "",
+        },
+        # A GitHub account may carry several addresses and keep them private.
+        # user:email is what makes the verified one readable, and without it
+        # an account with a hidden address arrives with no email at all, which
+        # this system cannot place: every record is attributed to a person and
+        # the address is how a clinic reaches them.
+        "SCOPE": ["read:user", "user:email"],
     }
 
 

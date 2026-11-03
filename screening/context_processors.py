@@ -14,6 +14,14 @@ def sign_in_state(request):
     return {
         "google_sign_in_configured": settings.GOOGLE_SIGN_IN_CONFIGURED,
         "microsoft_sign_in_configured": settings.MICROSOFT_SIGN_IN_CONFIGURED,
+        "github_sign_in_configured": settings.GITHUB_SIGN_IN_CONFIGURED,
+        "any_provider_configured": any(
+            (
+                settings.GOOGLE_SIGN_IN_CONFIGURED,
+                settings.MICROSOFT_SIGN_IN_CONFIGURED,
+                settings.GITHUB_SIGN_IN_CONFIGURED,
+            )
+        ),
         "login_by_code_enabled": settings.ACCOUNT_LOGIN_BY_CODE_ENABLED,
         "open_registration": settings.SIGN_IN_OPEN_REGISTRATION,
     }

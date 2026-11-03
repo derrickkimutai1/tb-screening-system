@@ -4477,6 +4477,128 @@ class MicrosoftSignInTests(TestCase):
         self.assertIn("/strathmore-tenant-id/", urlparse(response["Location"]).path)
 
 
+class GitHubSignInTests(TestCase):
+    """The GitHub route, offered on the same terms as the other two.
+
+    It is the odd provider here and the reason it exists is practical rather
+    than clinical: a GitHub account says nothing about whether somebody works
+    at a clinic, but registering its callback takes one form and no project to
+    choose, which makes it the quickest way to show that the social sign-in
+    path works when another provider's console is in the way.
+
+    What can be checked without a registration is the half that belongs to
+    this system: that the button stays hidden until credentials exist, that
+    the route is there, that the request carries the scopes needed to read an
+    address, and that the callback matches what .env.example tells somebody to
+    register.
+    """
+
+    FAKE_ID = "Iv1.0123456789abcdef"
+
+    def configured(self):
+        from django.test import override_settings
+
+        return override_settings(
+            GITHUB_SIGN_IN_CONFIGURED=True,
+            SOCIALACCOUNT_PROVIDERS={
+                "github": {
+                    "APP": {
+                        "client_id": self.FAKE_ID,
+                        "secret": "not-a-real-secret",
+                        "key": "",
+                    },
+                    "SCOPE": ["read:user", "user:email"],
+                }
+            },
+        )
+
+    def test_the_button_is_hidden_until_credentials_exist(self):
+        """An offer that cannot work is worse than no offer."""
+        from django.test import override_settings
+
+        with override_settings(GITHUB_SIGN_IN_CONFIGURED=False):
+            response = self.client.get(reverse("account_login"))
+
+        self.assertNotContains(response, "Continue with GitHub")
+
+    def test_the_button_appears_once_configured(self):
+        with self.configured():
+            response = self.client.get(reverse("account_login"))
+
+        self.assertContains(response, "Continue with GitHub")
+
+    def test_the_route_exists(self):
+        self.assertEqual(reverse("github_login"), "/accounts/github/login/")
+
+    def test_it_sends_the_request_github_expects(self):
+        from urllib.parse import parse_qs, urlparse
+
+        with self.configured():
+            response = self.client.post(reverse("github_login"), {})
+
+        self.assertEqual(response.status_code, 302)
+        target = urlparse(response["Location"])
+        query = parse_qs(target.query)
+
+        self.assertEqual(target.netloc, "github.com")
+        self.assertEqual(query["client_id"][0], self.FAKE_ID)
+
+    def test_it_asks_for_the_scope_that_reveals_an_address(self):
+        """A GitHub account may keep every address private.
+
+        Without user:email such an account arrives with no address at all,
+        and this system cannot place a person it has no way to reach: every
+        record is attributed and the address is the attribution.
+        """
+        from urllib.parse import parse_qs, urlparse
+
+        with self.configured():
+            response = self.client.post(reverse("github_login"), {})
+
+        scope = parse_qs(urlparse(response["Location"]).query)["scope"][0]
+        self.assertIn("user:email", scope)
+
+    def test_the_callback_matches_what_the_documentation_registers(self):
+        """A redirect URI that disagrees with the registration fails last.
+
+        This is the failure that cost an afternoon on the Google route: the
+        provider answers redirect_uri_mismatch and names nothing, so the one
+        thing worth pinning down is that what the application sends is what
+        the instructions tell somebody to register.
+        """
+        from urllib.parse import parse_qs, urlparse
+
+        from django.conf import settings
+
+        with self.configured():
+            response = self.client.post(reverse("github_login"), {})
+
+        sent = parse_qs(urlparse(response["Location"]).query)["redirect_uri"][0]
+        self.assertTrue(sent.endswith("/accounts/github/login/callback/"))
+
+        documented = (settings.BASE_DIR / ".env.example").read_text(encoding="utf-8")
+        self.assertIn("/accounts/github/login/callback/", documented)
+
+    def test_the_page_reports_ready_when_only_github_is_configured(self):
+        """The readiness flag had named two providers and would go stale.
+
+        It asked whether Google or Microsoft was configured, so a third
+        provider would have been offered on a page still calling itself
+        unconfigured. The flag now asks whether any provider is.
+        """
+        from django.test import override_settings
+
+        with override_settings(
+            GOOGLE_SIGN_IN_CONFIGURED=False,
+            MICROSOFT_SIGN_IN_CONFIGURED=False,
+            GITHUB_SIGN_IN_CONFIGURED=True,
+        ):
+            response = self.client.get(reverse("account_login"))
+
+        self.assertContains(response, "Ready")
+        self.assertNotContains(response, "No identity provider is configured")
+
+
 @override_settings(MEDIA_ROOT=MEDIA_FOR_TESTS)
 class GradCamComparisonTests(TestCase):
     """The map the proposal named, kept beside the one that replaced it.
