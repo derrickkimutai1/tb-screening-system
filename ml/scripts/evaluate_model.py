@@ -211,7 +211,9 @@ def main():
             "true_positive": int(tp),
         },
     }
-    (ARTIFACTS / "metrics.json").write_text(json.dumps(results, indent=2), encoding="utf-8")
+    (ARTIFACTS / "metrics.json").write_text(
+        json.dumps(results, indent=2) + "\n", encoding="utf-8", newline=""
+    )
 
     print(f"\nmetrics     -> {(ARTIFACTS / 'metrics.json').relative_to(ROOT)}")
     print("figures     -> confusion_matrix.png, roc_curve.png")

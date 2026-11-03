@@ -243,7 +243,7 @@ def main():
         },
     }
     (ARTIFACTS / "shortcut_tests.json").write_text(
-        json.dumps(summary, indent=2), encoding="utf-8"
+        json.dumps(summary, indent=2) + "\n", encoding="utf-8", newline=""
     )
 
     print(f"\nsummary -> {(ARTIFACTS / 'shortcut_tests.json').relative_to(ROOT)}")

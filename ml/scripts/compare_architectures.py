@@ -511,7 +511,7 @@ def write_report(runs):
         "",
     ]
 
-    REPORT.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    REPORT.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="")
 
 
 def main():

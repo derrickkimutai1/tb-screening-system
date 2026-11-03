@@ -284,7 +284,7 @@ def main():
         "bins_detail": summary,
     }
     destination = ARTIFACTS / "calibration.json"
-    destination.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    destination.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8", newline="")
 
     print(f"\n  summary -> {destination.relative_to(ROOT)}")
     print(f"  figure  -> {figure.relative_to(ROOT)}")

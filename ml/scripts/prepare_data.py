@@ -202,7 +202,7 @@ def write_summary(records, duplicates):
         " 224 by 224 and repeated across three channels by `ml/preprocessing.py`",
         "",
     ]
-    SUMMARY.write_text("\n".join(lines), encoding="utf-8")
+    SUMMARY.write_text("\n".join(lines), encoding="utf-8", newline="")
 
 
 def main():

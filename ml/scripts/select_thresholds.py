@@ -202,7 +202,9 @@ def main():
             "specificity": round(high_spec, 4),
         },
     }
-    (MODELS / "metadata.json").write_text(json.dumps(metadata, indent=2), encoding="utf-8")
+    (MODELS / "metadata.json").write_text(
+        json.dumps(metadata, indent=2) + "\n", encoding="utf-8", newline=""
+    )
 
     print(f"\nmetadata -> {(MODELS / 'metadata.json').relative_to(ROOT)}")
     print(f"figure   -> {(ARTIFACTS / 'threshold_selection.png').relative_to(ROOT)}")

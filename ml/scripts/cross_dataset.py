@@ -243,7 +243,7 @@ def main():
         ),
     }
     (ARTIFACTS / "cross_dataset.json").write_text(
-        json.dumps(summary, indent=2), encoding="utf-8"
+        json.dumps(summary, indent=2) + "\n", encoding="utf-8", newline=""
     )
     print(f"\n  summary -> {(ARTIFACTS / 'cross_dataset.json').relative_to(ROOT)}")
     return 0

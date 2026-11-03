@@ -228,7 +228,7 @@ def main():
     lines += ["## Figure", "", f"![Training history](training_history_{args.tag}.png)", ""]
 
     report_path = ARTIFACTS / f"model_report_{args.tag}.md"
-    report_path.write_text("\n".join(lines), encoding="utf-8")
+    report_path.write_text("\n".join(lines), encoding="utf-8", newline="")
 
     print(f"total epochs run : {total}")
     print(f"verdict          : {judgement} (AUC gap {gap:.3f})")

@@ -550,10 +550,10 @@ def main():
         },
     }
     (STAGING / f"{args.tag}_metadata.json").write_text(
-        json.dumps(metadata, indent=2), encoding="utf-8"
+        json.dumps(metadata, indent=2) + "\n", encoding="utf-8", newline=""
     )
     (ARTIFACTS / f"training_history_{args.tag}.json").write_text(
-        json.dumps(history, indent=2), encoding="utf-8"
+        json.dumps(history, indent=2) + "\n", encoding="utf-8", newline=""
     )
 
     record_experiment(
@@ -580,7 +580,7 @@ def main():
     elapsed = time.monotonic() - started
     metadata["training"]["wall_clock_seconds"] = round(elapsed, 1)
     (STAGING / f"{args.tag}_metadata.json").write_text(
-        json.dumps(metadata, indent=2), encoding="utf-8"
+        json.dumps(metadata, indent=2) + "\n", encoding="utf-8", newline=""
     )
 
     print(f"\nwall clock: {elapsed / 60:.1f} min")

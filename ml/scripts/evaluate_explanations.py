@@ -299,7 +299,7 @@ def main():
         destination = ARTIFACTS / f"{args.method}{settings}_evaluation.json"
     else:
         destination = ARTIFACTS / f"gradcam-{layer_used}{settings}_evaluation.json"
-    destination.write_text(json.dumps(summary, indent=2), encoding="utf-8")
+    destination.write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8", newline="")
 
     print(f"\n  summary -> {destination.relative_to(ROOT)}")
     print(f"  figure  -> {figure.relative_to(ROOT)}")

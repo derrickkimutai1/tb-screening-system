@@ -245,7 +245,7 @@ def main():
         "per_screening": results,
     }
     destination = ARTIFACTS / "response_times.json"
-    destination.write_text(json.dumps(summary, indent=2), encoding="utf-8")
+    destination.write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8", newline="")
     print(f"\n  summary -> {destination.relative_to(ROOT)}")
 
     try:
