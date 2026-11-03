@@ -87,3 +87,82 @@ jobs:
           echo "    ${{ steps.image.outputs.name }}:${{ steps.image.outputs.short }}" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "From commit ${{ steps.image.outputs.sha }}." >> "$GITHUB_STEP_SUMMARY"
+
+  # Point the running application at the image just built.
+  #
+  # Separate from publishing, because publishing is useful on its own: an image
+  # that exists can be deployed by hand, rolled back to, or pulled by somebody
+  # else, and none of that should depend on this repository holding credentials
+  # for one subscription.
+  #
+  # Gated on a repository variable rather than on the secret existing. A job
+  # that fails whenever the credential is absent would put a red cross on every
+  # push made from a fork or before the subscription is set up, and a red cross
+  # that is always there teaches people to stop reading them. Set AZURE_DEPLOY
+  # to true when the secret is in place; until then this is skipped and says so.
+  deploy:
+    needs: publish
+    if: vars.AZURE_DEPLOY == 'true'
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Sign in to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Point the application at the new image
+        uses: azure/cli@v2
+        with:
+          azcliversion: latest
+          inlineScript: |
+            set -euo pipefail
+            repo="$(echo "${GITHUB_REPOSITORY}" | tr '[:upper:]' '[:lower:]')"
+            sha="${{ github.event.workflow_run.head_sha || github.sha }}"
+            image="ghcr.io/${repo}:${sha:0:12}"
+
+            az containerapp update \
+                --name "${{ vars.AZURE_APP_NAME || 'tb-screening' }}" \
+                --resource-group "${{ vars.AZURE_RESOURCE_GROUP || 'tb-screening' }}" \
+                --image "$image" \
+                --output none
+
+            echo "image=$image" >> "$GITHUB_ENV"
+
+      - name: Wait for it to answer as itself
+        env:
+          HEALTH_URL: ${{ vars.AZURE_HEALTH_URL }}
+        run: |
+          set -uo pipefail
+          # A deployment that reports success because a command returned is not
+          # evidence of anything: the first revision of this application
+          # answered HTTP 400 to every request while reporting itself Running.
+          # What counts is /health/, which answers 200 only when the database
+          # responds and the model has loaded.
+          if [ -z "${HEALTH_URL}" ]; then
+            echo "No AZURE_HEALTH_URL set, so the deployment is not verified here." \
+                 >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          for attempt in $(seq 1 40); do
+            code="$(curl -s -o /tmp/health.json -w '%{http_code}' "${HEALTH_URL}" || true)"
+            if [ "$code" = "200" ]; then
+              echo "### Deployed" >> "$GITHUB_STEP_SUMMARY"
+              echo "" >> "$GITHUB_STEP_SUMMARY"
+              echo "    ${image}" >> "$GITHUB_STEP_SUMMARY"
+              echo "" >> "$GITHUB_STEP_SUMMARY"
+              echo "Healthy after ${attempt} checks:" >> "$GITHUB_STEP_SUMMARY"
+              echo "" >> "$GITHUB_STEP_SUMMARY"
+              sed 's/^/    /' /tmp/health.json >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            echo "check ${attempt}: HTTP ${code:-no answer}"
+            sleep 15
+          done
+
+          echo "The application did not report itself ready within ten minutes." >&2
+          exit 1

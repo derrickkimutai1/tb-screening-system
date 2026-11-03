@@ -152,15 +152,65 @@ Build Phase notes ask for exactly those four.
 
 ## Releasing a change
 
-Push to `main`. When the tests pass, the image is rebuilt and published under
-the new commit's tag. Point the running app at it:
+Push to `main`. When the tests pass the image is rebuilt and published under
+the new commit's tag, and if automatic deployment is set up below, the running
+application is pointed at it without anything else being typed.
+
+By hand, which is also how a rollback is done:
 
 ```bash
 az containerapp update --name tb-screening --resource-group tb-screening --image ghcr.io/OWNER/REPO:NEWTAG
 ```
 
-Keeping the previous tag is what makes a rollback possible: the same command
+Keeping the previous tag is what makes that rollback possible: the same command
 with the old tag puts it back.
+
+## Deploying automatically
+
+Off until switched on. The `deploy` job in `publish-image.yml` is gated on a
+repository variable, so before this is done it is skipped rather than failing,
+and a fork of this repository does not collect a red cross on every push for a
+subscription it has no business reaching.
+
+Publishing and deploying stay separate jobs on purpose. An image that exists is
+useful on its own: it can be deployed by hand, rolled back to, or pulled by
+somebody else, and none of that should depend on this repository holding
+credentials for one subscription.
+
+**1. Make a credential that can change this one application.** In Cloud Shell,
+with your own subscription id:
+
+```bash
+az ad sp create-for-rbac --name tb-screening-deploy --role contributor \
+    --scopes /subscriptions/SUBSCRIPTION_ID/resourceGroups/tb-screening --sdk-auth
+```
+
+Scoped to the resource group and no wider, so a leaked credential can change
+this deployment and nothing else in the subscription. It prints a block of
+JSON. That JSON is a password.
+
+If the command is refused, the university tenant does not allow creating
+service principals. Deploy by hand in that case; nothing else here depends on
+it.
+
+**2. Give it to GitHub.** Repository **Settings**, **Secrets and variables**,
+**Actions**:
+
+| Tab | Name | Value |
+|---|---|---|
+| Secrets | `AZURE_CREDENTIALS` | the whole JSON block, braces included |
+| Variables | `AZURE_DEPLOY` | `true` |
+| Variables | `AZURE_HEALTH_URL` | `https://THE-ADDRESS/health/` |
+
+`AZURE_APP_NAME` and `AZURE_RESOURCE_GROUP` are variables too, and default to
+`tb-screening` if absent.
+
+**3. Push something.** The workflow builds, deploys, and then polls `/health/`
+until the application answers 200, because a deployment command returning
+successfully is not evidence that anything works: the first revision of this
+application answered HTTP 400 to every request while reporting itself Running.
+If the health check never passes, the job fails and says so rather than leaving
+a broken release looking green.
 
 ## Known limitations of this deployment
 
