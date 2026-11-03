@@ -12,19 +12,29 @@ measured, it is versioned, it is automated, it is deployed, and it is recoverabl
    ```
    .venv/Scripts/python.exe manage.py runserver
    ```
-3. **Warm the model.** Upload one X-ray and discard the result. The first prediction
-   takes about 2.7 seconds because the model loads on first use; scoring itself is
-   about 121 milliseconds after that. A complete screening including the heatmap runs
-   a median 6.2 seconds, inside the 10 seconds NFR-01 asks for, on 50 timed runs. Warm
-   it before anyone is watching.
-4. **Copy two test X-rays to the Desktop**, so they are easy to find in the file picker.
+3. **Set `SIGN_IN_CODE_ON_SCREEN=True` in `.env`, then sign in.** The app opens on a
+   sign-in page, not the upload form, so this comes before anything else you do in it.
+   The six-digit code appears on the page instead of being emailed. See "Signing in as
+   each role" below for the three accounts and what to say about the flag.
+
+   **Request a code at most twice while rehearsing.** Three requests for one address
+   inside five minutes are refused, by design, and the refusal lasts five minutes.
+
+4. **Warm the model.** Signed in, upload one X-ray and discard the result. The first
+   prediction takes about 2.7 seconds because the model loads on first use; scoring
+   itself is about 121 milliseconds after that. A complete screening including the
+   heatmap runs a median 6.2 seconds, inside the 10 seconds NFR-01 asks for, on 50
+   timed runs. Do this before anyone is watching.
+5. **Copy two test X-rays to the Desktop**, so they are easy to find in the file picker.
    Pick them from the test split, which the model has never been trained on:
    - one TB case, filename ending `_1.png`
    - one normal case, filename ending `_0.png`
-5. **Open these tabs:** the running app, your GitHub repository, the GitHub Actions tab,
+6. **Open these tabs:** the running app, your GitHub repository, the GitHub Actions tab,
    drive.google.com, and the Colab notebook already run once so it does not ask for
    access mid-demo.
-6. **Check Google Drive is running** — the `G:` drive should be present.
+7. **Check Google Drive is running** — the `G:` drive should be present.
+8. **Delete the rehearsal records** so the Cases list is not full of `DEMO-001`
+   duplicates when it goes on screen.
 
 ---
 
@@ -43,17 +53,29 @@ On the result page, point at each part:
 - **The triage level**, with its written justification naming the thresholds used.
 - **The threshold scale** showing where this score sits across the bands.
 - **The two panels** — the original radiograph and the explanation beside it. On a case
-  nobody has opened before, the panel says it is building and fills in after about three
-  seconds. That is deliberate: the map is measured, not inferred, so it is produced when
-  somebody actually looks at a case rather than for every image of a batch.
+  nobody has opened before, the panel says it is building and fills in a few seconds
+  later. That is deliberate: the map is measured, not inferred, so it is produced when
+  somebody actually looks at a case rather than for every image of a batch. Opening the
+  same case again is instant, because the map is stored.
 
-> "The heatmap is an occlusion map. Each region is covered in turn and the image scored
-> again, so the bright areas are the ones the score actually depended on. It shows what
-> the model used, not where disease is."
+> "The Explanation panel is Grad-CAM, which is the method the proposal names in SO4.
+> Its caption says the map localises weakly, and the measurement is directly below it."
 
-If asked why it is not Grad-CAM: Grad-CAM scored a lift of 1.16 against hand-drawn lung
-masks, where 1.0 is a map placed at random. This scores 1.61, a paired gain of +0.447
-[+0.125, +0.780] across the 58 masked TB radiographs.
+Then scroll to the **Occlusion map, for comparison** panel, which is a second panel
+under the first. Do not skip it — it is the stronger half of the answer.
+
+> "Both maps were measured against Montgomery's hand-drawn lung masks, where a map
+> thrown at the radiograph at random scores 1.00. Grad-CAM scores 1.16. The occlusion
+> map scores 1.61, and paired over the 58 masked TB films the gain is +0.447 with a
+> confidence interval of +0.125 to +0.780, so it is a real difference and not a sample.
+>
+> The occlusion map covers each region in turn and scores the image again, so its bright
+> areas are the ones the score actually depended on. I show both: the objective asks for
+> Grad-CAM, and the measurement says what it is worth. Neither shows where disease is."
+
+The figures on that panel are read from the evaluation artefacts when the page renders,
+so they cannot disagree with the measurement. Say that if asked how you know they are
+current.
 
 Then upload the **normal case** and show the score drops and the triage level changes.
 
@@ -168,7 +190,7 @@ Say what it is if asked, rather than letting it be noticed: the code is being
 shown instead of sent, and the sign-in itself is the real one.
 
 **The point to make while switching roles**: the radiographer sees the same
-fourteen cases, so nothing is hidden from them, but the Review panel is
+caseload, so nothing is hidden from them, but the Review panel is
 replaced by a note saying a clinician has to decide. Then add that the server
 refuses the review even if the form is bypassed - it answers 403, which is
 tested rather than asserted.
@@ -209,6 +231,9 @@ objectives they serve.
 - **The app will not start** — check PostgreSQL is running, then that the terminal is in
   the project folder.
 - **A prediction is slow** — the model is loading. It only happens on the first call.
+- **The sign-in code is refused and no new one arrives** — three requests for one
+  address inside five minutes are rate-limited. Wait, or sign in as one of the other
+  two accounts, which have their own allowance.
 - **No internet** — the app is entirely local and needs none. Skip sections 5 and 6, and
   show the committed artefacts in `ml/artifacts/` instead.
 - **Colab asks for access** — this is why you run it once beforehand.
