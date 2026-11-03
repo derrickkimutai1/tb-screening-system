@@ -126,7 +126,7 @@ not silently reinterpret historical results.
 |---|---|
 | **Implemented in** | `screening/services/gradcam.py`, the method SO4 names. `occlusion.py` is built for every case too and shown beside it as a labelled comparison, carrying the measurement that distinguishes them |
 | **Measured by** | `ml/scripts/evaluate_explanations.py` against Montgomery's hand-drawn lung masks, settings chosen on the development split and compared by `compare_explanations.py` |
-| **Result** | **Lift 1.63** on TB films, against **1.11** for the Grad-CAM map replaced. Paired over the 58 masked TB radiographs the gain is **+0.447, 95% CI [+0.125, +0.780]**, higher on 42 of 58. On the 9 held-out test films the interval includes zero. |
+| **Result** | **Lift 1.61** on TB films, against **1.16** for the Grad-CAM map replaced. Paired over the 58 masked TB radiographs the gain is **+0.447, 95% CI [+0.125, +0.780]**, higher on 42 of 58. On the 9 held-out test films the interval includes zero. |
 | **Evidence** | `ml/artifacts/explanation_methods.md`, `explanation_comparison-all.json`, `explanation_comparison-test.json`, `occlusion-p32s16-*_evaluation.json`, `gradcam-block_13_expand_relu-*_evaluation.json`, `scorecam-all-tb_evaluation.json` |
 | **Status** | **Met on the data available, with the limit of that data stated.** |
 
@@ -153,7 +153,7 @@ report. The objective is delivered as written.
 
 **Its limitation is printed beside it rather than left for a reader to
 discover.** Directly below the map, the page gives Grad-CAM's measured lift of
-1.11, the occlusion map's 1.63, and the 1.00 a map placed at random scores,
+1.16, the occlusion map's 1.61, and the 1.00 a map placed at random scores,
 with the occlusion map itself shown for comparison. The caption on the printed
 report carries the same figure. A clinician reading either sees the number
 that says how much weight the picture deserves.
@@ -181,9 +181,15 @@ layer doubled it from 0.49, so resolution was part of the problem and not all of
 it. **The heatmap should not be presented as evidence of where the model looked.**
 
 That the model reads the lungs is established instead by occlusion, which is causal
-rather than correlational. `ml/scripts/evaluate_shortcuts.py`, on all 138 Montgomery
-images: intact 0.8625, **lungs only 0.7884, surroundings only 0.5453**. Removing the
-lungs reduces the model to near chance.
+rather than correlational. `ml/scripts/evaluate_shortcuts.py`, on the 21 **test-split**
+Montgomery images carrying hand-drawn masks: intact 0.8241, **lungs only 0.7870,
+surroundings only 0.4259**. Keeping only the lungs costs little; keeping only what
+surrounds them puts the model below chance.
+
+A larger run over all 138 Montgomery images was made on 17 October and gave 0.8625,
+0.7884 and 0.5453. It is not quoted here and is not the committed artefact, because
+it mixes in images the model trained on. The weaker-looking test-split figure is the
+one that means anything.
 
 ### 4e — Image quality warning
 
@@ -222,10 +228,10 @@ because the proposal governs.
 | Threshold selection from validation | 0.102 / 0.546, WHO specificity target not reachable | `threshold_selection.png` |
 | Architecture comparison, four candidates | ResNet50 0.9478, EfficientNetB0 0.9126, MobileNetV2 0.9119, scratch CNN 0.6108 | `architecture_comparison.md` / `.png` |
 | Cross-dataset generalisation | Changing hospital costs **0.071 AUC** (0.9336 → 0.8625) | `cross_dataset.json` |
-| Shortcut and occlusion testing | Source AUC 1.000 available, occlusion cost 0.021, lungs 0.788 vs surroundings 0.545 | `shortcut_tests.json` / `.png` |
-| Explanation quality | Lift 1.63 on TB films, +0.447 [+0.125, +0.780] over Grad-CAM paired | `explanation_methods.md`, `explanation_comparison-all.json` |
+| Shortcut and occlusion testing | Source AUC 1.000 available, occlusion cost 0.021, lungs 0.787 vs surroundings 0.426 | `shortcut_tests.json` / `.png` |
+| Explanation quality | Lift 1.61 on TB films, +0.447 [+0.125, +0.780] over Grad-CAM paired | `explanation_methods.md`, `explanation_comparison-all.json` |
 | Score calibration | ECE 0.1018, underconfident; not a probability | `calibration.json` / `.png` |
-| Response time (NFR-01) | Median 5.97s, p90 6.43s, 49 of 50 within 10s | `response_times.json` / `.png` |
+| Response time (NFR-01) | Median 6.24s, p90 6.90s, 49 of 50 within 10s | `response_times.json` / `.png` |
 | Overfitting diagnosis | Mild, AUC gap 0.057 | `model_report_reg-both.md` |
 
 ### System testing
@@ -233,7 +239,7 @@ because the proposal governs.
 | | |
 |---|---|
 | **Implemented in** | `screening/tests.py` |
-| **Result** | **220 tests**, covering valid and invalid uploads, oversized files, unsupported types, batch behaviour, quality thresholds, triage boundaries, preprocessing equivalence, authentication, the allowlist, role permissions, review attribution, metadata stripping, and the fifteen failure scenarios the Build Phase notes enumerate. |
+| **Result** | **365 tests**, covering valid and invalid uploads, oversized files, unsupported types, batch behaviour, quality thresholds, triage boundaries, preprocessing equivalence, authentication, the allowlist, role permissions, review attribution, metadata stripping, and the fifteen failure scenarios the Build Phase notes enumerate. |
 | **Automation** | GitHub Actions runs lint, formatting, migration checks and the suite against PostgreSQL on every push. |
 | **Record** | `docs/test-record.md`, generated from the suite by `scripts/build_test_record.py` so it cannot drift. `docs/sprint-2-test-record.md` is kept as the Sprint 2 snapshot. |
 | **Failure paths** | A deceptive file, an empty file, a filename attempting traversal, a filename carrying instructions, a corrupt image inside a batch, a failed heatmap, an absent model, an orphaned upload, a lost session, a guessed case id, an unknown case id, a duplicate submission, and the health endpoint under both outcomes. |
@@ -264,9 +270,9 @@ Stated here rather than left to be discovered.
 
 | Gap | Effect on the objectives | Plan |
 |---|---|---|
-| **No deployed release over HTTPS** | Sprint III requires a working operational release. The system runs only on a development machine. | The blocker is TensorFlow's memory footprint against free-tier limits. A route has to be chosen and provisioned. |
+| ~~No deployed release over HTTPS~~ | **Resolved 3 November 2026.** The release runs on Azure Container Apps in South Africa North, over HTTPS, with an external PostgreSQL database and the model inside the image. `/health/` answers 200 with the database reachable and `tb_mobilenetv2_v1` loaded. Hugging Face was abandoned once Docker Spaces went behind a paid plan; `docs/deployment-azure.md` records why and what it costs. | Remaining limits: uploads live inside the container and do not survive a restart, so a record outlives its images; the app scales to zero to stay inside the free grant, so the first visit after a quiet period is slow. Both are stated in the deployment guide rather than hidden. |
 | **No usability testing with representative users** | SO5 says "system testing"; Sprint III asks for usability and failure scenarios with real participants. Functional tests do not substitute. | The protocol, task list, recording sheet and SUS instrument are ready in `docs/usability-study.md`. What remains is five participants and an answer on ethics clearance, which has weeks of lead time. |
-| ~~Grad-CAM lift at chance~~ | **Addressed 26 October.** The Grad-CAM map scored 1.11 on TB films, barely above the 1.0 a random map scores. An occlusion map replaces it at 1.63, a paired gain of +0.447 [+0.125, +0.780] over the 58 masked TB radiographs. | Remaining limit: the gain is not confirmed on the 9 held-out films, and no masked dataset larger than Montgomery was available. The map still shows what the score depended on, not where disease is. |
+| ~~Grad-CAM lift at chance~~ | **Addressed 26 October.** The Grad-CAM map scored 1.16 on TB films, barely above the 1.0 a random map scores. An occlusion map replaces it at 1.61, a paired gain of +0.447 [+0.125, +0.780] over the 58 masked TB radiographs. | Remaining limit: the gain is not confirmed on the 9 held-out films, and no masked dataset larger than Montgomery was available. The map still shows what the score depended on, not where disease is. |
 | **WHO specificity target not reachable** | SO1's requirement is not fully satisfiable by this model on this data. | Reported as a finding. |
 | **The dataset limits the model, and it is measured** | 559 training images is not enough for this architecture to stop improving. Retrained on 25, 50, 75 and 100 per cent of the split, three draws each, validation AUC rises 0.8646 to 0.9082 and is still rising at the end: the last 140 images bought 0.0141 against a 0.0114 resolution. | `ml/artifacts/learning_curve.md`. Fitted, AUC 0.93 would want roughly 1,861 training images. Collecting them is outside this project; the figure exists so the limitation is stated with a number rather than apologised for. |
 | **Score is not calibrated** | 4b displays a raw score, not a probability. Now measured: ECE 0.1018, underconfident. | Labelled honestly as a model score. Platt or isotonic calibration is future work. |
@@ -277,7 +283,7 @@ Stated here rather than left to be discovered.
 ## How to verify any row above
 
 ```bash
-.venv/Scripts/python.exe manage.py test screening      # the 67 tests
+.venv/Scripts/python.exe manage.py test screening      # the 365 tests
 .venv/Scripts/python.exe ml/scripts/compare_architectures.py
 .venv/Scripts/python.exe ml/scripts/evaluate_explanations.py --split all
 .venv/Scripts/python.exe ml/scripts/learning_curve.py

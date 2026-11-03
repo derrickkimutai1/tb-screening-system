@@ -560,3 +560,55 @@ One incidental correction: the mean at 100 per cent is 0.9082 across three
 seeds, against the 0.9119 recorded for `reg-both`. The deployed figure is one
 draw of that distribution and sits slightly above its middle, which is worth
 knowing when a single validation number is quoted anywhere.
+
+## 4 November 2026 — correcting figures that had drifted from the artefacts
+
+Fixing a stale test count turned into a sweep, because the count was not the
+only number restated by hand and left behind.
+
+**The explanation lift, in five places.** `README.md`, `traceability.md` and
+`what-measuring-found.md` all carried 1.11 for Grad-CAM and 1.63 for occlusion.
+The artefacts say 1.1587 and 1.6058. The 1.63 was worse than stale: it is the
+figure from the *development* split, quoted beside the sentence "over the 58
+masked TB radiographs", which is the `all` split. Two different measurements
+had been spliced into one claim. Corrected to 1.16 and 1.61 throughout, read
+from `gradcam-block_13_expand_relu-all-tb_evaluation.json` and
+`occlusion-p32s16-all-tb_evaluation.json`.
+
+**The region ablation.** `traceability.md` and the model card quoted intact
+0.8625, lungs 0.7884, surroundings 0.5453, described as "all 138 Montgomery
+images". The committed artefact holds 0.8241, 0.7870 and 0.4259 over 21. The
+difference is not a drift but a method: `evaluate_shortcuts.py` restricts the
+region test to the test split, and the 138-image run from 17 October (recorded
+above) includes images the model trained on. The 21-image figure is the
+defensible one even though it looks weaker, and the surroundings number is
+stronger evidence anyway — 0.4259 is below chance, not "a little above" it.
+Worth noting the intact figure the docs carried, 0.8625, is the cross-dataset
+AUC from a different experiment entirely.
+
+**Response time.** `traceability.md` said median 5.97s and p90 6.43s;
+`response_times.json` says 6.24 and 6.90. Both pass NFR-01.
+
+**Test counts.** 257 in the README, 220 in traceability, 67 in a verification
+command, 29 in the demo runbook. All 365. `docs/test-record.md` was itself
+stale at 196 and has been regenerated, which is the whole reason it is
+generated.
+
+**The demo runbook was the worst of it**, because it is read aloud. Its script
+quoted AUC 0.891, sensitivity 0.949 and specificity 0.508 against the true
+0.9291, 0.9153 and 0.6393, and claimed a threshold chosen for 90 per cent
+sensitivity when it was chosen for 92. It also had no section on the live
+release, which is the Sprint III requirement.
+
+**The pattern.** Every one of these is a number copied into prose at the moment
+it was measured and never read again. The model performance page and the case
+report had the same defect on 2 November and were fixed by reading the
+artefacts at render time. Prose cannot do that, so prose should carry fewer
+numbers and more pointers. Two generators that write committed files,
+`build_test_record.py` and the new `learning_curve.py`, now write LF endings
+explicitly, so regenerating one no longer produces a diff that is entirely line
+endings and no longer trips the pre-commit hook.
+
+**Also closed:** the traceability gap "No deployed release over HTTPS". The
+release has been live on Azure Container Apps since 3 November and `/health/`
+answers 200. The row was still describing the blocker that had been removed.

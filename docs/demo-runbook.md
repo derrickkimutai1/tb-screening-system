@@ -1,7 +1,7 @@
-# Demo runbook — Sprints 1 and 2
+# Demo runbook — Sprints 1 to 3
 
-About ten minutes. The order tells a story: the system works, it is correct, it is
-measured, it is versioned, it is automated, and it is recoverable.
+About thirteen minutes. The order tells a story: the system works, it is correct, it is
+measured, it is versioned, it is automated, it is deployed, and it is recoverable.
 
 ---
 
@@ -13,8 +13,10 @@ measured, it is versioned, it is automated, and it is recoverable.
    .venv/Scripts/python.exe manage.py runserver
    ```
 3. **Warm the model.** Upload one X-ray and discard the result. The first prediction
-   takes about 2.7 seconds because the model loads on first use; every one after takes
-   about 150 milliseconds. Do this before anyone is watching.
+   takes about 2.7 seconds because the model loads on first use; scoring itself is
+   about 121 milliseconds after that. A complete screening including the heatmap runs
+   a median 6.2 seconds, inside the 10 seconds NFR-01 asks for, on 50 timed runs. Warm
+   it before anyone is watching.
 4. **Copy two test X-rays to the Desktop**, so they are easy to find in the file picker.
    Pick them from the test split, which the model has never been trained on:
    - one TB case, filename ending `_1.png`
@@ -49,8 +51,8 @@ On the result page, point at each part:
 > again, so the bright areas are the ones the score actually depended on. It shows what
 > the model used, not where disease is."
 
-If asked why it is not Grad-CAM: Grad-CAM scored a lift of 1.11 against hand-drawn lung
-masks, where 1.0 is a map placed at random. This scores 1.63, a paired gain of +0.447
+If asked why it is not Grad-CAM: Grad-CAM scored a lift of 1.16 against hand-drawn lung
+masks, where 1.0 is a map placed at random. This scores 1.61, a paired gain of +0.447
 [+0.125, +0.780] across the 58 masked TB radiographs.
 
 Then upload the **normal case** and show the score drops and the triage level changes.
@@ -77,20 +79,26 @@ This is Sprint 2's evaluation requirement. Open `ml/artifacts/`:
 - **`metrics.json`** — the test results
 - **`confusion_matrix.png`** and **`roc_curve.png`**
 - **`threshold_selection.png`** — how the threshold was chosen
-- **`experiments.csv`** — the four training variants compared
+- **`experiments.csv`** — every training variant compared, and `architecture_comparison.md`
+- **`learning_curve.md`** — whether 800 images is what limits the model
 
-> "The model was evaluated once on 120 images held out from training and from model
-> selection. AUC 0.891, sensitivity 0.949, specificity 0.508. Every figure has a
-> confidence interval, because 120 images cannot support a single precise number.
+> "The model was evaluated on 120 images held out from training and from model
+> selection. AUC 0.9291, sensitivity 0.9153, specificity 0.6393. Every figure has a
+> confidence interval, because 120 images cannot support a single precise number:
+> sensitivity is 0.839 to 0.983, specificity 0.509 to 0.758.
 >
-> I chose the threshold on validation to reach 90 per cent sensitivity, which is the WHO
-> target for a TB triage test, because in screening a missed case costs more than a false
-> alarm. Specificity is 50.8 per cent, below the 70 per cent target, so the system
-> over-refers. That is my main outstanding defect.
+> I chose the threshold on validation to reach 92 per cent sensitivity rather than the
+> WHO minimum of 90, because in screening a missed case costs more than a false alarm.
+> That margin earned its keep: sensitivity fell to 0.9153 in transfer, so a threshold
+> picked at exactly 0.900 would have landed below the requirement.
 >
-> Validation AUC was 0.893 and test AUC 0.891, so the result generalises."
+> Specificity is 63.9 per cent against the 70 per cent target, so the system over-refers.
+> That is my main outstanding defect, and the validation curve already showed no
+> threshold satisfies both targets at once on this data.
+>
+> Validation AUC was 0.9119 and test AUC 0.9291, so the result generalises."
 
-## 4. Testing, about 1 minute
+## 4. Testing, about 3 minutes
 
 In a second terminal:
 
@@ -98,7 +106,7 @@ In a second terminal:
 .venv/Scripts/python.exe manage.py test screening
 ```
 
-29 tests, then `OK`.
+365 tests, then `OK`.
 
 Then open `docs/sprint-2-test-record.md` — expected result, actual result, and the
 corrections made during the sprint.
@@ -108,10 +116,23 @@ corrections made during the sprint.
 Your GitHub repository, then the commit list, then the **Actions** tab.
 
 > "Every push builds the project from scratch on a clean machine with a real PostgreSQL
-> server, runs the linter and runs all 29 tests. Checks also run on every commit, so a
+> server, runs the linter and runs all 365 tests. Checks also run on every commit, so a
 > dataset or a password cannot be committed by accident."
 
-## 6. The cloud, about 1 minute
+## 6. The cloud, about 2 minutes
+
+First the live release, because Sprint III asks for one:
+
+<https://tb-screening.happybay-20a0549c.southafricanorth.azurecontainerapps.io/health/>
+
+> "It answers 200 with the database reachable and the model loaded. The same image the
+> tests passed on is what runs there, tagged with the commit that produced it, so I can
+> say which code is live and roll back to the previous tag with one command.
+>
+> It scales to zero to stay inside the free grant, so the first visit after a quiet
+> period waits for TensorFlow to load. Warm it before the session."
+
+Then the backup, which is a different question:
 
 **drive.google.com** → `tb-screening-system`: `datasets.zip`, the database dump, the
 model and artefacts.
@@ -165,7 +186,7 @@ Say these before being asked:
   cent, above the 90 per cent asked for. No threshold meets both at once, which is a
   property of the model on this data rather than a tuning oversight.
 - **The explanation localises, but weakly, and the gain is not confirmed on held-out
-  data.** The occlusion map scores 1.63 against lung masks where Grad-CAM scored 1.11,
+  data.** The occlusion map scores 1.61 against lung masks where Grad-CAM scored 1.16,
   and paired over the 58 masked TB films the gain is +0.447 [+0.125, +0.780]. On the 9
   test films the interval includes zero. Montgomery has no more masked TB films.
 - **The lung-mask metric is gameable**, and it is better to say so first: coarser maps
@@ -173,7 +194,10 @@ Say these before being asked:
   is hot everywhere still scores 1.00. The shipped setting is the finest that clearly
   beats Grad-CAM, not the best-scoring one.
 - **The dataset is small and not Kenyan**, which limits both performance and
-  generalisability.
+  generalisability. How small is now measured rather than conceded: retrained on
+  quarters of the training split, validation AUC runs 0.8646, 0.8730, 0.8941, 0.9082
+  and is still rising where the data stops. So more radiographs would still help this
+  model, and `ml/artifacts/learning_curve.md` says roughly how many.
 
 Then `docs/sprint-backlog.md` shows these as planned Sprint 3 tasks against the
 objectives they serve.

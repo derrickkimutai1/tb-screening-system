@@ -278,7 +278,9 @@ limits how far the results generalise. This is measured and reported rather than
 The application is complete and runs: sign-in, screening of single images and
 batches, quality checking, triage, explanations, a review queue, review with
 role separation, printable reports, CSV export, a tamper-evident access trail
-and a health endpoint. 257 tests pass, and the same suite runs on every push.
+and a health endpoint. 365 tests pass, and the same suite runs on every push.
+The count is restated here by hand; `docs/test-record.md` is generated from the
+suite and is the one that cannot be wrong.
 
 **Headline results.** Test AUC 0.9291 [0.878, 0.970]. Decision threshold 0.102,
 chosen on validation against the WHO target product profile; at that threshold
@@ -296,8 +298,8 @@ written and needs participants.
 - **No threshold meets both WHO targets.** The best specificity at or above 90%
   sensitivity is 0.689 against the 0.70 asked for.
 - **The explanation localises weakly, and only on positive cases.** The shipped
-  occlusion map scores a lift of 1.63 against hand-drawn lung masks on TB films,
-  against 1.11 for the Grad-CAM map it replaced, and a paired comparison over
+  occlusion map scores a lift of 1.61 against hand-drawn lung masks on TB films,
+  against 1.16 for the Grad-CAM map it replaced, and a paired comparison over
   the 58 masked TB radiographs puts the gain at +0.447 [+0.125, +0.780]. On the
   9 held-out test films the interval includes zero, so the improvement is not
   independently confirmed and no masked dataset larger than Montgomery was

@@ -139,7 +139,7 @@ reruns it. Commit `1d02f93`.
 influenced the prediction.
 
 **What measuring found.** Against Montgomery's hand-drawn lung masks, the
-activation scored a lift of **1.11** on TB films, where **1.0 is what a map
+activation scored a lift of **1.16** on TB films, where **1.0 is what a map
 thrown at the radiograph at random would score**. It was being displayed
 anyway, with a caption admitting it.
 

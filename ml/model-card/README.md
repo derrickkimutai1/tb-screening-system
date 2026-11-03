@@ -143,9 +143,11 @@ costs.
 **It is not reading an acquisition shortcut, and that was checked.** A
 classifier trained to predict which dataset an image came from scores AUC
 1.000, so the shortcut was perfectly available. Blanking the acquisition
-markers cost 0.021 of AUC against a control that cost nothing. Restricting the
-image to the lungs gives 0.7884 and to everything outside them 0.5453, against
-0.8625 intact. The signal lives in the lungs.
+markers cost 0.021 of AUC against a control that cost nothing. On the 21 masked
+Montgomery films, restricting the image to the lungs gives 0.7870 and to
+everything outside them 0.4259, against 0.8241 intact. Keeping only the lungs
+costs little; keeping only what surrounds them puts the model below chance. The
+signal lives in the lungs.
 
 **The heatmap does not localise well.** Measured against Montgomery's
 hand-drawn lung masks over the 58 masked tuberculosis films, where a map

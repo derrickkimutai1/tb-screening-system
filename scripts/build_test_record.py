@@ -312,7 +312,13 @@ def main():
             ]
         lines.append("")
 
-    DESTINATION.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    # newline="" keeps the endings written here rather than translating them to
+    # the platform's. This file is committed, and one that changes its line
+    # endings on every regeneration is a diff that says nothing.
+    # rstrip because the sections above end by appending a blank separator, and
+    # a file ending in a blank line is what the end-of-file hook rewrites.
+    body = "\n".join(lines).rstrip("\n") + "\n"
+    DESTINATION.write_text(body, encoding="utf-8", newline="")
     print(f"record -> {DESTINATION.relative_to(ROOT)}")
     return 1 if failures else 0
 
