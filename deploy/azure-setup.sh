@@ -107,6 +107,15 @@ az containerapp env create \
     --location "$LOCATION" \
     --output none
 
+# Azure terminates HTTPS at its ingress and forwards plain HTTP to the
+# container, so without DJANGO_BEHIND_PROXY Django does not trust
+# X-Forwarded-Proto, request.is_secure() is false, and every absolute URL the
+# application builds for itself comes out as http. Google rejects an http
+# redirect URI for any address that is not localhost, so Google sign-in failed
+# with redirect_uri_mismatch however carefully the console was filled in. It is
+# set below, with the rest, because it is as much a fact about this host as the
+# host name is.
+#
 # Django refuses a request whose Host header it does not recognise, and rejects
 # a form post from an origin it does not trust, so three settings have to carry
 # the name the app will answer at. That name is the app name joined to the
@@ -156,6 +165,7 @@ az containerapp create \
         "EMAIL_HOST_USER=${EMAIL_USER}" \
         "DEFAULT_FROM_EMAIL=TB Screening <${EMAIL_USER}>" \
         "SIGN_IN_OPEN_REGISTRATION=True" \
+        "DJANGO_BEHIND_PROXY=True" \
         "DJANGO_ALLOWED_HOSTS=${HOST}" \
         "DJANGO_CSRF_TRUSTED_ORIGINS=https://${HOST}" \
         "DJANGO_SITE_DOMAIN=${HOST}" \
