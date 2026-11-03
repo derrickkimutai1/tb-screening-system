@@ -9,6 +9,15 @@ from django.template.defaultfilters import filesizeformat
 
 from .models import Facility, PredictionRecord, Profile, profile_for
 
+# The roles a person may choose for themselves: every role the model defines
+# except administrator. Derived rather than listed, so a role added later is
+# offered without this being remembered, and the one exclusion stays exact.
+SELECTABLE_ROLES = [
+    (value, label)
+    for value, label in Profile.Role.choices
+    if value != Profile.Role.ADMINISTRATOR
+]
+
 ACCEPTED_SUFFIXES = {".png", ".jpg", ".jpeg"}
 
 
@@ -174,10 +183,24 @@ class SocialSignupForm(SocialAccountSignupForm):
     allowed to do here, so the first sign-in asks for the one and explains the
     other.
 
-    Role is not on this form. A new user choosing their own role would be
-    choosing whether they may record clinical reviews, which is the
-    administrator's decision. Everyone starts as a radiographer and the form
-    says so rather than leaving it to be discovered.
+    Role is asked here, between the two clinical roles only. What separates a
+    radiographer from a clinician is which work a person does, and the person
+    signing in is the one who knows that; nobody else is present at this
+    moment to be asked.
+
+    Administrator is not offered and cannot be submitted. It is not a kind of
+    clinical work, it is the right to change what everyone else may do, so a
+    form offering it would let anybody take it. It is bound to one address in
+    the environment, granted when the account is created, and reachable from
+    no form at all. The choices below are built from the model's own roles
+    with that one removed, so a role added later appears here and the
+    exclusion stays exact.
+
+    This does mean a new account can call itself a clinician and so may record
+    reviews. That is a deliberate loosening: every review carries the name and
+    the account that recorded it in a hash-chained trail, and an administrator
+    can correct a role afterwards, so the claim is attributable rather than
+    anonymous.
 
     There is no username field either. ACCOUNT_SIGNUP_FIELDS already limits
     allauth to the email address, so allauth derives a username itself and a
@@ -204,6 +227,18 @@ class SocialSignupForm(SocialAccountSignupForm):
             "at the same clinic."
         ),
         widget=forms.Select(attrs={"class": "form-select"}),
+    )
+    role = forms.ChoiceField(
+        choices=SELECTABLE_ROLES,
+        initial=Profile.Role.RADIOGRAPHER,
+        label="Your role",
+        help_text=(
+            "A radiographer captures and screens. A clinician may also record "
+            "a review, which is a clinical judgement and is recorded against "
+            "your name."
+        ),
+        widget=forms.RadioSelect,
+        error_messages={"invalid_choice": "Choose one of the roles offered."},
     )
 
     def __init__(self, *args, **kwargs):
@@ -237,7 +272,13 @@ class SocialSignupForm(SocialAccountSignupForm):
         # fills it in rather than creating a second one.
         profile = profile_for(user)
         profile.facility = self.cleaned_data.get("facility")
-        profile.save(update_fields=["facility", "updated_at"])
+        # Not when the account is the administrator's. The signal granted that
+        # role as the account was made, and this form's own choices never
+        # include it, so writing the chosen role here unconditionally would
+        # demote the one account that cannot be restored from any form.
+        if profile.role != Profile.Role.ADMINISTRATOR:
+            profile.role = self.cleaned_data["role"]
+        profile.save(update_fields=["facility", "role", "updated_at"])
 
         return user
 

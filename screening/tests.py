@@ -1224,6 +1224,7 @@ class SocialSignupFormTests(TestCase):
             "last_name": "Kirui",
             "email": "juliet@strathmore.edu",
             "facility": "Kenyatta National Hospital",
+            "role": "radiographer",
         }
         fields.update(data)
 
@@ -1251,11 +1252,43 @@ class SocialSignupFormTests(TestCase):
 
         self.assertTrue(form.fields["email"].widget.attrs.get("readonly"))
 
-    def test_a_role_cannot_be_chosen(self):
-        """Choosing a role would be choosing whether you may review."""
+    def test_the_two_clinical_roles_are_offered(self):
+        """Which of the two a person is, is a thing only they know here."""
         form = self.build()
 
-        self.assertNotIn("role", form.fields)
+        offered = [value for value, _ in form.fields["role"].choices]
+
+        self.assertEqual(sorted(offered), ["clinician", "radiographer"])
+
+    def test_administrator_is_not_offered(self):
+        """It is not clinical work, it is the right to change everyone's role."""
+        form = self.build()
+
+        self.assertNotIn("administrator", [value for value, _ in form.fields["role"].choices])
+
+    def test_administrator_cannot_be_submitted_anyway(self):
+        """A field absent from a page is still reachable with a crafted post."""
+        form = self.build(role="administrator")
+
+        self.assertFalse(form.is_valid())
+        self.assertIn("role", form.errors)
+
+    def test_the_offered_roles_come_from_the_model(self):
+        """A role added later should appear without this being remembered.
+
+        The exclusion is of administrator specifically, not of whatever the
+        third entry happens to be, so the list is derived rather than written
+        out and this holds it to that.
+        """
+        from .forms import SELECTABLE_ROLES
+        from .models import Profile
+
+        self.assertEqual(
+            sorted(value for value, _ in SELECTABLE_ROLES),
+            sorted(
+                value for value in Profile.Role.values if value != Profile.Role.ADMINISTRATOR
+            ),
+        )
 
     def test_a_name_is_required(self):
         form = self.build(first_name="", last_name="")
@@ -1269,6 +1302,74 @@ class SocialSignupFormTests(TestCase):
         form = self.build(facility="")
 
         self.assertNotIn("facility", form.errors)
+
+
+class AdministratorAccountTests(TestCase):
+    """The one role nobody can choose, and the one account that holds it.
+
+    Everything else about a role is a statement about which work somebody
+    does. Administrator is not: it carries the right to change what everyone
+    else may do, so it is granted from one address in the environment and
+    reachable from no form.
+    """
+
+    ADMIN = "derrick.kimutai@strathmore.edu"
+
+    def make(self, email):
+        from .models import profile_for
+
+        user = get_user_model().objects.create_user(username=email.split("@")[0], email=email)
+        return profile_for(user)
+
+    def test_the_named_address_is_made_an_administrator(self):
+        with override_settings(ADMINISTRATOR_EMAIL=self.ADMIN):
+            profile = self.make(self.ADMIN)
+
+        self.assertEqual(profile.role, Profile.Role.ADMINISTRATOR)
+
+    def test_the_match_ignores_case(self):
+        """An address typed into a form is not reliably lower case."""
+        with override_settings(ADMINISTRATOR_EMAIL=self.ADMIN):
+            profile = self.make("Derrick.Kimutai@Strathmore.edu")
+
+        self.assertEqual(profile.role, Profile.Role.ADMINISTRATOR)
+
+    def test_everybody_else_starts_at_the_default(self):
+        with override_settings(ADMINISTRATOR_EMAIL=self.ADMIN):
+            profile = self.make("someone.else@strathmore.edu")
+
+        self.assertEqual(profile.role, Profile.Role.RADIOGRAPHER)
+
+    def test_an_unset_address_makes_nobody_an_administrator(self):
+        """A checkout with no .env should not make its first user powerful."""
+        with override_settings(ADMINISTRATOR_EMAIL=""):
+            first = self.make(self.ADMIN)
+            second = self.make("another@strathmore.edu")
+
+        self.assertEqual(first.role, Profile.Role.RADIOGRAPHER)
+        self.assertEqual(second.role, Profile.Role.RADIOGRAPHER)
+
+    def test_the_signup_form_cannot_demote_the_administrator(self):
+        """The form's own choices exclude the role, so saving would clear it.
+
+        Writing the chosen role unconditionally would take administrator away
+        from the one account that cannot get it back from any form, on that
+        account's own first sign-in.
+        """
+        from .models import profile_for
+
+        with override_settings(ADMINISTRATOR_EMAIL=self.ADMIN):
+            user = get_user_model().objects.create_user(username="derrick", email=self.ADMIN)
+            profile = profile_for(user)
+            self.assertEqual(profile.role, Profile.Role.ADMINISTRATOR)
+
+            profile.facility = None
+            if profile.role != Profile.Role.ADMINISTRATOR:
+                profile.role = Profile.Role.CLINICIAN
+            profile.save(update_fields=["facility", "role", "updated_at"])
+
+        profile.refresh_from_db()
+        self.assertEqual(profile.role, Profile.Role.ADMINISTRATOR)
 
 
 class SocialSignupPageTests(TestCase):

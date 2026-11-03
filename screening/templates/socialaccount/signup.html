@@ -78,10 +78,27 @@
       {% endfor %}
     </div>
 
+    <div class="mb-4">
+      <span class="field-label">{{ form.role.label }}</span>
+      <div class="role-choice">
+        {% for choice in form.role %}
+          <label class="role-option">
+            {{ choice.tag }}
+            <span>{{ choice.choice_label }}</span>
+          </label>
+        {% endfor %}
+      </div>
+      <p class="field-hint">{{ form.role.help_text }}</p>
+      {% for error in form.role.errors %}
+        <p class="field-hint" style="color: var(--triage-high);">{{ error }}</p>
+      {% endfor %}
+    </div>
+
     <div class="notice notice-boundary mb-3">
-      You will start as a <strong>radiographer</strong>: you can screen radiographs
-      and read cases, but recording a clinical review needs a clinician. An
-      administrator can change your role.
+      Both roles screen radiographs and read cases. A <strong>clinician</strong>
+      may also record a review, and every review is stored against your name in
+      a trail that cannot be altered without it showing. An administrator can
+      change a role later; nobody can make themselves one.
     </div>
 
     <button type="submit" class="btn btn-action">Create account</button>

@@ -342,6 +342,44 @@ td.numeric {
   margin-top: 0.4375rem;
 }
 
+/* Choosing a role at first sign-in. Two options side by side rather than a
+   dropdown: there are only two, and which one a person picks decides whether
+   they may record a clinical review, so it is worth reading both before
+   choosing rather than opening a list to find out what the alternatives are. */
+.role-choice {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.role-option {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1 1 10rem;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  cursor: pointer;
+  transition: border-color 0.12s ease, background-color 0.12s ease;
+}
+
+.role-option:hover {
+  border-color: var(--line-bright);
+}
+
+.role-option:has(input:checked) {
+  border-color: var(--acid);
+  background-color: var(--acid-wash);
+}
+
+/* Keyboard focus has to be visible on the label, because the radio inside it
+   is what receives focus and it is small and easily lost against the panel. */
+.role-option:has(input:focus-visible) {
+  outline: 2px solid var(--acid);
+  outline-offset: 2px;
+}
+
 .form-control,
 .form-select {
   background: var(--ground-deep);

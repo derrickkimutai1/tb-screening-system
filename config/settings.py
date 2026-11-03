@@ -344,6 +344,17 @@ SOCIALACCOUNT_FORMS = {"signup": "screening.forms.SocialSignupForm"}
 SOCIALACCOUNT_LOGIN_ON_GET = False
 SOCIALACCOUNT_STORE_TOKENS = False
 
+# The one account that holds the administrator role.
+#
+# A new user picks their own role when they first sign in, between the two
+# clinical ones. Administrator is not among them and cannot be reached from
+# any form: it is granted to this address and to nobody else, so the right to
+# change other people's roles cannot be claimed by claiming it.
+#
+# Empty means no account is an administrator, which is the right default for a
+# checkout with no .env: a deployment decides who administers it.
+ADMINISTRATOR_EMAIL = os.environ.get("ADMINISTRATOR_EMAIL", "").strip().lower()
+
 GOOGLE_OAUTH_CLIENT_ID = os.environ.get("GOOGLE_OAUTH_CLIENT_ID", "").strip()
 GOOGLE_OAUTH_CLIENT_SECRET = os.environ.get("GOOGLE_OAUTH_CLIENT_SECRET", "").strip()
 
