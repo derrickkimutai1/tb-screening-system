@@ -268,6 +268,7 @@ Stated here rather than left to be discovered.
 | **No usability testing with representative users** | SO5 says "system testing"; Sprint III asks for usability and failure scenarios with real participants. Functional tests do not substitute. | The protocol, task list, recording sheet and SUS instrument are ready in `docs/usability-study.md`. What remains is five participants and an answer on ethics clearance, which has weeks of lead time. |
 | ~~Grad-CAM lift at chance~~ | **Addressed 26 October.** The Grad-CAM map scored 1.11 on TB films, barely above the 1.0 a random map scores. An occlusion map replaces it at 1.63, a paired gain of +0.447 [+0.125, +0.780] over the 58 masked TB radiographs. | Remaining limit: the gain is not confirmed on the 9 held-out films, and no masked dataset larger than Montgomery was available. The map still shows what the score depended on, not where disease is. |
 | **WHO specificity target not reachable** | SO1's requirement is not fully satisfiable by this model on this data. | Reported as a finding. |
+| **The dataset limits the model, and it is measured** | 559 training images is not enough for this architecture to stop improving. Retrained on 25, 50, 75 and 100 per cent of the split, three draws each, validation AUC rises 0.8646 to 0.9082 and is still rising at the end: the last 140 images bought 0.0141 against a 0.0114 resolution. | `ml/artifacts/learning_curve.md`. Fitted, AUC 0.93 would want roughly 1,861 training images. Collecting them is outside this project; the figure exists so the limitation is stated with a number rather than apologised for. |
 | **Score is not calibrated** | 4b displays a raw score, not a probability. Now measured: ECE 0.1018, underconfident. | Labelled honestly as a model score. Platt or isotonic calibration is future work. |
 | ~~Any signed-in user can open any case~~ | **Resolved 22 October.** Records are scoped to a facility: a clinic shares its caseload, which is what the review workflow requires, and nothing crosses the clinic boundary. A user with no facility set sees nothing, so an open registration does not expose a caseload. Administrators see everything. | Remaining judgement: whether a clinic should be chosen from a list rather than typed, since two spellings make two clinics. |
 
@@ -279,6 +280,7 @@ Stated here rather than left to be discovered.
 .venv/Scripts/python.exe manage.py test screening      # the 67 tests
 .venv/Scripts/python.exe ml/scripts/compare_architectures.py
 .venv/Scripts/python.exe ml/scripts/evaluate_explanations.py --split all
+.venv/Scripts/python.exe ml/scripts/learning_curve.py
 ```
 
 Every artefact named here is committed under `ml/artifacts/` and every figure is

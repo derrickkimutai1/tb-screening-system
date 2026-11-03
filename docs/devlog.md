@@ -512,3 +512,51 @@ why the operating point was still chosen without it.
 **Blockers**
 - Hosting. The Dockerfile and the deploy workflow are ready and need a Neon
   connection string, a Space name and a Hugging Face write token.
+
+## 3 November 2026 — whether 800 images is what limits the model
+
+"The dataset is small" is the easiest thing to say about this project and the
+hardest to answer, because on its own it is a description rather than a
+finding. Asserting that 800 images is enough would be no better. So it was
+measured.
+
+`ml/scripts/learning_curve.py` retrains the deployed recipe on 25, 50, 75 and
+100 per cent of the training split, three stratified draws at each size, scored
+every time on the same fixed validation split. Twelve retrainings, about ninety
+minutes of CPU. The test split was not touched.
+
+| Training images | Mean AUC | Range across draws |
+|---|---|---|
+| 140 | 0.8646 | 0.8402 to 0.8889 |
+| 280 | 0.8730 | 0.8643 to 0.8801 |
+| 419 | 0.8941 | 0.8883 to 0.9040 |
+| 559 | 0.9082 | 0.9029 to 0.9123 |
+
+**It is still rising where the data stops.** The last 140 images bought 0.0141
+AUC against the 0.0114 this measurement can resolve, so the gain is real rather
+than run-to-run noise. The dataset is a binding constraint on this model, not a
+cosmetic complaint about it.
+
+The three draws per size were the point of the exercise. A single run at each
+size would have produced a curve, and the curve would have been unreadable: the
+spread at 140 images is 0.0487, wider than the entire rise from 140 to 559. Any
+claim made from one draw per point would have been a claim about which images
+happened to be drawn.
+
+**What it costs to fix.** Fitted as a power law, error falls 17 per cent per
+doubling (R-squared 0.64). Extended, AUC 0.93 wants around 1,861 training
+images and 0.95 wants around 6,519. Those are projections and are labelled as
+such in the artefact; a two-parameter fit over a range of 140 to 559 images is
+not entitled to speak about 6,000.
+
+**What it does not say.** The yardstick is 121 validation images and stays 121
+images at every point, so each AUC carries its own sampling error that has
+nothing to do with training size. And nothing here is about Kenya: a curve
+showing that more Montgomery and Shenzhen films would help says nothing about
+whether those are the films that should be collected. `cross_dataset.json`
+remains where that question is measured.
+
+One incidental correction: the mean at 100 per cent is 0.9082 across three
+seeds, against the 0.9119 recorded for `reg-both`. The deployed figure is one
+draw of that distribution and sits slightly above its middle, which is worth
+knowing when a single validation number is quoted anywhere.
