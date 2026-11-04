@@ -189,6 +189,14 @@ gh auth login
 bash deploy/wire-up-github-deploy.sh
 ```
 
+On Windows, run that last line from Git Bash rather than from PowerShell.
+`bash` typed at a PowerShell prompt is usually WSL's, which is a different
+machine as far as the filesystem is concerned and cannot see either CLI:
+
+```powershell
+& "C:\Program Files\Gitinash.exe" deploy/wire-up-github-deploy.sh
+```
+
 It finds the application and the resource group it is actually in, creates a
 service principal scoped to that group, hands the credential to GitHub without
 printing it, sets the four variables, and starts a run. Running it again

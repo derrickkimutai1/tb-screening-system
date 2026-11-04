@@ -33,8 +33,22 @@ SP_NAME="${SP_NAME:-tb-screening-deploy}"
 say() { printf '\n== %s\n' "$1"; }
 die() { printf '\n!! %s\n' "$1" >&2; exit 1; }
 
-command -v az >/dev/null || die "az not found. Install the Azure CLI first."
-command -v gh >/dev/null || die "gh not found. Install the GitHub CLI first."
+# Both installers add themselves to the machine PATH, which processes already
+# running do not see until they are restarted. Somebody who has just installed
+# them and gone straight back to an open terminal is told the tool is missing
+# when it is sitting on the disk, so the usual locations are checked before
+# giving up.
+for extra in \
+    "/c/Program Files/GitHub CLI" \
+    "/c/Program Files/Microsoft SDKs/Azure/CLI2/wbin" \
+    "${LOCALAPPDATA:-}/Programs/GitHub CLI"
+do
+    [ -d "$extra" ] && PATH="${PATH}:${extra}"
+done
+export PATH
+
+command -v az >/dev/null || die "az not found. Install the Azure CLI, then open a new terminal."
+command -v gh >/dev/null || die "gh not found. Install the GitHub CLI, then open a new terminal."
 
 az account show >/dev/null 2>&1 || die "Not signed in to Azure. Run: az login"
 gh auth status >/dev/null 2>&1 || die "Not signed in to GitHub. Run: gh auth login"
@@ -54,16 +68,22 @@ REPO="$(gh repo view --json nameWithOwner -q .nameWithOwner)"
 printf '   repository %s\n' "$REPO"
 
 say "Creating a credential scoped to that resource group"
-# --sdk-auth prints the JSON block the azure/login action expects. It is a
+# --json-auth prints the JSON block the azure/login action expects. It is a
 # password: piped straight into gh, never echoed and never stored on disk.
 # The pipeline's exit status is checked because gh succeeding on empty input
 # would leave an empty secret and a deploy that fails much later.
+#
+# Note what is and is not silenced. Standard output is the credential and goes
+# down the pipe; standard error is left alone. The first version of this
+# script sent stderr to /dev/null, so a refusal from the tenant arrived as
+# "could not create the credential" with no reason attached - which is a worse
+# place to be than having no script at all.
 set -o pipefail
 if ! az ad sp create-for-rbac \
         --name "$SP_NAME" \
         --role contributor \
         --scopes "/subscriptions/${SUBSCRIPTION}/resourceGroups/${GROUP}" \
-        --sdk-auth 2>/dev/null \
+        --json-auth \
     | gh secret set AZURE_CREDENTIALS --repo "$REPO"; then
     die "Could not create the credential. If the tenant refuses to create
     service principals, this repository cannot deploy itself; deploy by hand
