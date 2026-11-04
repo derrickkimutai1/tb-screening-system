@@ -90,7 +90,7 @@
 
   {% if messages %}
     {% for message in messages %}
-      <div class="notice notice-caution mb-3">{{ message }}</div>
+      <div class="notice {% if message.level >= 30 %}notice-caution{% else %}notice-boundary{% endif %} mb-3">{{ message }}</div>
     {% endfor %}
   {% endif %}
 
