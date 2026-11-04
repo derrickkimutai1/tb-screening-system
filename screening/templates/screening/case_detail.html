@@ -444,16 +444,30 @@
             // panel goes away rather than sitting there saying it is building.
             panel.hidden = true;
           }
-        } else if (note) {
-          note.textContent = "The explanation could not be produced for this image.";
+        } else {
+          if (note) {
+            note.textContent = "The explanation could not be produced for this image.";
+          }
           if (status) status.textContent = "Failed";
+          // The comparison is built from the same pass, so it cannot arrive
+          // on its own. Left alone the panel sat there saying "Building the
+          // comparison" for as long as the page stayed open.
+          stopWaiting();
         }
       })
       .catch(function () {
         // A failed request leaves the record pending, so opening the case
         // again simply tries once more.
         if (note) note.textContent = "The explanation could not be loaded. Reload to try again.";
+        stopWaiting();
       });
+
+    function stopWaiting() {
+      const panel = document.querySelector("[data-comparison-panel]");
+      if (panel && !panel.querySelector("[data-comparison-frame] img")) {
+        panel.hidden = true;
+      }
+    }
   })();
 </script>
 {% endif %}

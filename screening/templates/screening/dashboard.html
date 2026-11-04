@@ -261,10 +261,13 @@
       );
       Chart.defaults.color = css("--ink-dim");
       [triage, activity].forEach((chart) => {
-        if (chart.options.scales) {
-          chart.options.scales.x.border.color = css("--line");
-          chart.options.scales.y.grid.color = css("--line");
-        }
+        // A doughnut has no axes. Chart.js still gives it an options.scales
+        // object, so testing that was not enough: reading .x.border off it
+        // threw on every theme change and left the bars' gridlines painted
+        // for the side the interface had just left.
+        const scales = chart.options.scales || {};
+        if (scales.x && scales.x.border) scales.x.border.color = css("--line");
+        if (scales.y && scales.y.grid) scales.y.grid.color = css("--line");
         chart.update("none");
       });
     }).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });

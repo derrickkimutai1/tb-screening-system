@@ -72,7 +72,7 @@
 
   --triage-low: #2a4fc4;
   --triage-low-wash: #e9eefc;
-  --triage-medium: #96670a;
+  --triage-medium: #8f6309;
   --triage-medium-wash: #fcf1da;
   --triage-high: #bf3426;
   --triage-high-wash: #fce9e6;
@@ -169,6 +169,17 @@ body {
 
 a { color: var(--brand); text-decoration: none; }
 a:hover { color: var(--brand-deep); text-decoration: underline; }
+
+/* Keyboard focus, in one place and on everything that takes it.
+   :where() keeps the specificity at zero, so a control with its own
+   treatment still wins. Several resets below remove the browser's own
+   outline from inputs and buttons; without this that removal would leave a
+   keyboard user with nothing to follow. */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
 
 .numeric,
 td.numeric,
@@ -667,7 +678,7 @@ tr.row-lead td:first-child { box-shadow: inset 3px 0 0 var(--brand); }
   transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
 }
 .btn:hover { text-decoration: none; }
-.btn:focus-visible { outline: none; box-shadow: var(--ring); }
+.btn:focus-visible { box-shadow: var(--ring); }
 
 .btn-action { background: var(--brand); color: #fff; }
 .btn-action:hover { background: var(--brand-deep); color: #fff; }

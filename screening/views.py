@@ -348,6 +348,26 @@ def profile(request):
     )
 
 
+def search_term(params, name, limit=64):
+    """A free-text filter value from a query string, fit to use.
+
+    `/cases/?reference=%00` answered 500. The byte reached PostgreSQL through
+    an icontains filter, which refused it - correctly, since a text column
+    cannot hold one - and the same value would have gone into the access
+    trail's detail field on the way. Form fields are already guarded: Django
+    puts a null-character validator on every CharField. A query parameter
+    never passes through a form, so it arrives unchecked, and these three
+    search boxes are the only places free text does.
+
+    Unprintable characters go the same way rather than only the null byte: a
+    newline or a terminal escape in a stored audit row is nobody's search.
+    The length cap is because the box holds a patient reference, not an essay.
+    """
+    value = params.get(name, "")
+    kept = "".join(c for c in value if c == " " or c.isprintable())
+    return kept.strip()[:limit]
+
+
 # How far back the case archive can be asked to look. Kept here because the
 # list and the CSV both read it, and a download that quietly covered a
 # different span from the table it came from would be worse than no download.
@@ -367,7 +387,7 @@ def filter_cases(records, params):
     is the table they were looking at rather than a different query that
     happens to share three of its four filters.
     """
-    reference = params.get("reference", "").strip()
+    reference = search_term(params, "reference")
     if reference:
         records = records.filter(patient_reference__icontains=reference)
 
@@ -393,7 +413,7 @@ def case_list(request):
     )
     total = records.count()
 
-    reference = request.GET.get("reference", "").strip()
+    reference = search_term(request.GET, "reference")
     AccessEvent.record(
         request,
         AccessEvent.Action.LISTED,
@@ -743,7 +763,7 @@ def worklist(request):
     waiting = queue.count()
     oldest = queue.order_by("created_at").first()
 
-    reference = request.GET.get("reference", "").strip()
+    reference = search_term(request.GET, "reference")
     if reference:
         queue = queue.filter(patient_reference__icontains=reference)
 
@@ -1309,7 +1329,7 @@ def access_trail(request):
     # Who did it or what they did it to. The trail is read when somebody asks
     # "who opened this record", and that question comes with either an address
     # or a case reference in hand.
-    who = request.GET.get("who", "").strip()
+    who = search_term(request.GET, "who")
     if who:
         events = events.filter(
             Q(actor_label__icontains=who)

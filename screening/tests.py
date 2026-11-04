@@ -2166,6 +2166,26 @@ class ErrorPageTests(TestCase):
         self.assertContains(response, "Your role does not", status_code=403)
         self.assertContains(response, "Back to screening", status_code=403)
 
+    def test_a_signed_out_page_claims_nothing_about_the_model(self):
+        """The rail reports a check. With no session, no check has run.
+
+        The 404 shown to a visitor said "No model on this machine" on a
+        machine that had one, because the context processor that performs the
+        check only runs for a signed-in user and the template read its absent
+        value as a negative answer. A rail that states the opposite of the
+        truth is worse than one that stays quiet.
+        """
+        # setUp signs a user in, and the point of this is the page a visitor
+        # with no session sees.
+        self.client.logout()
+
+        with self.settings(DEBUG=False, ALLOWED_HOSTS=["testserver"]):
+            response = self.client.get("/no-such-page/")
+
+        self.assertEqual(response.status_code, 404)
+        self.assertNotContains(response, "No model on this machine", status_code=404)
+        self.assertNotContains(response, "Model installed", status_code=404)
+
     def test_the_500_page_needs_no_context(self):
         """It must render when the thing that failed is the database or model."""
         from django.template.loader import render_to_string
@@ -2174,6 +2194,62 @@ class ErrorPageTests(TestCase):
 
         self.assertIn("Something went wrong", html)
         self.assertIn("Back to screening", html)
+
+
+class SearchInputTests(TestCase):
+    """What a search box may be handed, and what it may pass on.
+
+    Every other route for free text goes through a form, and Django puts a
+    null-character validator on every CharField, so the forms were covered.
+    A query parameter never meets a form: `/cases/?reference=%00` carried the
+    byte straight into an icontains filter, PostgreSQL refused it, and the
+    page answered 500. The same value was on its way into the access trail.
+    """
+
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(
+            username="searcher", email="searcher@strathmore.edu"
+        )
+        self.client.force_login(self.user)
+
+    def test_a_null_byte_does_not_reach_the_database(self):
+        for name, query in (
+            ("case list", "/cases/?reference=%00"),
+            ("worklist", "/worklist/?reference=%00"),
+            ("trail", "/trail/?who=%00"),
+            ("export", "/cases/export/?reference=%00"),
+        ):
+            with self.subTest(page=name):
+                response = self.client.get(query)
+                self.assertEqual(response.status_code, 200, name)
+
+    def test_control_characters_are_dropped(self):
+        """A newline or an escape in a stored audit row is nobody's search."""
+        from screening.views import search_term
+
+        nul, newline, escape = chr(0), chr(10), chr(27)
+
+        self.assertEqual(search_term({"q": f"KNH-26{nul}-001"}, "q"), "KNH-26-001")
+        self.assertEqual(search_term({"q": f"line{newline}break"}, "q"), "linebreak")
+        self.assertEqual(search_term({"q": f"esc{escape}[2J"}, "q"), "esc[2J")
+        self.assertEqual(search_term({"q": "  spaced  "}, "q"), "spaced")
+        self.assertEqual(search_term({"q": "Kenyatta National"}, "q"), "Kenyatta National")
+
+    def test_a_long_search_is_capped(self):
+        """The box holds a patient reference, and the trail stores what was typed."""
+        from screening.views import search_term
+
+        self.assertEqual(len(search_term({"q": "x" * 500}, "q")), 64)
+
+    def test_a_search_still_finds_what_it_should(self):
+        """Cleaning the input must not stop it working."""
+        screened_case(patient_reference="FIND-ME-01")
+        self.user.profile.facility = None
+        self.user.profile.save()
+
+        response = self.client.get("/cases/?reference=FIND-ME")
+
+        self.assertEqual(response.status_code, 200)
 
 
 class ResponsiveLayoutTests(TestCase):
@@ -2272,27 +2348,59 @@ class ResponsiveLayoutTests(TestCase):
         shell = css.split(".app {", 1)[1].split("}", 1)[0]
         self.assertIn("minmax(0, 1fr)", shell)
 
-    def test_the_dim_text_colour_meets_the_contrast_it_is_measured_against(self):
-        """It carries nearly every secondary label, so it fails everywhere at once.
+    # Every pair of colours the interface actually puts text on, as
+    # (what it is, the text, the ground behind it). Checked rather than
+    # eyeballed, because the failures are never obvious: the amber chip
+    # measured 4.42:1 and looked perfectly readable.
+    TEXT_ON_GROUND = (
+        ("body text", "--ink", "--surface"),
+        ("body text on the page", "--ink", "--ground"),
+        ("body text on a sunken row", "--ink", "--surface-sunk"),
+        ("secondary text", "--ink-muted", "--surface"),
+        ("secondary text on the page", "--ink-muted", "--ground"),
+        ("secondary text in a notice", "--ink-muted", "--brand-wash"),
+        ("dim label", "--ink-dim", "--surface"),
+        ("dim label on the page", "--ink-dim", "--ground"),
+        ("table header", "--ink-dim", "--surface-sunk"),
+        ("rail label", "--ink-dim", "--surface-rail"),
+        ("link", "--brand", "--surface"),
+        ("link on the page", "--brand", "--ground"),
+        ("current rail item", "--brand", "--brand-wash"),
+        ("low triage chip", "--triage-low", "--triage-low-wash"),
+        ("medium triage chip", "--triage-medium", "--triage-medium-wash"),
+        ("high triage chip", "--triage-high", "--triage-high-wash"),
+    )
 
-        Measured rather than pinned to a hex. The colour has moved twice now,
-        and a test naming the value it expects only records which colour was
-        current when it was written; this one records the rule, so it still
-        catches the next change. Both themes are checked, against the panel
-        and against the sunken header the same text sits on.
+    def test_every_pair_the_interface_puts_text_on_meets_aa(self):
+        """Measured rather than pinned to a hex.
+
+        --ink-dim alone has moved three times, and a test naming the value it
+        expects only records which colour was current when it was written.
+        This records the rule instead, over every pair in both themes, so it
+        catches the next change wherever it lands. Nothing here is larger than
+        24px, so 4.5:1 is the bar throughout.
         """
-        css = self.stylesheet()
+        themes = self.themes(self.stylesheet())
 
-        for theme, block in self.themes(css).items():
-            dim = block["--ink-dim"]
-            for ground in ("--surface", "--surface-sunk"):
-                ratio = self.contrast(dim, block[ground])
-                self.assertGreaterEqual(
-                    round(ratio, 2),
-                    4.5,
-                    f"--ink-dim on {ground} measures {ratio:.2f}:1 in the "
-                    f"{theme} theme, where AA asks 4.5 for text below 24px",
-                )
+        for theme, block in themes.items():
+            for label, ink, ground in self.TEXT_ON_GROUND:
+                with self.subTest(theme=theme, pair=label):
+                    ratio = self.contrast(block[ink], block[ground])
+                    self.assertGreaterEqual(
+                        round(ratio, 2),
+                        4.5,
+                        f"{label} ({ink} on {ground}) measures {ratio:.2f}:1 "
+                        f"in the {theme} theme, where AA asks 4.5",
+                    )
+
+    def test_the_primary_button_label_is_readable_on_its_own_fill(self):
+        """White on the brand colour in one theme, near-black in the other."""
+        themes = self.themes(self.stylesheet())
+
+        for theme, label in (("light", "#ffffff"), ("dark", "#0b1220")):
+            with self.subTest(theme=theme):
+                ratio = self.contrast(label, themes[theme]["--brand"])
+                self.assertGreaterEqual(round(ratio, 2), 4.5, f"{theme} button label")
 
     def themes(self, css):
         """The declared custom properties, per theme, as plain dictionaries."""

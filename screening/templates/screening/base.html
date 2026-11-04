@@ -139,18 +139,22 @@
             </span>
           </span>
         </div>
-      {% endif %}
+        {% comment %}
+          The dot reports a file check, not a guess: is_available() looks for
+          the trained model beside the application. A rail that always says
+          "ready" reports nothing, and this is the one claim on the page a
+          demonstration would expose immediately.
 
-      {% comment %}
-        The dot reports a file check, not a guess: is_available() looks for the
-        trained model beside the application. A rail that always says "ready"
-        reports nothing, and this is the one claim on the page a demonstration
-        would expose immediately.
-      {% endcomment %}
-      <p class="rail-status">
-        {% if model_installed %}Model installed{% else %}No model on this machine{% endif %}
-      </p>
-      <p class="rail-build">{{ model_version|default:"—" }}</p>
+          Inside the signed-in branch because that is where the check runs.
+          Outside it, the 404 page shown to a visitor stated "No model on this
+          machine" on a machine that had one - a false claim, made because
+          nothing had looked rather than because something had.
+        {% endcomment %}
+        <p class="rail-status">
+          {% if model_installed %}Model installed{% else %}No model on this machine{% endif %}
+        </p>
+        <p class="rail-build">{{ model_version }}</p>
+      {% endif %}
     </div>
   </nav>
 

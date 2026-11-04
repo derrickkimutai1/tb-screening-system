@@ -718,3 +718,53 @@ same template and served from the dev server to be looked at. The card measures
 eleventh is now. Six templates were never touched by the redesign; four of
 them inherit the system and were checked in a browser, and the other two were
 these.
+
+## 4 November 2026 — a sweep for errors, and the five it found
+
+Asked to find and fix everything while nobody was watching, so the checking
+was done by machine where a machine can check and by eye where it cannot: a
+breadth sweep over every URL as every role against records in awkward states,
+an overflow measurement at three widths in both themes, a contrast audit of
+every text-on-background pair, and a console read on every page.
+
+**A null byte in a search box returned 500.** `/cases/?reference=%00` carried
+the byte into an icontains filter; PostgreSQL refused it, correctly, since a
+text column cannot hold one. The same value was on its way into the access
+trail's detail field. Every other route for free text goes through a form, and
+Django puts a null-character validator on every `CharField`, so the forms were
+already covered — a query parameter never meets a form. The three search boxes
+now clean what they are handed, dropping unprintable characters and capping the
+length, and four tests cover it.
+
+**Toggling the theme on the dashboard threw.** The repaint walked both charts
+setting axis colours, and a doughnut has no axes. Chart.js still hands it an
+`options.scales` object, so testing for that was not enough: reading `.x.border`
+off it threw on every theme change, and the bar chart's gridlines stayed painted
+for the side the interface had just left.
+
+**A failed explanation left the comparison panel building for ever.** The
+occlusion map is produced in the same pass as Grad-CAM, so it cannot arrive on
+its own, but the panel was only hidden on the success path. A case whose image
+had gone showed "Building the comparison" for as long as the page stayed open.
+
+**The signed-out 404 claimed there was no model.** The rail reports a file
+check that only runs for a signed-in user, and the template read the absent
+value as a negative answer, so a visitor was told "No model on this machine" on
+a machine that had one. A rail that states the opposite of the truth is worse
+than one that stays quiet.
+
+**The amber triage chip measured 4.42:1** against its own background, where AA
+asks 4.5 for text under 24px. It looked perfectly readable, which is the point:
+these are not failures anybody spots by looking. The contrast test now covers
+all sixteen text-on-background pairs in both themes rather than the one colour
+that had failed before, and the primary button's label on its own fill.
+
+**Also:** keyboard focus is now declared for every control in one rule. The
+buttons had a ring, but several of the resets here remove the browser's own
+outline, and nothing had replaced it for plain links.
+
+What the sweep did not find is worth recording too: no horizontal overflow on
+ten pages at 375, 1024 and 1440 in both themes; no unrendered template syntax,
+no broken images and no other console errors; every awkward record state —
+degraded quality, a failed explanation, a missing image file, the longest
+reference the column allows, a case at another clinic — renders correctly.
