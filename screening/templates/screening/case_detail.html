@@ -125,7 +125,7 @@
       the two rather than taking the replacement on trust.
     {% endcomment %}
     <div class="panel mt-3" data-comparison-panel
-         {% if not record.has_comparison and not record.explanation_awaited %}hidden{% endif %}>
+         {% if not record.has_comparison %}hidden{% endif %}>
       <div class="panel-head">
         <h2 class="panel-title">
           Occlusion map, for comparison
@@ -433,41 +433,29 @@
           if (caption) caption.hidden = false;
           if (status) status.textContent = "Generated";
 
+          // The comparison can fail without costing the explanation, so it
+          // is revealed only when one actually arrived. Every other outcome,
+          // including a failure further down, leaves the panel as the server
+          // rendered it: hidden.
           const panel = document.querySelector("[data-comparison-panel]");
           const compareFrame = document.querySelector("[data-comparison-frame]");
           if (result.comparison_url && compareFrame) {
             show(compareFrame, result.comparison_url,
                  "Occlusion heatmap overlay for {{ record.patient_reference }}");
             if (panel) panel.hidden = false;
-          } else if (panel) {
-            // The comparison can fail without costing the explanation, so the
-            // panel goes away rather than sitting there saying it is building.
-            panel.hidden = true;
           }
         } else {
           if (note) {
             note.textContent = "The explanation could not be produced for this image.";
           }
           if (status) status.textContent = "Failed";
-          // The comparison is built from the same pass, so it cannot arrive
-          // on its own. Left alone the panel sat there saying "Building the
-          // comparison" for as long as the page stayed open.
-          stopWaiting();
         }
       })
       .catch(function () {
         // A failed request leaves the record pending, so opening the case
         // again simply tries once more.
         if (note) note.textContent = "The explanation could not be loaded. Reload to try again.";
-        stopWaiting();
       });
-
-    function stopWaiting() {
-      const panel = document.querySelector("[data-comparison-panel]");
-      if (panel && !panel.querySelector("[data-comparison-frame] img")) {
-        panel.hidden = true;
-      }
-    }
   })();
 </script>
 {% endif %}

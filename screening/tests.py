@@ -2196,6 +2196,104 @@ class ErrorPageTests(TestCase):
         self.assertIn("Back to screening", html)
 
 
+class ComparisonPanelTests(TestCase):
+    """The occlusion panel appears only when there is an occlusion map.
+
+    It used to be rendered visible while the explanation was still building
+    and hidden again afterwards if nothing arrived, which put the burden on
+    every failure path to remember. The one that mattered did not: a case
+    whose image had gone showed "Building the comparison" for as long as the
+    page stayed open. Hidden by default inverts that, so forgetting leaves the
+    panel hidden rather than leaving it waiting.
+    """
+
+    def setUp(self):
+        self.clinic = clinic("Kenyatta National Hospital")
+        self.user = staff_at(self.clinic, "viewer", Profile.Role.CLINICIAN)
+        self.client.force_login(self.user)
+
+    def open(self, record):
+        return self.client.get(
+            reverse("screening:case_detail", args=[record.case_id])
+        ).content.decode()
+
+    def panel_is_hidden(self, markup):
+        opening = markup.split("data-comparison-panel", 1)[1].split(">", 1)[0]
+        return "hidden" in opening
+
+    def test_hidden_while_the_explanation_is_still_being_built(self):
+        record = screened_case(facility=self.clinic, patient_reference="WAIT-01")
+        record.explanation_status = PredictionRecord.ExplanationStatus.PENDING
+        record.comparison_image = ""
+        record.save()
+
+        self.assertTrue(self.panel_is_hidden(self.open(record)))
+
+    def test_hidden_when_the_explanation_failed(self):
+        record = screened_case(facility=self.clinic, patient_reference="FAIL-01")
+        record.explanation_status = PredictionRecord.ExplanationStatus.FAILED
+        record.comparison_image = ""
+        record.save()
+
+        self.assertTrue(self.panel_is_hidden(self.open(record)))
+
+    def test_shown_once_a_comparison_map_exists(self):
+        # has_comparison only asks whether the field names a file, which is
+        # all the template needs to decide; the bytes are not this test's
+        # business.
+        record = screened_case(facility=self.clinic, patient_reference="DONE-01")
+        record.explanation_status = PredictionRecord.ExplanationStatus.GENERATED
+        record.comparison_image = "heatmaps/occlusion.png"
+        record.save()
+
+        self.assertFalse(self.panel_is_hidden(self.open(record)))
+
+
+class HttpsRedirectTests(TestCase):
+    """Forcing HTTPS, without taking the container out of service doing it.
+
+    SECURE_SSL_REDIRECT answers every plain request with a 301. The platform's
+    health probe reaches the container directly rather than through the
+    ingress, so it arrives without X-Forwarded-Proto and Django cannot tell it
+    is already behind TLS. A 301 is not a healthy response, so the probe would
+    fail and the hardening would take the site down. One exemption prevents
+    that, and it is narrow enough to be worth stating in a test rather than in
+    a comment alone.
+    """
+
+    @override_settings(SECURE_SSL_REDIRECT=True, SECURE_REDIRECT_EXEMPT=[r"^health/$"])
+    def test_the_health_probe_is_answered_rather_than_redirected(self):
+        response = self.client.get("/health/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "application/json")
+
+    @override_settings(SECURE_SSL_REDIRECT=True, SECURE_REDIRECT_EXEMPT=[r"^health/$"])
+    def test_everything_else_is_sent_to_https(self):
+        for path in ("/", "/cases/", "/accounts/login/"):
+            with self.subTest(path=path):
+                response = self.client.get(path)
+
+                self.assertEqual(response.status_code, 301)
+                self.assertTrue(response["Location"].startswith("https://"))
+
+    def test_the_exemption_covers_the_health_endpoint_and_nothing_more(self):
+        """A pattern loose enough to exempt a real page would be worse."""
+        import re
+
+        from django.conf import settings
+        from django.urls import reverse
+
+        patterns = [re.compile(p) for p in (settings.SECURE_REDIRECT_EXEMPT or [])] or [
+            re.compile(r"^health/$")
+        ]
+        exempt = lambda path: any(p.search(path.lstrip("/")) for p in patterns)  # noqa: E731
+
+        self.assertTrue(exempt(reverse("screening:health")))
+        for guarded in ("/", "/cases/", "/worklist/", "/trail/", "/accounts/login/"):
+            self.assertFalse(exempt(guarded), guarded)
+
+
 class SearchInputTests(TestCase):
     """What a search box may be handed, and what it may pass on.
 

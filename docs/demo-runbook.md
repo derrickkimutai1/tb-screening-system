@@ -84,8 +84,9 @@ Then upload the **normal case** and show the score drops and the triage level ch
 
 ## 2. The data is stored, about 1 minute
 
-Click **Cases** — the records, with scores, triage levels, quality status and review
-status. Click **Dashboard** — counts, the suspicion doughnut, the activity chart.
+Click **Case list** — the archive, with scores, triage levels, quality status and
+review status. Click **Dashboard** — the four figures, the triage doughnut and
+the screening volume chart.
 
 Then open **pgAdmin**: `tb_screening` → Schemas → public → Tables →
 `screening_predictionrecord` → right-click → View/Edit Data → All Rows.

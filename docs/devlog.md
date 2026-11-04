@@ -768,3 +768,55 @@ ten pages at 375, 1024 and 1440 in both themes; no unrendered template syntax,
 no broken images and no other console errors; every awkward record state —
 degraded quality, a failed explanation, a missing image file, the longest
 reference the column allows, a case at another clinic — renders correctly.
+
+## 4 November 2026 — closing the list, and the error check I had not finished
+
+Asked what was outstanding, checked rather than answered from memory, and the
+checking found more than the answer would have.
+
+**The live deployment was still serving the old interface.** Every push since
+the redesign built an image and skipped the deploy: the step is gated on
+`vars.AZURE_DEPLOY == 'true'`, which is not set on the repository. Nothing in
+the repository can fix that, and this machine has neither `gh` nor `az`
+installed, so it is handed back with the two steps it needs.
+
+**`docs/user-guide.md` described an interface that no longer exists** — Screen
+in the top navigation, Analyse radiograph, Cases. All three were renamed by the
+redesign. It now also documents the rail and the reading-room control, which
+nothing did.
+
+**The runbook said "Click Cases"**, and the rail says Case list. One line, read
+aloud.
+
+**HTTPS is now forced behind the proxy flag**, with the one exemption that
+makes it safe: the platform's health probe reaches the container directly
+rather than through the ingress, so it arrives without `X-Forwarded-Proto` and
+Django would answer it 301. A redirect is not a healthy response, so the
+hardening would have taken the site out of service. `SECURE_REDIRECT_EXEMPT`
+covers `^health/$` and nothing else, and three tests hold that line. HSTS is an
+hour rather than the customary year, because a year is the hardest thing on
+that list to undo; `includeSubDomains` and `preload` are refused outright and
+silenced with their reasons, since this runs on a shared platform domain and
+speaking for its siblings is not this application's business.
+
+**The comparison panel is now hidden unless there is a map to show.** The
+earlier fix added a call to hide it on the failure path, which left the
+burden on every future path to remember. Inverting the default removes the
+burden: forgetting now leaves the panel hidden rather than leaving it saying
+"Building the comparison" for ever. Three tests cover the three states.
+
+**And the error check I had reported as done was not.** Pages, roles, layout,
+contrast and console had been swept; the routes that change something had not.
+A second sweep exercised every POST in every role — reviews valid, empty,
+malformed and forbidden; profile saves including a nonexistent clinic; the data
+export; closing an account with the wrong address; signing in with an address
+that is empty, malformed, four hundred characters long, or carrying control
+characters; the explanation and trail endpoints by the wrong method and with no
+session; and every admin page for every model as a superuser. Nothing was
+found, which is worth recording precisely because the first report of "no
+errors" had not looked here.
+
+The two management commands were run: the audit chain verifies over 414 rows,
+and `prunemedia` reports 78 orphaned files holding 113 MB, left by records
+deleted over the life of the project. It is a dry run until `--delete`, and
+that is the operator's call rather than mine.

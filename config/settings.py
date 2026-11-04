@@ -469,6 +469,41 @@ if env_flag("DJANGO_BEHIND_PROXY"):
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
     USE_X_FORWARDED_HOST = True
 
+    # Redirecting to HTTPS and asking browsers to remember it belong here,
+    # with the proxy, rather than under `not DEBUG`. Both need TLS actually
+    # terminating in front of the application: switched on without a proxy
+    # they make the site answer every plain request with a redirect to an
+    # HTTPS address that nothing is listening on.
+    SECURE_SSL_REDIRECT = True
+
+    # The one address that must not be redirected. The platform's own health
+    # probe reaches the container directly rather than through the ingress, so
+    # it arrives without X-Forwarded-Proto and Django would answer it 301. A
+    # redirect is not a healthy response, so the container would be marked
+    # unhealthy and taken out of service by the very setting meant to harden
+    # it. The endpoint discloses nothing that needs protecting.
+    SECURE_REDIRECT_EXEMPT = [r"^health/$"]
+
+    # A year is the usual value and is also the hardest to undo: a browser
+    # that has been told to remember will refuse plain HTTP for that long,
+    # even if the certificate lapses. An hour is enough to be the documented
+    # protection against a stripped first request, and short enough that a
+    # mistake costs an hour rather than a year. Neither preload nor
+    # includeSubDomains is set: this runs on a shared platform domain, and
+    # speaking for its siblings is not this application's business.
+    SECURE_HSTS_SECONDS = int(os.environ.get("DJANGO_HSTS_SECONDS", "3600"))
+
+    # The deployment check asks for the other two HSTS settings as well, and
+    # both are refused on purpose, so they are silenced here rather than left
+    # to be scrolled past. A warning that is always present and always ignored
+    # trains people to ignore the ones that matter.
+    #
+    #   W005  includeSubDomains - this runs on a shared platform domain, and
+    #         the directive would speak for every sibling application on it.
+    #   W021  preload - submitting to the browser preload list is close to
+    #         irreversible and is not a capstone's to do on a borrowed domain.
+    SILENCED_SYSTEM_CHECKS = ["security.W005", "security.W021"]
+
 # Django 4 onwards checks the Origin header on unsafe requests against this
 # list, so the deployed host has to appear here as well as in ALLOWED_HOSTS.
 CSRF_TRUSTED_ORIGINS = [

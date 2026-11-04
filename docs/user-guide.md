@@ -55,21 +55,41 @@ close the browser. On a shared machine, sign out when you step away.
 
 ---
 
+## Finding your way around
+
+The navigation rail down the left side holds the six places you can be:
+**Dashboard**, **Worklist**, **Upload**, **Case list**, **Performance** and
+**Audit trail**. The number beside Worklist is how many cases are waiting for a
+decision right now. The panel at the foot of the rail names the clinic your
+account is assigned to, which is the clinic whose cases you can see.
+
+**Light and reading room.** The control at the top right switches the interface
+between a lit workspace and a dark one. Films are read with the lights down,
+and a bright interface beside a dark film is hard on the eyes; radiographs
+themselves stay on near-black either way, so only the window around them
+changes. The choice is remembered in the browser you made it in, so a viewing
+station and a desk can differ.
+
+---
+
 ## Screening a radiograph
 
-**Screen** in the top navigation.
+**Upload** in the navigation rail down the left.
 
-1. Enter a **case reference**. Use something that does not identify the
+1. Choose the radiographs. Drop them on the panel, or press **Browse
+   files**. PNG, JPG or JPEG, up to 20 MB each and at least 224 × 224 pixels.
+   They appear in the **Upload queue** beside the form with their sizes, so a
+   wrong file can be removed before anything is sent.
+2. Enter a **patient reference**. Use something that does not identify the
    patient, such as `DEMO-001` or a local accession number. Do not type a name.
-2. Choose the radiograph. PNG, JPG or JPEG, up to 20 MB, and at least
-   224 × 224 pixels.
-3. Press **Analyse radiograph**. It takes a few seconds. The button disables
+3. Press **Screen the batch**. It takes a few seconds. The button disables
    itself so a second press cannot screen the same film twice.
 
-**To screen several at once**, select more than one file — hold Ctrl or Shift
-while choosing, up to 20. Each becomes its own case, with the reference you
-typed and a number appended. If one image in a batch fails, the others still
-go through and the page tells you which did not.
+**To screen several at once**, choose more than one file — drop them together,
+or hold Ctrl or Shift in the file dialogue, up to 20. Each becomes its own
+case, with the reference you typed and a number appended. If one image in a
+batch fails, the others still go through and the results page tells you which
+did not.
 
 ### If an image is refused
 
@@ -129,7 +149,8 @@ three counts across the top show the shape of the queue before any row does.
 
 ## Recording a review
 
-Open a case and use the **Review** panel. Choose a status and write a note.
+Open a case and use the **Clinical review** panel on the right. Choose a
+review decision and write a note.
 
 | Status | Use it when |
 |---|---|
@@ -150,8 +171,9 @@ dismissing a case is a clinical judgement.
 
 ## Finding and exporting cases
 
-**Cases** lists everything screened at your clinic, newest first. Filter by
-case reference or triage level.
+**Case list** opens the case archive: everything screened at your clinic,
+newest first. Filter by patient reference, triage level, clinical decision or
+date range.
 
 **Export CSV** downloads what you are currently looking at, filters included —
 not the whole database. Every export is recorded in the access trail, because
