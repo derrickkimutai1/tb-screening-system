@@ -1,90 +1,120 @@
 {% extends "screening/base.html" %}
 
-{% block title %}Case history{% endblock %}
+{% block title %}Case archive{% endblock %}
+{% block crumb %}Case archive{% endblock %}
 
 {% block pagehead %}
 <div class="pagehead">
-  <span class="micro micro-acid">Records</span>
-  <h1 class="display display-xl mt-2">Case history</h1>
-  <span class="micro numeric">{{ page.paginator.count }} record{{ page.paginator.count|pluralize }} stored</span>
+  <h1 class="display display-xl">Case archive</h1>
+  <p class="pagehead-note">Search and export this facility's screening history.</p>
 </div>
 {% endblock %}
 
 {% block content %}
-<div class="panel rise">
-  <div class="panel-head">
-    <h2 class="panel-title">Screening records</h2>
-    <a class="micro micro-acid" href="{% url 'screening:upload' %}" style="text-decoration: none;">
-      New screening &rarr;
-    </a>
-  </div>
+<div class="panel panel-lead">
+  <form method="get" class="filter-bar">
+    <span class="search-field">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+           stroke-linecap="round" aria-hidden="true">
+        <circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>
+      </svg>
+      <label class="visually-hidden" for="reference">Search patient reference</label>
+      <input type="search" class="form-control" id="reference" name="reference"
+             value="{{ reference }}" placeholder="Search patient reference"
+             autocomplete="off">
+    </span>
 
-  <div class="panel-body" style="border-bottom: 1px solid var(--line);">
-    <form method="get" class="row g-2 align-items-end">
-      <div class="col-sm-4">
-        <label class="field-label" for="reference">Case reference</label>
-        <input type="text" class="form-control" id="reference" name="reference"
-               value="{{ reference }}" placeholder="DEMO-001" autocomplete="off">
-      </div>
-      <div class="col-sm-3">
-        <label class="field-label" for="triage">Triage level</label>
-        <select class="form-select" id="triage" name="triage">
-          <option value="">All levels</option>
-          {% for value, label in triage_choices %}
-            <option value="{{ value }}" {% if triage == value %}selected{% endif %}>{{ label }}</option>
-          {% endfor %}
-        </select>
-      </div>
-      <div class="col-sm-auto">
-        <button type="submit" class="btn btn-quiet">Filter</button>
-      </div>
-      <div class="col-sm-auto">
-        {% comment %}
-          Carries the filters, so the download is the table on screen rather
-          than everything.
-        {% endcomment %}
-        <a class="btn btn-quiet"
-           href="{% url 'screening:export_cases' %}?reference={{ reference|urlencode }}&amp;triage={{ triage|urlencode }}">
-          Export CSV
-        </a>
-      </div>
-      {% if reference or triage %}
-        <div class="col-sm-auto">
-          <a class="btn btn-quiet" href="{% url 'screening:case_list' %}">Clear</a>
-        </div>
-      {% endif %}
-    </form>
-  </div>
+    <label class="visually-hidden" for="triage">Triage</label>
+    <select class="form-select" id="triage" name="triage">
+      <option value="">All triage</option>
+      {% for value, label in triage_choices %}
+        <option value="{{ value }}" {% if triage == value %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+
+    <label class="visually-hidden" for="review">Clinical decision</label>
+    <select class="form-select" id="review" name="review">
+      <option value="">All decisions</option>
+      {% for value, label in review_choices %}
+        <option value="{{ value }}" {% if review == value %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+
+    <label class="visually-hidden" for="since">Date range</label>
+    <select class="form-select" id="since" name="since">
+      {% for value, label in period_choices %}
+        <option value="{{ value }}" {% if since == value %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+
+    <button type="submit" class="btn btn-quiet">Apply</button>
+
+    {% comment %}
+      Carries the filters, so the download is the table on screen rather than
+      everything. The view builds the query string from the same parameters it
+      filtered on, so the two cannot disagree.
+    {% endcomment %}
+    <a class="btn btn-quiet" href="{% url 'screening:export_cases' %}{% if query %}?{{ query }}{% endif %}">
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 4v11m0 0-4-4m4 4 4-4M5 19h14"/>
+      </svg>
+      Export CSV
+    </a>
+
+    {% if query %}
+      <a class="btn btn-quiet" href="{% url 'screening:case_list' %}">Clear</a>
+    {% endif %}
+  </form>
 
   <div class="table-scroll">
     <table class="table">
       <thead>
         <tr>
-          <th>Case reference</th>
-          <th>Analysed</th>
-          <th>Result</th>
-          <th class="text-end">Score</th>
+          <th>Patient reference</th>
           <th>Triage</th>
+          <th class="text-end">Model score</th>
+          <th>Clinical review</th>
+          <th>Screened by</th>
+          <th>Date screened</th>
           <th>Quality</th>
-          <th>Review status</th>
+          <th class="text-end">Report</th>
         </tr>
       </thead>
       <tbody>
         {% for record in page %}
           <tr>
-            <td><a href="{% url 'screening:case_detail' record.case_id %}">{{ record.patient_reference }}</a></td>
-            <td class="numeric">{{ record.created_at|date:"j M Y H:i" }}</td>
-            <td>{{ record.get_predicted_label_display }}</td>
+            <td>
+              <a href="{% url 'screening:case_detail' record.case_id %}">
+                {{ record.patient_reference }}
+              </a>
+            </td>
+            <td>
+              <span class="triage {{ record.triage_css_class }}">
+                {{ record.get_triage_level_display }}
+              </span>
+            </td>
             <td class="numeric text-end">{{ record.tb_probability }}</td>
-            <td><span class="triage {{ record.triage_css_class }}">{{ record.get_triage_level_display }}</span></td>
-            <td style="color: var(--ink-muted);">{{ record.get_quality_status_display }}</td>
-            <td>{{ record.get_review_status_display }}</td>
+            <td class="{% if record.review_status == 'PENDING' %}cell-quiet{% endif %}">
+              {{ record.get_review_status_display }}
+            </td>
+            <td class="cell-quiet">{{ record.screened_by.email|default:"—" }}</td>
+            <td class="numeric cell-quiet">{{ record.created_at|date:"Y-m-d" }}</td>
+            <td class="cell-quiet">{{ record.get_quality_status_display }}</td>
+            <td class="text-end">
+              <a href="{% url 'screening:case_report' record.case_id %}">View</a>
+            </td>
           </tr>
         {% empty %}
           <tr>
-            <td colspan="7" style="color: var(--ink-muted); padding: 1.75rem 1rem;">
-              No screening records yet.
-              <a href="{% url 'screening:upload' %}">Screen a radiograph</a> to create one.
+            <td colspan="8" class="table-empty">
+              {% if query %}
+                No record matches this filter.
+                <a href="{% url 'screening:case_list' %}">Clear it</a> to see the archive.
+              {% else %}
+                No screening records yet.
+                <a href="{% url 'screening:upload' %}">Screen a radiograph</a> to create one.
+              {% endif %}
             </td>
           </tr>
         {% endfor %}
@@ -92,19 +122,41 @@
     </table>
   </div>
 
-  {% if page.paginator.num_pages > 1 %}
-    <div class="panel-body d-flex justify-content-between align-items-center"
-         style="border-top: 1px solid var(--line);">
-      <span class="micro numeric">Page {{ page.number }} of {{ page.paginator.num_pages }}</span>
-      <span class="d-flex gap-2">
+  <div class="pager">
+    <span>
+      {{ page.paginator.count }} case{{ page.paginator.count|pluralize }}
+      {% if page.paginator.count != total %}matched, of {{ total }} in this facility{% else %}in this facility{% endif %}
+    </span>
+    {% if page.paginator.num_pages > 1 %}
+      <span class="pager-links">
         {% if page.has_previous %}
-          <a class="btn btn-quiet" href="?page={{ page.previous_page_number }}{% if reference %}&reference={{ reference }}{% endif %}{% if triage %}&triage={{ triage }}{% endif %}">Previous</a>
+          <a class="btn btn-quiet btn-row" href="?page={{ page.previous_page_number }}{% if query %}&amp;{{ query }}{% endif %}">Previous</a>
         {% endif %}
+        <span>{{ page.number }} / {{ page.paginator.num_pages }}</span>
         {% if page.has_next %}
-          <a class="btn btn-quiet" href="?page={{ page.next_page_number }}{% if reference %}&reference={{ reference }}{% endif %}{% if triage %}&triage={{ triage }}{% endif %}">Next</a>
+          <a class="btn btn-quiet btn-row" href="?page={{ page.next_page_number }}{% if query %}&amp;{{ query }}{% endif %}">Next</a>
         {% endif %}
       </span>
-    </div>
-  {% endif %}
+    {% endif %}
+  </div>
+</div>
+
+<div class="caveat mt-3">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+       stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="M12 3 4.5 6v6c0 4.3 3.1 7.8 7.5 9 4.4-1.2 7.5-4.7 7.5-9V6z"/>
+  </svg>
+  <span>
+    <strong class="caveat-title">Facility-scoped access</strong>
+    {% if viewer_facility %}
+      You can see only the cases recorded against {{ viewer_facility.name }}. A
+      case at another clinic is not found rather than refused, so this list
+      cannot confirm that a reference exists elsewhere.
+    {% else %}
+      No clinic is set on your profile, so you can see only records that have no
+      clinic either. <a href="{% url 'screening:profile' %}">Set one</a> to join a
+      caseload.
+    {% endif %}
+  </span>
 </div>
 {% endblock %}

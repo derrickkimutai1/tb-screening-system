@@ -39,9 +39,27 @@ def facility_state(request):
     if not user or not user.is_authenticated:
         return {}
 
-    from .models import profile_for
+    from .models import PredictionRecord, profile_for
+    from .services.predict import MODEL_VERSION, PredictionEngine
 
-    return {"viewer_facility": profile_for(user).facility}
+    profile = profile_for(user)
+
+    return {
+        "viewer_profile": profile,
+        "viewer_facility": profile.facility,
+        # The count on the worklist tab. Everything the rail shows has to be
+        # true on every page, so it is counted here rather than passed in by
+        # the one view that happens to know it.
+        "pending_review_count": (
+            PredictionRecord.objects.visible_to(user).awaiting_review().count()
+        ),
+        # Whether a prediction could actually be served. is_available() is a
+        # file check rather than a load, so this costs a stat call and not a
+        # TensorFlow import; the dot in the rail says what was checked rather
+        # than asserting readiness no one looked for.
+        "model_installed": PredictionEngine.is_available(),
+        "model_version": MODEL_VERSION,
+    }
 
 
 def session_timeout(request):

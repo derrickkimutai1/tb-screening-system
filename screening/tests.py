@@ -2154,11 +2154,21 @@ class ResponsiveLayoutTests(TestCase):
             settings.BASE_DIR / "screening" / "static" / "screening" / "theme.css"
         ).read_text(encoding="utf-8")
 
-    def test_the_masthead_wraps_on_a_narrow_screen(self):
+    def test_the_navigation_rail_collapses_on_a_narrow_screen(self):
+        """The rail is 220 pixels of a 375 pixel screen if it stays a column.
+
+        The navigation used to be a masthead and is now a fixed left rail, so
+        the rule that keeps a phone from scrolling sideways moved with it: the
+        grid drops to one column and the rail lies down as a scrolling strip.
+        Without that the content column starts at 220 pixels on a screen 375
+        wide, which is the same defect the masthead had.
+        """
         css = self.stylesheet()
 
-        self.assertIn("@media (max-width: 767.98px)", css)
-        self.assertIn(".masthead-nav {", css)
+        self.assertIn("@media (max-width: 1100px)", css)
+        narrow = css.split("@media (max-width: 1100px)", 1)[1][:900]
+        self.assertIn(".app { grid-template-columns: minmax(0, 1fr); }", narrow)
+        self.assertIn("flex-direction: row", narrow)
 
     def test_tables_scroll_inside_their_panel(self):
         """A seven-column table is wider than a phone and must not drag the page."""
@@ -2168,23 +2178,26 @@ class ResponsiveLayoutTests(TestCase):
         self.assertIn("overflow-x: auto", css)
 
     def test_content_is_visible_without_scripting(self):
-        """The reveal must not be the only thing that makes a page appear.
+        """No panel may start hidden waiting for a script to reveal it.
 
-        .rise held opacity: 0 as its resting state, so every panel depended on
-        JavaScript running to become visible at all. A blocked, failed or slow
-        script left a page that looked empty rather than one without an
-        animation. The stylesheet now hides only what scripting has said it
-        will animate.
+        .rise once held opacity: 0 as its resting state, so every panel
+        depended on JavaScript running to become visible at all, and a
+        blocked, failed or slow script left a page that looked empty rather
+        than one without an animation. That was narrowed to .js .rise and the
+        reveal has since been dropped altogether, which is the stronger
+        answer: a clinical readout should be correct the instant it paints.
+        What must not come back is any rule that hides it first.
         """
         css = self.stylesheet()
 
-        hiding = css.split(".js .rise {", 1)
-        self.assertEqual(len(hiding), 2, ".js .rise must be what hides a panel")
-        self.assertIn("opacity: 0", hiding[1][:120])
+        for selector in (".rise {", ".js .rise {"):
+            if selector not in css:
+                continue
+            block = css.split(selector, 1)[1].split("}", 1)[0]
+            self.assertNotIn("opacity: 0", block, f"{selector} hides content")
 
-        # The bare selector must not carry the hidden state.
-        bare = css.split(chr(10) + ".rise {", 1)[1].split("}", 1)[0]
-        self.assertNotIn("opacity: 0", bare)
+        # Nor through the animation the reveal used to run.
+        self.assertNotIn("@keyframes rise", css)
 
     def test_both_base_templates_mark_the_document_as_scripted(self):
         """The rule only lifts if something sets the class, on every page."""
@@ -2206,30 +2219,65 @@ class ResponsiveLayoutTests(TestCase):
         self.assertNotIn("0.102", markup)
         self.assertNotIn("TB_MOBILENETV2_V1", markup)
 
-    def test_the_navigation_is_given_room_before_a_wide_desktop(self):
-        """Six destinations and an email overflowed 1024 pixels by eighteen.
+    def test_the_content_column_can_shrink_below_its_contents(self):
+        """NFR-10 asks the interface to render legibly from 1024 pixels up.
 
-        NFR-10 asks the interface to render legibly from 1024 pixels upward,
-        and the masthead had only a phone breakpoint, so between a phone and a
-        wide desktop the navigation simply ran off the side and dragged the
-        page with it. Adding two destinations in one afternoon was enough to
-        cross the line.
+        Six destinations and an email address overflowed 1024 by eighteen
+        pixels when the navigation was a masthead. The rail cannot overflow
+        that way, but a grid track can: a column declared 1fr refuses to go
+        below the width of its widest child, so one wide table would push the
+        whole page sideways again. minmax(0, 1fr) is what lets the column
+        shrink and the table scroll inside its own panel instead.
         """
         css = self.stylesheet()
 
-        self.assertIn("@media (max-width: 1279.98px)", css)
-        # The nav has to be allowed to shrink, or padding alone never closes
-        # the last few pixels.
-        intermediate = css.split("@media (max-width: 1279.98px)", 1)[1][:600]
-        self.assertIn(".masthead-nav", intermediate)
-        self.assertIn("min-width: 0", intermediate)
+        shell = css.split(".app {", 1)[1].split("}", 1)[0]
+        self.assertIn("minmax(0, 1fr)", shell)
 
     def test_the_dim_text_colour_meets_the_contrast_it_is_measured_against(self):
-        """It carries nearly every secondary label, so it fails everywhere at once."""
+        """It carries nearly every secondary label, so it fails everywhere at once.
+
+        Measured rather than pinned to a hex. The colour has moved twice now,
+        and a test naming the value it expects only records which colour was
+        current when it was written; this one records the rule, so it still
+        catches the next change. Both themes are checked, against the panel
+        and against the sunken header the same text sits on.
+        """
         css = self.stylesheet()
 
-        self.assertIn("--ink-dim: #85907e;", css)
-        self.assertNotIn("--ink-dim: #6e7768;", css)
+        for theme, block in self.themes(css).items():
+            dim = block["--ink-dim"]
+            for ground in ("--surface", "--surface-sunk"):
+                ratio = self.contrast(dim, block[ground])
+                self.assertGreaterEqual(
+                    round(ratio, 2),
+                    4.5,
+                    f"--ink-dim on {ground} measures {ratio:.2f}:1 in the "
+                    f"{theme} theme, where AA asks 4.5 for text below 24px",
+                )
+
+    def themes(self, css):
+        """The declared custom properties, per theme, as plain dictionaries."""
+        import re
+
+        found = {}
+        for name, opener in (("light", ":root {"), ("dark", '[data-theme="dark"] {')):
+            block = css.split(opener, 1)[1].split("}", 1)[0]
+            found[name] = dict(re.findall(r"(--[\w-]+):\s*(#[0-9a-fA-F]{6});", block))
+        return found
+
+    def contrast(self, one, other):
+        """WCAG 2.1 contrast ratio between two opaque hex colours."""
+
+        def luminance(value):
+            channels = [int(value[i : i + 2], 16) / 255 for i in (1, 3, 5)]
+            linear = [
+                c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4 for c in channels
+            ]
+            return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2]
+
+        lighter, darker = sorted((luminance(one), luminance(other)), reverse=True)
+        return (lighter + 0.05) / (darker + 0.05)
 
     def test_links_use_the_palette_rather_than_bootstraps_default(self):
         """Bootstrap 5.3 reads --bs-link-color-rgb; setting the other does nothing."""

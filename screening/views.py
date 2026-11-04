@@ -348,9 +348,50 @@ def profile(request):
     )
 
 
+# How far back the case archive can be asked to look. Kept here because the
+# list and the CSV both read it, and a download that quietly covered a
+# different span from the table it came from would be worse than no download.
+CASE_PERIODS = (
+    ("", "Any date"),
+    ("7", "Last 7 days"),
+    ("30", "Last 30 days"),
+    ("90", "Last 90 days"),
+    ("365", "Last 12 months"),
+)
+
+
+def filter_cases(records, params):
+    """Narrow a case queryset by the archive's filters.
+
+    One function for the page and the export, so the file somebody downloads
+    is the table they were looking at rather than a different query that
+    happens to share three of its four filters.
+    """
+    reference = params.get("reference", "").strip()
+    if reference:
+        records = records.filter(patient_reference__icontains=reference)
+
+    triage = params.get("triage", "")
+    if triage in PredictionRecord.TriageLevel.values:
+        records = records.filter(triage_level=triage)
+
+    review = params.get("review", "")
+    if review in PredictionRecord.ReviewStatus.values:
+        records = records.filter(review_status=review)
+
+    since = params.get("since", "")
+    if since in {value for value, _ in CASE_PERIODS if value}:
+        records = records.filter(created_at__gte=timezone.now() - timedelta(days=int(since)))
+
+    return records
+
+
 @login_required
 def case_list(request):
-    records = PredictionRecord.objects.visible_to(request.user)
+    records = PredictionRecord.objects.visible_to(request.user).select_related(
+        "screened_by", "facility"
+    )
+    total = records.count()
 
     reference = request.GET.get("reference", "").strip()
     AccessEvent.record(
@@ -359,24 +400,33 @@ def case_list(request):
         facility=facility_name(profile_for(request.user).facility),
         detail=f"search: {reference}" if reference else "",
     )
-    if reference:
-        records = records.filter(patient_reference__icontains=reference)
 
-    triage = request.GET.get("triage", "")
-    if triage in PredictionRecord.TriageLevel.values:
-        records = records.filter(triage_level=triage)
+    records = filter_cases(records, request.GET)
 
     paginator = Paginator(records, 25)
     page = paginator.get_page(request.GET.get("page"))
+
+    # Carried on the export link so the download is this table rather than
+    # everything, and rebuilt here rather than in the template so the page
+    # links cannot drift from the filters that produced them.
+    carried = request.GET.copy()
+    carried.pop("page", None)
+    query = carried.urlencode()
 
     return render(
         request,
         "screening/case_list.html",
         {
             "page": page,
+            "total": total,
             "reference": reference,
-            "triage": triage,
+            "triage": request.GET.get("triage", ""),
+            "review": request.GET.get("review", ""),
+            "since": request.GET.get("since", ""),
+            "query": query,
             "triage_choices": PredictionRecord.TriageLevel.choices,
+            "review_choices": PredictionRecord.ReviewStatus.choices,
+            "period_choices": CASE_PERIODS,
             "active": "cases",
         },
     )
@@ -416,11 +466,46 @@ def dashboard(request):
         for offset in range(14)
     ]
 
+    # The four figures the dashboard leads with, each over a denominator the
+    # tile states. A rate printed without the count behind it reads as a
+    # population statistic, and 40 records in a prototype is not one.
+    month_start = timezone.localtime().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    this_month = records.filter(created_at__gte=month_start).count()
+
+    high = by_triage.get(PredictionRecord.TriageLevel.HIGH, 0)
+    high_rate = (high / total * 100) if total else None
+
+    # Agreement is between the model's label and what the clinician decided,
+    # counted only over cases somebody actually decided. Calling for follow-up
+    # on a likely-TB film agrees with the model; closing an unlikely-TB one
+    # agrees with it too. Everything still pending is excluded rather than
+    # counted as agreement, which would flatter the figure.
+    decided = records.exclude(review_status=PredictionRecord.ReviewStatus.PENDING)
+    decided_total = decided.count()
+    agreed = decided.filter(
+        Q(
+            predicted_label=PredictionRecord.PredictedLabel.LIKELY_TB,
+            review_status=PredictionRecord.ReviewStatus.FOLLOW_UP,
+        )
+        | Q(
+            predicted_label=PredictionRecord.PredictedLabel.UNLIKELY_TB,
+            review_status=PredictionRecord.ReviewStatus.REVIEWED,
+        )
+    ).count()
+    agreement = (agreed / decided_total * 100) if decided_total else None
+
     return render(
         request,
         "screening/dashboard.html",
         {
             "total": total,
+            "this_month": this_month,
+            "month_label": month_start,
+            "high": high,
+            "high_rate": high_rate,
+            "decided_total": decided_total,
+            "agreed": agreed,
+            "agreement": agreement,
             "likely": by_label.get(PredictionRecord.PredictedLabel.LIKELY_TB, 0),
             "unlikely": by_label.get(PredictionRecord.PredictedLabel.UNLIKELY_TB, 0),
             "triage_counts": triage_counts,
@@ -644,9 +729,39 @@ def worklist(request):
     queue = (
         PredictionRecord.objects.visible_to(request.user)
         .awaiting_review()
-        .in_clinical_order()
         .select_related("screened_by", "facility")
     )
+
+    # The counts below describe the whole queue, so they are taken before the
+    # filters narrow it. A tile that moved every time somebody typed in the
+    # search box would be reporting the search rather than the workload.
+    counts = queue.aggregate(
+        high=Count("pk", filter=Q(triage_level=PredictionRecord.TriageLevel.HIGH)),
+        medium=Count("pk", filter=Q(triage_level=PredictionRecord.TriageLevel.MEDIUM)),
+        low=Count("pk", filter=Q(triage_level=PredictionRecord.TriageLevel.LOW)),
+    )
+    waiting = queue.count()
+    oldest = queue.order_by("created_at").first()
+
+    reference = request.GET.get("reference", "").strip()
+    if reference:
+        queue = queue.filter(patient_reference__icontains=reference)
+
+    triage = request.GET.get("triage", "")
+    if triage in PredictionRecord.TriageLevel.values:
+        queue = queue.filter(triage_level=triage)
+
+    # Urgency is the default because the queue exists to answer "what next".
+    # The other two are for the times that is not the question: checking
+    # nothing has been left behind, or finding something screened just now.
+    order = request.GET.get("order", "urgent")
+    if order == "oldest":
+        queue = queue.order_by("created_at")
+    elif order == "newest":
+        queue = queue.order_by("-created_at")
+    else:
+        order = "urgent"
+        queue = queue.in_clinical_order()
 
     AccessEvent.record(
         request,
@@ -658,21 +773,18 @@ def worklist(request):
     paginator = Paginator(queue, 25)
     page = paginator.get_page(request.GET.get("page"))
 
-    counts = queue.aggregate(
-        high=Count("pk", filter=Q(triage_level=PredictionRecord.TriageLevel.HIGH)),
-        medium=Count("pk", filter=Q(triage_level=PredictionRecord.TriageLevel.MEDIUM)),
-        low=Count("pk", filter=Q(triage_level=PredictionRecord.TriageLevel.LOW)),
-    )
-
-    oldest = queue.order_by("created_at").first()
-
     return render(
         request,
         "screening/worklist.html",
         {
             "page": page,
             "counts": counts,
-            "waiting": queue.count(),
+            "waiting": waiting,
+            "showing": paginator.count,
+            "reference": reference,
+            "triage": triage,
+            "order": order,
+            "triage_choices": PredictionRecord.TriageLevel.choices,
             "oldest_days": oldest.waiting_days if oldest else None,
             "may_review": profile_for(request.user).may_review,
             "active": "worklist",
@@ -1138,11 +1250,24 @@ def model_performance(request):
     missed = matrix.get("false_negative")
     positives = (matrix.get("true_positive") or 0) + (missed or 0)
 
+    # Percentages for the two target meters and the miss-rate tile. Derived
+    # here because a template cannot divide, and derived from the same
+    # artefact figures rather than typed, so they move when a re-run moves
+    # them. WHO's triage targets are the bar they are drawn against.
+    measured = (test or {}).get("metrics") or {}
+    sensitivity = measured.get("recall")
+    specificity = measured.get("specificity")
+
     return render(
         request,
         "screening/model_performance.html",
         {
             "test": test,
+            "miss_rate": (1 - sensitivity) if sensitivity is not None else None,
+            "sensitivity_percent": sensitivity * 100 if sensitivity is not None else None,
+            "specificity_percent": specificity * 100 if specificity is not None else None,
+            "sensitivity_met": sensitivity is not None and sensitivity >= 0.90,
+            "specificity_met": specificity is not None and specificity >= 0.70,
             "calibration": calibration,
             "across": across,
             "explanation": explanation,
@@ -1181,8 +1306,22 @@ def access_trail(request):
     if action in AccessEvent.Action.values:
         events = events.filter(action=action)
 
+    # Who did it or what they did it to. The trail is read when somebody asks
+    # "who opened this record", and that question comes with either an address
+    # or a case reference in hand.
+    who = request.GET.get("who", "").strip()
+    if who:
+        events = events.filter(
+            Q(actor_label__icontains=who)
+            | Q(detail__icontains=who)
+            | Q(facility__icontains=who)
+        )
+
     paginator = Paginator(events.select_related("actor"), 50)
     page = paginator.get_page(request.GET.get("page"))
+
+    carried = request.GET.copy()
+    carried.pop("page", None)
 
     return render(
         request,
@@ -1190,6 +1329,8 @@ def access_trail(request):
         {
             "page": page,
             "action": action,
+            "who": who,
+            "query": carried.urlencode(),
             "actions": AccessEvent.Action.choices,
             "total": events.count(),
             "is_administrator": viewer.role == Profile.Role.ADMINISTRATOR,
@@ -1275,12 +1416,7 @@ def export_cases(request):
         .order_by("-created_at")
     )
 
-    reference = request.GET.get("reference", "").strip()
-    if reference:
-        records = records.filter(patient_reference__icontains=reference)
-    triage = request.GET.get("triage", "")
-    if triage in PredictionRecord.TriageLevel.values:
-        records = records.filter(triage_level=triage)
+    records = filter_cases(records, request.GET)
 
     AccessEvent.record(
         request,

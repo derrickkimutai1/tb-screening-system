@@ -1,13 +1,13 @@
 {% extends "screening/base.html" %}
 {% load static %}
 
-{% block title %}Reporting dashboard{% endblock %}
+{% block title %}Dashboard{% endblock %}
+{% block crumb %}Overview{% endblock %}
 
 {% block pagehead %}
 <div class="pagehead">
-  <span class="micro micro-acid">Reporting</span>
-  <h1 class="display display-xl mt-2">Screening<br>activity</h1>
-  <span class="micro">Counts of records stored in this prototype</span>
+  <h1 class="display display-xl">Your facility at a glance</h1>
+  <p class="pagehead-note">Screening activity, clinical workload and triage trends.</p>
 </div>
 {% endblock %}
 
@@ -15,113 +15,159 @@
 
 <div class="row g-3 mb-3">
   <div class="col-6 col-lg-3">
-    <div class="readout rise">
-      <span class="readout-label">Total screenings</span>
-      <div class="readout-value" data-count="{{ total }}">0</div>
+    <div class="readout">
+      <span class="readout-label">Screenings this month</span>
+      <span class="readout-value">{{ this_month }}</span>
+      <span class="readout-unit">{{ month_label|date:"F Y" }} &middot; {{ total }} in total</span>
     </div>
   </div>
   <div class="col-6 col-lg-3">
-    <div class="readout rise">
-      <span class="readout-label">Likely TB</span>
-      <div class="readout-value accented" data-count="{{ likely }}">0</div>
-      <span class="readout-unit">of {{ total }} screened</span>
+    <div class="readout {% if high_rate %}readout-medium{% endif %}">
+      <span class="readout-label">High suspicion rate</span>
+      <span class="readout-value">
+        {% if high_rate is not None %}{{ high_rate|floatformat:1 }}%{% else %}&mdash;{% endif %}
+      </span>
+      <span class="readout-unit">{{ high }} of {{ total }} screened</span>
     </div>
   </div>
   <div class="col-6 col-lg-3">
-    <div class="readout rise">
-      <span class="readout-label">Last 7 days</span>
-      <div class="readout-value" data-count="{{ recent }}">0</div>
+    <div class="readout {% if pending %}readout-high{% endif %}">
+      <span class="readout-label">Pending clinical review</span>
+      <span class="readout-value">{{ pending }}</span>
+      <span class="readout-unit">
+        {% if pending %}
+          <a href="{% url 'screening:worklist' %}">Open the worklist</a>
+        {% else %}
+          Everything has been decided
+        {% endif %}
+      </span>
     </div>
   </div>
   <div class="col-6 col-lg-3">
-    <div class="readout rise">
-      <span class="readout-label">Follow-up</span>
-      <div class="readout-value" data-count="{{ follow_up }}">0</div>
-      <span class="readout-unit">{{ pending }} pending review</span>
+    <div class="readout">
+      <span class="readout-label">Clinical agreement</span>
+      <span class="readout-value">
+        {% if agreement is not None %}{{ agreement|floatformat:1 }}%{% else %}&mdash;{% endif %}
+      </span>
+      {% comment %}
+        The denominator is on the tile because the numerator is small. A
+        percentage over nine decided cases is not a performance claim, and a
+        tile that hides that invites it to be read as one.
+      {% endcomment %}
+      <span class="readout-unit">
+        {% if decided_total %}
+          {{ agreed }} of {{ decided_total }} decided cases matched the model
+        {% else %}
+          No case has been decided yet
+        {% endif %}
+      </span>
     </div>
   </div>
 </div>
 
-<div class="row g-3">
+<div class="row g-3 mb-3">
+
+  <div class="col-lg-8">
+    <div class="panel h-100">
+      <div class="panel-head">
+        <h2 class="panel-title">
+          Screening volume
+          <span class="panel-sub">Daily screenings at this clinic</span>
+        </h2>
+        <span class="tag">Last 14 days</span>
+      </div>
+      <div class="panel-body">
+        <div class="chart-box chart-box-tall"><canvas id="activity-chart"></canvas></div>
+      </div>
+    </div>
+  </div>
 
   <div class="col-lg-4">
-    <div class="panel h-100 rise">
+    <div class="panel h-100">
       <div class="panel-head">
-        <h2 class="panel-title">Suspicion distribution</h2>
+        <h2 class="panel-title">
+          Triage distribution
+          <span class="panel-sub">Across all screened radiographs</span>
+        </h2>
       </div>
       <div class="panel-body">
         <div class="chart-box"><canvas id="triage-chart"></canvas></div>
-      </div>
-      <div class="table-scroll">
-        <table class="table">
-          <tbody>
-            {% for label, count in triage_counts %}
-              <tr>
-                <td>{{ label }}</td>
-                <td class="numeric text-end" style="width: 5rem;">{{ count }}</td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-
-  <div class="col-lg-8">
-    <div class="panel h-100 rise">
-      <div class="panel-head">
-        <h2 class="panel-title">Recent screenings</h2>
-        <a class="micro micro-acid" href="{% url 'screening:case_list' %}"
-           style="text-decoration: none;">All cases &rarr;</a>
-      </div>
-      <div class="table-scroll">
-        <table class="table">
-          <thead>
-            <tr>
-              <th>Case reference</th>
-              <th>Analysed</th>
-              <th>Result</th>
-              <th class="text-end">Score</th>
-              <th>Triage</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for record in latest %}
-              <tr>
-                <td><a href="{% url 'screening:case_detail' record.case_id %}">{{ record.patient_reference }}</a></td>
-                <td class="numeric">{{ record.created_at|date:"j M H:i" }}</td>
-                <td>{{ record.get_predicted_label_display }}</td>
-                <td class="numeric text-end">{{ record.tb_probability }}</td>
-                <td><span class="triage {{ record.triage_css_class }}">{{ record.get_triage_level_display }}</span></td>
-              </tr>
-            {% empty %}
-              <tr>
-                <td colspan="5" style="color: var(--ink-muted); padding: 1.5rem 1rem;">
-                  No screening records yet.
-                </td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
+        <ul class="legend mt-3">
+          {% for label, count in triage_counts %}
+            <li>
+              <span class="swatch" data-swatch="{{ forloop.counter0 }}"></span>
+              {{ label }}
+              <span class="legend-value">{{ count }}</span>
+            </li>
+          {% endfor %}
+        </ul>
       </div>
     </div>
   </div>
 
 </div>
 
-<div class="panel mt-3 rise">
+<div class="panel">
   <div class="panel-head">
-    <h2 class="panel-title">Screening activity</h2>
-    <span class="micro">Last 14 days</span>
+    <h2 class="panel-title">
+      Recent screenings
+      <span class="panel-sub">Newest first, across the whole caseload</span>
+    </h2>
+    <a class="btn btn-action btn-row" href="{% url 'screening:worklist' %}">
+      View worklist
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M5 12h14M13 6l6 6-6 6"/>
+      </svg>
+    </a>
   </div>
-  <div class="panel-body">
-    <div class="chart-box chart-box-tall"><canvas id="activity-chart"></canvas></div>
+  <div class="table-scroll">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Patient reference</th>
+          <th>Screened</th>
+          <th>Result</th>
+          <th class="text-end">Model score</th>
+          <th>Triage</th>
+          <th>Review</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for record in latest %}
+          <tr>
+            <td>
+              <a href="{% url 'screening:case_detail' record.case_id %}">
+                {{ record.patient_reference }}
+              </a>
+            </td>
+            <td class="numeric cell-quiet">{{ record.created_at|date:"j M, H:i" }}</td>
+            <td>{{ record.get_predicted_label_display }}</td>
+            <td class="numeric text-end">{{ record.tb_probability }}</td>
+            <td>
+              <span class="triage {{ record.triage_css_class }}">
+                {{ record.get_triage_level_display }}
+              </span>
+            </td>
+            <td class="cell-quiet">{{ record.get_review_status_display }}</td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="6" class="table-empty">
+              No screening records yet.
+              <a href="{% url 'screening:upload' %}">Screen a radiograph</a> to create one.
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
   </div>
 </div>
 
 <p class="field-hint mt-3">
-  All figures are counts of records stored in this prototype. They describe system usage
-  during development and are not population screening statistics.
+  Every figure on this page is a count of records stored in this prototype. They
+  describe how the system has been used during development and are not
+  population screening statistics.
 </p>
 
 {{ triage_labels|json_script:"triage-labels" }}
@@ -138,58 +184,90 @@
     const css = (name) =>
       getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 
-    Chart.defaults.font.family = "Archivo, Segoe UI, Arial, sans-serif";
-    Chart.defaults.font.size = 10;
-    Chart.defaults.color = css("--ink-dim");
+    // The charts take their colours from the stylesheet rather than carrying
+    // their own, so switching to the reading room repaints them with
+    // everything else instead of leaving two pale bars on a dark panel.
+    const band = [css("--plot-low"), css("--plot-medium"), css("--plot-high")];
+    const surface = css("--surface");
+    const grid = css("--line");
+    const label = css("--ink-dim");
 
-    new Chart(document.getElementById("triage-chart"), {
+    document.querySelectorAll("[data-swatch]").forEach((dot) => {
+      dot.style.background = band[Number(dot.dataset.swatch)] || label;
+    });
+
+    Chart.defaults.font.family = "IBM Plex Sans, Segoe UI, Arial, sans-serif";
+    Chart.defaults.font.size = 11;
+    Chart.defaults.color = label;
+
+    const triage = new Chart(document.getElementById("triage-chart"), {
       type: "doughnut",
       data: {
         labels: read("triage-labels"),
         datasets: [{
           data: read("triage-values"),
-          backgroundColor: [css("--triage-low"), css("--triage-medium"), css("--triage-high")],
-          borderColor: css("--surface"),
+          backgroundColor: band,
+          borderColor: surface,
           borderWidth: 3,
         }],
       },
       options: {
         maintainAspectRatio: false,
-        cutout: "68%",
-        plugins: {
-          legend: { position: "bottom", labels: { boxWidth: 8, padding: 12 } },
-        },
+        cutout: "70%",
+        plugins: { legend: { display: false } },
       },
     });
 
-    new Chart(document.getElementById("activity-chart"), {
+    const values = read("activity-values");
+    // The last bar is today, and today is the one being asked about.
+    const newest = values.length - 1;
+    const activity = new Chart(document.getElementById("activity-chart"), {
       type: "bar",
       data: {
         labels: read("activity-labels"),
         datasets: [{
           label: "Screenings",
-          data: read("activity-values"),
-          backgroundColor: css("--acid"),
-          hoverBackgroundColor: "#e9ff5c",
-          borderRadius: 2,
-          maxBarThickness: 30,
+          data: values,
+          backgroundColor: values.map((_, i) =>
+            i === newest ? css("--brand") : css("--plot-idle")
+          ),
+          borderRadius: 3,
+          maxBarThickness: 34,
         }],
       },
       options: {
         maintainAspectRatio: false,
-        animation: { duration: 900, easing: "easeOutQuart" },
         plugins: { legend: { display: false } },
         scales: {
-          x: { grid: { display: false }, border: { color: css("--line") } },
+          x: { grid: { display: false }, border: { color: grid } },
           y: {
             beginAtZero: true,
             ticks: { precision: 0 },
-            grid: { color: css("--line") },
+            grid: { color: grid },
             border: { display: false },
           },
         },
       },
     });
+
+    // Repaint when the interface changes side, which a stylesheet cannot do
+    // for a canvas.
+    new MutationObserver(() => {
+      const next = [css("--plot-low"), css("--plot-medium"), css("--plot-high")];
+      triage.data.datasets[0].backgroundColor = next;
+      triage.data.datasets[0].borderColor = css("--surface");
+      activity.data.datasets[0].backgroundColor = values.map((_, i) =>
+        i === newest ? css("--brand") : css("--plot-idle")
+      );
+      Chart.defaults.color = css("--ink-dim");
+      [triage, activity].forEach((chart) => {
+        if (chart.options.scales) {
+          chart.options.scales.x.border.color = css("--line");
+          chart.options.scales.y.grid.color = css("--line");
+        }
+        chart.update("none");
+      });
+    }).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
   })();
 </script>
 {% endblock %}

@@ -1,57 +1,319 @@
 {% extends "screening/base.html" %}
 
 {% block title %}{{ record.patient_reference }} — screening result{% endblock %}
+{% block crumb %}Patient review{% endblock %}
 
 {% block pagehead %}
 <div class="pagehead">
-  <span class="micro micro-acid">Result / {{ record.patient_reference }}</span>
-  <h1 class="display display-xl mt-2">{{ record.get_predicted_label_display }}</h1>
-  <span class="micro numeric">Analysed {{ record.created_at|date:"j M Y, H:i" }}</span>
+  <h1 class="display display-xl">Patient radiograph</h1>
+  <p class="pagehead-note">
+    Review the automated triage alongside your own clinical assessment.
+  </p>
+</div>
+
+<div class="d-flex flex-wrap align-items-center gap-3 mb-3">
+  <a class="btn btn-quiet btn-row" href="{% url 'screening:worklist' %}">
+    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor"
+         stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M19 12H5M11 6l-6 6 6 6"/>
+    </svg>
+    Worklist
+  </a>
+  <span class="display display-lg" style="font-size: 1.125rem;">
+    {{ record.patient_reference }}
+  </span>
+  <span class="tag">Screened {{ record.created_at|date:"j M Y, H:i" }}</span>
+  <a class="btn btn-quiet btn-row ms-auto" href="{% url 'screening:case_report' record.case_id %}">
+    <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor"
+         stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M12 4v11m0 0-4-4m4 4 4-4M5 19h14"/>
+    </svg>
+    Print report
+  </a>
 </div>
 {% endblock %}
 
 {% block content %}
 
-<div class="panel panel-lead mb-3 rise">
-  <div class="panel-head">
-    <h2 class="panel-title">Screening result</h2>
-    <span class="d-flex align-items-center gap-3">
-      <span class="micro numeric">{{ record.model_version }}</span>
-      <a class="btn btn-quiet btn-row" href="{% url 'screening:case_report' record.case_id %}">
-        Print report
-      </a>
-    </span>
+{% if record.quality_status != 'ACCEPTABLE' %}
+  <div class="notice notice-caution mb-3">
+    <strong>Image quality: {{ record.get_quality_status_display }}.</strong>
+    {{ record.quality_message }}
   </div>
-  <div class="panel-body">
-    <div class="row g-4 align-items-center">
+{% endif %}
 
-      <div class="col-md-auto">
-        <div class="gauge">
-          <svg viewBox="0 0 120 120" role="img"
-               aria-label="Model score {{ record.tb_probability }} out of 1">
-            <circle class="gauge-track" cx="60" cy="60" r="52"></circle>
-            <circle class="gauge-fill level-{{ record.triage_slug }}" cx="60" cy="60" r="52"
-                    stroke-dasharray="327"
-                    style="--target-offset: {{ record.gauge_offset }};"></circle>
-          </svg>
-          <div class="gauge-centre">
-            <span class="gauge-figure">{{ record.tb_probability }}</span>
-            <span class="micro mt-1">Model score</span>
+<div class="row g-3">
+
+  <div class="col-xl-8">
+
+    <div class="row g-3">
+      <div class="col-md-6">
+        <div class="panel h-100">
+          <div class="panel-head"><h2 class="panel-title">Original radiograph</h2></div>
+          <div class="panel-body">
+            <div class="radiograph-frame">
+              <span class="frame-tag">Original</span>
+              {% comment %}
+                Guarded, because reading .url on a field with no file raises
+                rather than returning nothing, and this page answered 500 for
+                any record whose image had gone. That is not hypothetical
+                where this is deployed: a container with no persistent disk
+                keeps the rows and loses the files after a restart, and every
+                case page would have failed instead of showing a result
+                without its picture.
+              {% endcomment %}
+              {% if record.xray_image %}
+                <img src="{{ record.xray_image.url }}"
+                     alt="Uploaded chest radiograph for {{ record.patient_reference }}">
+              {% else %}
+                <p class="placeholder-note mb-0">
+                  The stored radiograph is no longer available. The screening and
+                  its result are unchanged; only the image is missing.
+                </p>
+              {% endif %}
+            </div>
           </div>
         </div>
       </div>
 
-      <div class="col-md">
-        <span class="micro">Triage</span>
-        <div class="mt-2 mb-3">
+      <div class="col-md-6">
+        <div class="panel h-100">
+          <div class="panel-head">
+            <h2 class="panel-title">Explanation</h2>
+            <span class="tag" data-explanation-status>
+              {{ record.get_explanation_status_display }}
+            </span>
+          </div>
+          <div class="panel-body">
+            <div class="radiograph-frame" data-explanation-frame>
+              <span class="frame-tag">Grad-CAM</span>
+              {% if record.has_explanation %}
+                <img src="{{ record.explanation_image.url }}"
+                     alt="Grad-CAM heatmap overlay for {{ record.patient_reference }}">
+              {% else %}
+                <p class="placeholder-note mb-0" data-explanation-note>
+                  {% if record.explanation_awaited %}
+                    Building the explanation for this radiograph. It takes a few
+                    seconds, because the map is measured rather than inferred.
+                  {% else %}
+                    No explanation image for this record
+                    ({{ record.get_explanation_status_display|lower }}).
+                  {% endif %}
+                </p>
+              {% endif %}
+            </div>
+            <p class="field-hint" data-explanation-caption
+               {% if not record.has_explanation %}hidden{% endif %}>
+              Grad-CAM, the method the project objectives name. Brighter areas are
+              where the network's activations correlated most with the score. They
+              are not confirmed disease locations, and on this model the map
+              localises weakly: the measurement is below.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {% comment %}
+      The method the proposal named, shown next to the one that measured
+      higher.
+
+      SO4 specifies a Grad-CAM heatmap. It was built and then measured against
+      hand-drawn lung masks, where it scored barely above a map placed at
+      random, so it is not what the result rests on. Showing it anyway,
+      labelled with that figure, answers the objective and lets anyone compare
+      the two rather than taking the replacement on trust.
+    {% endcomment %}
+    <div class="panel mt-3" data-comparison-panel
+         {% if not record.has_comparison and not record.explanation_awaited %}hidden{% endif %}>
+      <div class="panel-head">
+        <h2 class="panel-title">
+          Occlusion map, for comparison
+          <span class="panel-sub">Measured higher than the map above</span>
+        </h2>
+      </div>
+      <div class="panel-body">
+        <div class="row g-3 align-items-start">
+          <div class="col-md-5">
+            <div class="radiograph-frame" data-comparison-frame>
+              <span class="frame-tag">Occlusion</span>
+              {% if record.has_comparison %}
+                <img src="{{ record.comparison_image.url }}"
+                     alt="Occlusion heatmap overlay for {{ record.patient_reference }}">
+              {% else %}
+                <p class="placeholder-note mb-0" data-comparison-note>
+                  Building the comparison.
+                </p>
+              {% endif %}
+            </div>
+          </div>
+          <div class="col-md-7">
+            <p class="field-hint mt-0">
+              Both maps were measured against Montgomery's hand-drawn lung masks
+              to find out whether they point at the lungs. The occlusion map
+              covers each region in turn and scores the image again, so its
+              bright areas are the ones the score actually depended on.
+            </p>
+
+            {% if lifts %}
+              <div class="table-boxed mt-2">
+                <div class="table-scroll"><table class="table">
+                <thead>
+                  <tr><th>Map</th><th class="text-end">Lift on lung masks</th></tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td class="cell-quiet">A map placed at random</td>
+                    <td class="text-end numeric">1.00</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Grad-CAM, shown above</strong></td>
+                    <td class="text-end numeric"><strong>{{ lifts.gradcam|floatformat:2 }}</strong></td>
+                  </tr>
+                  <tr>
+                    <td>Occlusion, shown here</td>
+                    <td class="text-end numeric">{{ lifts.occlusion|floatformat:2 }}</td>
+                  </tr>
+                </tbody>
+                </table></div>
+              </div>
+            {% endif %}
+
+            <p class="field-hint">
+              <strong>Read the map above with this in mind.</strong> Grad-CAM lands
+              barely above the 1.00 a random map scores, so it must not be taken as
+              showing where disease is.
+              {% if lifts.gain %}
+                Paired across the {{ lifts.images }} masked TB radiographs the
+                occlusion map gains {{ lifts.gain|floatformat:3 }} of lift, 95% CI
+                [{{ lifts.gain_low|floatformat:3 }}, {{ lifts.gain_high|floatformat:3 }}];
+                on the 9 held-out films that interval includes zero, so the
+                improvement is measured rather than proven.
+              {% endif %}
+              Grad-CAM is shown as the explanation because the approved objective
+              specifies it. Full comparison in
+              <code>ml/artifacts/explanation_methods.md</code>.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel mt-3">
+      <div class="panel-head">
+        <h2 class="panel-title">
+          The record
+          <span class="panel-sub">What this result was produced by and judged under</span>
+        </h2>
+      </div>
+      <div class="table-scroll">
+        <table class="table">
+          <tbody>
+            <tr><td class="cell-quiet" style="width: 40%;">Patient reference</td><td>{{ record.patient_reference }}</td></tr>
+            <tr><td class="cell-quiet">Case identifier</td><td class="mono-text" style="font-size: .6875rem;">{{ record.case_id }}</td></tr>
+            <tr><td class="cell-quiet">Screened by</td><td>{{ record.screened_by.email|default:"—" }}</td></tr>
+            <tr><td class="cell-quiet">Clinic</td><td>{{ record.facility.name|default:"—" }}</td></tr>
+            <tr><td class="cell-quiet">Image quality</td><td>{{ record.get_quality_status_display }}</td></tr>
+            <tr><td class="cell-quiet">Model version</td><td class="mono-text">{{ record.model_version }}</td></tr>
+            <tr><td class="cell-quiet">Decision threshold</td><td class="numeric">{{ record.decision_threshold }}</td></tr>
+            <tr><td class="cell-quiet">Triage thresholds</td><td class="numeric">{{ record.triage_low_medium_threshold }} / {{ record.triage_medium_high_threshold }}</td></tr>
+            <tr><td class="cell-quiet">Inference time</td><td class="numeric">{% if record.inference_ms %}{{ record.inference_ms }} ms{% else %}&mdash;{% endif %}</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    {% if notes %}
+      <div class="panel mt-3">
+        <div class="panel-head">
+          <h2 class="panel-title">
+            Recorded reviews
+            <span class="panel-sub">{{ notes|length }} note{{ notes|length|pluralize }} against this screening</span>
+          </h2>
+        </div>
+        <div class="table-scroll">
+          <table class="table">
+            <thead>
+              <tr><th>Date</th><th>Reviewer</th><th>Decision</th><th>Note</th></tr>
+            </thead>
+            <tbody>
+              {% for note in notes %}
+                <tr>
+                  <td class="numeric cell-quiet">{{ note.created_at|date:"j M Y, H:i" }}</td>
+                  <td>{{ note.attributed_to }}</td>
+                  <td>{{ note.get_status_set_display }}</td>
+                  <td>{{ note.note }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    {% endif %}
+
+    {% if history %}
+      <div class="panel mt-3">
+        <div class="panel-head">
+          <h2 class="panel-title">
+            Earlier screenings of {{ record.patient_reference }}
+            <span class="panel-sub">
+              On a repeat radiograph the question is usually whether the score
+              has moved, which one result cannot answer on its own.
+            </span>
+          </h2>
+        </div>
+        <div class="table-scroll">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Screened</th>
+                <th>Result</th>
+                <th class="text-end">Model score</th>
+                <th>Triage</th>
+                <th>Review</th>
+                <th class="text-end"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for earlier in history %}
+                <tr>
+                  <td class="numeric cell-quiet">{{ earlier.created_at|date:"Y-m-d  H:i" }}</td>
+                  <td>{{ earlier.get_predicted_label_display }}</td>
+                  <td class="text-end numeric">{{ earlier.tb_probability|floatformat:4 }}</td>
+                  <td>
+                    <span class="triage {{ earlier.triage_css_class }}">
+                      {{ earlier.get_triage_level_display }}
+                    </span>
+                  </td>
+                  <td class="cell-quiet">{{ earlier.get_review_status_display }}</td>
+                  <td class="text-end">
+                    <a href="{% url 'screening:case_detail' earlier.case_id %}">Open</a>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    {% endif %}
+
+  </div>
+
+  <div class="col-xl-4">
+
+    <div class="panel panel-lead">
+      <div class="panel-head">
+        <h2 class="panel-title">Automated triage result</h2>
+        <span class="tag mono-text">{{ record.model_version }}</span>
+      </div>
+      <div class="panel-body">
+        <span class="micro">Model score</span>
+        <div class="score-figure mt-1">
+          <span class="score-value">{{ record.tb_probability }}</span>
           <span class="triage {{ record.triage_css_class }}">
             {{ record.get_triage_level_display }}
           </span>
-          {% if record.triage_level == 'HIGH' or record.triage_level == 'MEDIUM' %}
-            <span class="micro ms-2">Requires clinical review</span>
-          {% endif %}
         </div>
-        <p class="field-hint mb-0" style="margin-top: 0;">{{ record.triage_justification }}</p>
 
         <div class="scale">
           <div class="scale-track">
@@ -63,293 +325,77 @@
           </div>
           <div class="scale-ticks">
             <span>0.000</span>
-            <span>{{ record.triage_low_medium_threshold }}</span>
-            <span>{{ record.triage_medium_high_threshold }}</span>
+            <span class="mid">
+              Thresholds {{ record.triage_low_medium_threshold }} /
+              {{ record.triage_medium_high_threshold }}
+            </span>
             <span>1.000</span>
           </div>
         </div>
+
+        <p class="field-hint mt-3">{{ record.triage_justification }}</p>
       </div>
-
     </div>
-  </div>
-</div>
 
-<div class="notice notice-boundary mb-3 rise">
-  This prototype supports preliminary TB screening and prioritisation only. It does not
-  provide a final diagnosis. Clinical review and confirmatory testing remain necessary.
-</div>
-
-{% if record.quality_status != 'ACCEPTABLE' %}
-<div class="notice notice-caution mb-3 rise">
-  <strong>Image quality: {{ record.get_quality_status_display }}.</strong>
-  {{ record.quality_message }}
-</div>
-{% endif %}
-
-<div class="row g-3 mb-3">
-  <div class="col-md-6">
-    <div class="panel h-100 rise">
+    <div class="panel mt-3">
       <div class="panel-head">
-        <h2 class="panel-title">Original radiograph</h2>
-        <span class="micro">Source</span>
-      </div>
-      <div class="panel-body">
-        <div class="radiograph-frame">
-          {% comment %}
-            Guarded, because reading .url on a field with no file raises
-            rather than returning nothing, and this page answered 500 for any
-            record whose image had gone. That is not hypothetical where this
-            is deployed: a Space has no persistent disk, so after a restart
-            the rows remain and the files do not, and every case page would
-            have failed instead of showing a result without its picture.
-          {% endcomment %}
-          {% if record.xray_image %}
-            <img src="{{ record.xray_image.url }}"
-                 alt="Uploaded chest radiograph for {{ record.patient_reference }}">
-          {% else %}
-            <p class="placeholder-note mb-0">
-              The stored radiograph is no longer available. The screening and
-              its result are unchanged; only the image is missing.
-            </p>
-          {% endif %}
-        </div>
-      </div>
-    </div>
-  </div>
-  <div class="col-md-6">
-    <div class="panel h-100 rise">
-      <div class="panel-head">
-        <h2 class="panel-title">Explanation</h2>
-        <span class="micro" data-explanation-status>{{ record.get_explanation_status_display }}</span>
-      </div>
-      <div class="panel-body">
-        <div class="radiograph-frame" data-explanation-frame>
-          {% if record.has_explanation %}
-            <img src="{{ record.explanation_image.url }}"
-                 alt="Grad-CAM heatmap overlay for {{ record.patient_reference }}">
-          {% else %}
-            <p class="placeholder-note mb-0" data-explanation-note>
-              {% if record.explanation_awaited %}
-                Building the explanation for this radiograph. It takes a few
-                seconds, because the map is measured rather than inferred.
-              {% else %}
-                No explanation image for this record
-                ({{ record.get_explanation_status_display|lower }}).
-              {% endif %}
-            </p>
-          {% endif %}
-        </div>
-        <p class="field-hint mt-2 mb-0" data-explanation-caption
-           {% if not record.has_explanation %}hidden{% endif %}>
-          Grad-CAM. Brighter areas are where the network's activations
-          correlated most with the score. They are not confirmed disease
-          locations, and on this model the map localises weakly: see the
-          measurement below.
-        </p>
-      </div>
-    </div>
-  </div>
-</div>
-
-{% comment %}
-  The method the proposal named, shown next to the one that replaced it.
-
-  SO4 specifies a Grad-CAM heatmap. It was built and then measured against
-  hand-drawn lung masks, where it scored barely above a map placed at random,
-  so it is not what the result rests on. Showing it anyway, labelled with that
-  figure, answers the objective and lets anyone compare the two rather than
-  taking the replacement on trust.
-{% endcomment %}
-<div class="panel mt-3 rise" data-comparison-panel
-     {% if not record.has_comparison and not record.explanation_awaited %}hidden{% endif %}>
-  <div class="panel-head">
-    <h2 class="panel-title">Occlusion map, for comparison</h2>
-    <span class="micro">Measured higher than the map above</span>
-  </div>
-  <div class="panel-body">
-    <div class="row g-4 align-items-start">
-      <div class="col-md-5">
-        <div class="radiograph-frame" data-comparison-frame>
-          {% if record.has_comparison %}
-            <img src="{{ record.comparison_image.url }}"
-                 alt="Occlusion heatmap overlay for {{ record.patient_reference }}">
-          {% else %}
-            <p class="placeholder-note mb-0" data-comparison-note>
-              Building the comparison.
-            </p>
-          {% endif %}
-        </div>
-      </div>
-      <div class="col-md-7">
-        <p class="field-hint">
-          The project proposal names Grad-CAM as the explanation, and the map
-          above is Grad-CAM. Both methods were measured against Montgomery's
-          hand-drawn lung masks to find out whether they point at the lungs,
-          and the occlusion map here measured higher.
-        </p>
-        {% if lifts %}
-          <div class="table-scroll">
-            <table class="table mb-0">
-              <thead>
-                <tr><th>Map</th><th class="text-end">Lift on lung masks</th></tr>
-              </thead>
-              <tbody>
-                <tr><td>A map placed at random</td><td class="text-end numeric">1.00</td></tr>
-                <tr><td><strong>Grad-CAM, used above</strong></td><td class="text-end numeric"><strong>{{ lifts.gradcam|floatformat:2 }}</strong></td></tr>
-                <tr><td>Occlusion, shown here</td><td class="text-end numeric">{{ lifts.occlusion|floatformat:2 }}</td></tr>
-              </tbody>
-            </table>
-          </div>
-        {% endif %}
-        <p class="field-hint mt-2 mb-0">
-          <strong>Read the map above with this in mind.</strong> Grad-CAM lands
-          barely above the 1.00 a random map scores, so it should not be taken
-          as showing where disease is.
-          {% if lifts.gain %}
-            Paired across the {{ lifts.images }} masked TB radiographs the
-            occlusion map gains {{ lifts.gain|floatformat:3 }} of lift, 95% CI
-            [{{ lifts.gain_low|floatformat:3 }}, {{ lifts.gain_high|floatformat:3 }}];
-            on the 9 held-out films that interval includes zero, so the
-            improvement is measured rather than proven.
-          {% endif %}
-          Grad-CAM is shown as the
-          explanation because the approved objective specifies it. Full
-          comparison in <code>ml/artifacts/explanation_methods.md</code>.
-        </p>
-      </div>
-    </div>
-  </div>
-</div>
-
-<div class="row g-3">
-
-  <div class="col-lg-5">
-    <div class="panel rise">
-      <div class="panel-head"><h2 class="panel-title">Record</h2></div>
-      <div class="table-scroll">
-        <table class="table">
-          <tbody>
-            <tr><td style="width: 45%; color: var(--ink-muted);">Case reference</td><td>{{ record.patient_reference }}</td></tr>
-            <tr><td style="color: var(--ink-muted);">Case ID</td><td class="numeric" style="font-size: 0.6875rem;">{{ record.case_id }}</td></tr>
-            <tr><td style="color: var(--ink-muted);">Model version</td><td class="numeric">{{ record.model_version }}</td></tr>
-            <tr><td style="color: var(--ink-muted);">Decision threshold</td><td class="numeric">{{ record.decision_threshold }}</td></tr>
-            <tr><td style="color: var(--ink-muted);">Triage thresholds</td><td class="numeric">{{ record.triage_low_medium_threshold }} / {{ record.triage_medium_high_threshold }}</td></tr>
-            <tr><td style="color: var(--ink-muted);">Inference time</td><td class="numeric">{% if record.inference_ms %}{{ record.inference_ms }} ms{% else %}&mdash;{% endif %}</td></tr>
-            <tr><td style="color: var(--ink-muted);">Review status</td><td>{{ record.get_review_status_display }}</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-
-  <div class="col-lg-7">
-    <div class="panel rise">
-      <div class="panel-head">
-        <h2 class="panel-title">Review</h2>
-        <span class="micro numeric">{{ notes|length }} note{{ notes|length|pluralize }}</span>
+        <h2 class="panel-title">Clinical review</h2>
+        <span class="tag">{{ record.get_review_status_display }}</span>
       </div>
       <div class="panel-body">
         {% if may_review %}
           <form method="post" novalidate>
             {% csrf_token %}
-            <p class="field-hint">
-              Recorded as <strong>{{ user.profile.display_name }}</strong>,
-              {{ user.profile.get_role_display|lower }}.
-            </p>
-            <div class="row g-3">
-              <div class="col-sm-6">
-                <label class="field-label" for="{{ review_form.status_set.id_for_label }}">Status</label>
-                {{ review_form.status_set }}
-              </div>
-              <div class="col-12">
-                <label class="field-label" for="{{ review_form.note.id_for_label }}">Note</label>
-                {{ review_form.note }}
-              </div>
+
+            <label class="field-label" for="{{ review_form.status_set.id_for_label }}">
+              Review decision
+            </label>
+            {{ review_form.status_set }}
+
+            <div class="mt-3">
+              <label class="field-label" for="{{ review_form.note.id_for_label }}">
+                Clinical notes
+              </label>
+              {{ review_form.note }}
             </div>
-            <button type="submit" class="btn btn-action mt-3">Record review</button>
+
+            <p class="field-hint">
+              Recorded against <strong>{{ viewer_profile.display_name }}</strong>,
+              {{ viewer_profile.get_role_display|lower }}, in the audit trail.
+            </p>
+
+            <button type="submit" class="btn btn-action mt-2 w-100">
+              Submit clinical review
+            </button>
           </form>
         {% else %}
           <div class="notice notice-boundary">
             Confirming or dismissing a case is a clinical decision. Your role is
-            {{ user.profile.get_role_display|lower }}, so this case can be screened
-            and read here but reviewed only by a clinician.
+            {{ viewer_profile.get_role_display|lower }}, so this case can be
+            screened and read here but reviewed only by a clinician. The server
+            refuses the review even if this form is bypassed.
           </div>
         {% endif %}
       </div>
-
-      {% if notes %}
-        <div class="table-scroll">
-          <table class="table">
-            <thead>
-              <tr><th>Date</th><th>Reviewer</th><th>Status set</th><th>Note</th></tr>
-            </thead>
-            <tbody>
-              {% for note in notes %}
-                <tr>
-                  <td class="numeric">{{ note.created_at|date:"j M Y H:i" }}</td>
-                  <td>{{ note.attributed_to }}</td>
-                  <td>{{ note.get_status_set_display }}</td>
-                  <td>{{ note.note }}</td>
-                </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-      {% endif %}
     </div>
+
+    <div class="caveat mt-3">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+           stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/>
+      </svg>
+      <span>
+        <strong class="caveat-title">Interpret with care</strong>
+        The score is the model's output and is not a calibrated probability. The
+        heatmap shows regions that contributed to that score; it is not clinical
+        evidence of where disease is. A result at any level requires clinical
+        review and confirmatory testing.
+      </span>
+    </div>
+
   </div>
 
 </div>
-
-{% if history %}
-  <div class="panel mt-3 rise">
-    <div class="panel-head">
-      <h2 class="panel-title">Earlier screenings of {{ record.patient_reference }}</h2>
-      <span class="micro numeric">{{ history|length }} prior</span>
-    </div>
-    <div class="panel-body" style="border-bottom: 1px solid var(--line);">
-      <p class="field-hint mb-0">
-        Same case reference, screened before this one. On a repeat radiograph the
-        question is usually whether the score has moved, which one result cannot
-        answer on its own.
-      </p>
-    </div>
-    <div class="table-scroll">
-      <table class="table mb-0">
-        <thead>
-          <tr>
-            <th>Analysed</th>
-            <th>Result</th>
-            <th class="text-end">Score</th>
-            <th>Triage</th>
-            <th>Review status</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for earlier in history %}
-            <tr>
-              <td class="numeric">{{ earlier.created_at|date:"j M Y, H:i" }}</td>
-              <td>{{ earlier.get_predicted_label_display }}</td>
-              <td class="text-end numeric">{{ earlier.tb_probability|floatformat:4 }}</td>
-              <td>
-                <span class="triage {{ earlier.triage_css_class }}">
-                  {{ earlier.get_triage_level_display }}
-                </span>
-              </td>
-              <td>{{ earlier.get_review_status_display }}</td>
-              <td class="text-end">
-                <a class="btn btn-quiet btn-row" href="{% url 'screening:case_detail' earlier.case_id %}">
-                  Open
-                </a>
-              </td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </div>
-{% endif %}
 
 {% if record.explanation_awaited %}
 <script>
@@ -363,6 +409,18 @@
     const caption = document.querySelector("[data-explanation-caption]");
     if (!frame) return;
 
+    // The frame carries a corner label as well as the picture, so the image
+    // replaces the note rather than the whole frame; replacing the frame's
+    // children would take the label with it.
+    function show(container, url, alt) {
+      const image = new Image();
+      image.src = url;
+      image.alt = alt;
+      const existing = container.querySelector("img, .placeholder-note");
+      if (existing) existing.replaceWith(image);
+      else container.append(image);
+    }
+
     fetch("{% url 'screening:case_explanation' record.case_id %}", {
       method: "POST",
       headers: { "X-CSRFToken": "{{ csrf_token }}" },
@@ -370,20 +428,16 @@
       .then(function (response) { return response.json(); })
       .then(function (result) {
         if (result.url) {
-          const image = new Image();
-          image.src = result.url;
-          image.alt = "Grad-CAM heatmap overlay for {{ record.patient_reference }}";
-          frame.replaceChildren(image);
+          show(frame, result.url,
+               "Grad-CAM heatmap overlay for {{ record.patient_reference }}");
           if (caption) caption.hidden = false;
           if (status) status.textContent = "Generated";
 
           const panel = document.querySelector("[data-comparison-panel]");
           const compareFrame = document.querySelector("[data-comparison-frame]");
           if (result.comparison_url && compareFrame) {
-            const other = new Image();
-            other.src = result.comparison_url;
-            other.alt = "Occlusion heatmap overlay for {{ record.patient_reference }}";
-            compareFrame.replaceChildren(other);
+            show(compareFrame, result.comparison_url,
+                 "Occlusion heatmap overlay for {{ record.patient_reference }}");
             if (panel) panel.hidden = false;
           } else if (panel) {
             // The comparison can fail without costing the explanation, so the

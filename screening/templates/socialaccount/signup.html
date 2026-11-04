@@ -12,15 +12,15 @@
   <dl class="gate-spec">
     <div>
       <dt>Signed in as</dt>
-      <dd>{{ account.extra_data.email|default:"your Google account" }}</dd>
+      <dd>{{ account.extra_data.email|default:"your provider account" }}</dd>
     </div>
-    <div><dt>Verified by</dt><dd>Google</dd></div>
+    <div><dt>Verified by</dt><dd>{{ account.provider|default:"your provider"|title }}</dd></div>
     <div><dt>Starting role</dt><dd>Radiographer</dd></div>
   </dl>
 
   <p class="gate-note">
-    Google has confirmed who you are. It cannot say where you work or what you
-    are permitted to do here, so the system asks once and an administrator sets
+    Your provider has confirmed who you are. It cannot say where you work or
+    what you are permitted to do here, so the system asks once and an administrator sets
     the rest.
   </p>
 </section>
@@ -44,7 +44,7 @@
       </label>
       {{ form.first_name }}
       {% for error in form.first_name.errors %}
-        <p class="field-hint" style="color: var(--triage-high);">{{ error }}</p>
+        <p class="field-hint field-error">{{ error }}</p>
       {% endfor %}
     </div>
 
@@ -54,16 +54,16 @@
       </label>
       {{ form.last_name }}
       {% for error in form.last_name.errors %}
-        <p class="field-hint" style="color: var(--triage-high);">{{ error }}</p>
+        <p class="field-hint field-error">{{ error }}</p>
       {% endfor %}
     </div>
 
     <div class="mb-3">
       <label class="field-label" for="{{ form.email.id_for_label }}">Email address</label>
       {{ form.email }}
-      <p class="field-hint">Confirmed by Google. This cannot be changed here.</p>
+      <p class="field-hint">Confirmed by your provider. This cannot be changed here.</p>
       {% for error in form.email.errors %}
-        <p class="field-hint" style="color: var(--triage-high);">{{ error }}</p>
+        <p class="field-hint field-error">{{ error }}</p>
       {% endfor %}
     </div>
 
@@ -74,7 +74,7 @@
       {{ form.facility }}
       <p class="field-hint">{{ form.facility.help_text }}</p>
       {% for error in form.facility.errors %}
-        <p class="field-hint" style="color: var(--triage-high);">{{ error }}</p>
+        <p class="field-hint field-error">{{ error }}</p>
       {% endfor %}
     </div>
 
@@ -82,15 +82,30 @@
       <span class="field-label">{{ form.role.label }}</span>
       <div class="role-choice">
         {% for choice in form.role %}
-          <label class="role-option">
+          {% comment %}
+            The difference between the two is which work a person does, so it
+            is said on the card rather than left to the label. Administrator is
+            not offered: it carries the right to change what everyone else may
+            do, and a form offering it would let anybody take it.
+          {% endcomment %}
+          <label>
             {{ choice.tag }}
-            <span>{{ choice.choice_label }}</span>
+            {{ choice.choice_label }}
+            <span class="role-option">
+              {% if choice.data.value == 'clinician' %}
+                All radiographer duties, plus recording clinical review
+                decisions against your own name.
+              {% else %}
+                Capture and upload radiographs, and read the automated triage
+                results.
+              {% endif %}
+            </span>
           </label>
         {% endfor %}
       </div>
       <p class="field-hint">{{ form.role.help_text }}</p>
       {% for error in form.role.errors %}
-        <p class="field-hint" style="color: var(--triage-high);">{{ error }}</p>
+        <p class="field-hint field-error">{{ error }}</p>
       {% endfor %}
     </div>
 
@@ -107,7 +122,7 @@
 
   <p class="gate-fineprint">
     The system stores your name, email address and the clinic you enter. It never
-    receives your Google password.
+    receives your password.
   </p>
 </section>
 

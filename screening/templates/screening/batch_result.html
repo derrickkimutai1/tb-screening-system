@@ -1,91 +1,146 @@
 {% extends "screening/base.html" %}
 
-{% block title %}Batch screening result{% endblock %}
+{% block title %}Batch screening results{% endblock %}
+{% block crumb %}Batch results{% endblock %}
 
 {% block pagehead %}
 <div class="pagehead">
-  <span class="micro micro-acid">Step 02 / Batch</span>
-  <h1 class="display display-xl mt-2">{{ total }} radiograph{{ total|pluralize }}<br>screened</h1>
-  <p class="field-hint" style="max-width: 34rem;">
-    Each image was stored, quality checked and scored separately. An image the quality
-    check rejected is listed below with its reason and was not scored.
+  <h1 class="display display-xl">Batch screening results</h1>
+  <p class="pagehead-note">
+    Each image was stored, quality checked and scored separately. An image the
+    quality check rejected is listed with its reason and was not scored.
   </p>
 </div>
 {% endblock %}
 
 {% block content %}
-<div class="row g-4">
 
-  <div class="col-lg-8">
-    <div class="panel panel-lead rise">
-      <div class="panel-head">
-        <h2 class="panel-title">Screened</h2>
-        <span class="micro">{{ screened|length }} of {{ total }}</span>
-      </div>
-      <div class="panel-body p-0">
-        {% if screened %}
-          <div class="table-scroll">
-            <table class="table mb-0">
-              <thead>
-                <tr>
-                  <th>Case reference</th>
-                  <th>Result</th>
-                  <th class="text-end">Score</th>
-                  <th>Triage</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for record in screened %}
-                  <tr>
-                    <td>
-                      <a href="{% url 'screening:case_detail' record.case_id %}">
-                        {{ record.patient_reference }}
-                      </a>
-                    </td>
-                    <td>{{ record.get_predicted_label_display|default:record.predicted_label }}</td>
-                    <td class="text-end numeric">{{ record.tb_probability|floatformat:4 }}</td>
-                    <td>
-                      <span class="triage {{ record.triage_css_class }}">
-                        {{ record.get_triage_level_display }}
-                      </span>
-                    </td>
-                  </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
-        {% else %}
-          <p class="field-hint m-3">No image in this batch could be screened.</p>
-        {% endif %}
-      </div>
-    </div>
+<div class="steps">
+  <div class="step done">
+    <span class="step-number">1</span>
+    <span class="step-label">Upload radiographs</span>
   </div>
-
-  <div class="col-lg-4">
-    <div class="panel rise">
-      <div class="panel-head">
-        <h2 class="panel-title">Not screened</h2>
-        <span class="micro">{{ rejected|length }}</span>
-      </div>
-      <div class="panel-body">
-        {% if rejected %}
-          {% for failure in rejected %}
-            <div class="notice notice-caution mb-2">
-              <strong>{{ failure.filename }}</strong><br>
-              {{ failure.reason }}
-            </div>
-          {% endfor %}
-        {% else %}
-          <p class="field-hint mb-0">Every image passed the quality check.</p>
-        {% endif %}
-      </div>
-    </div>
-
-    <div class="mt-3">
-      <a class="btn btn-action" href="{% url 'screening:upload' %}">Screen more</a>
-      <a class="btn btn-quiet ms-2" href="{% url 'screening:case_list' %}">All cases</a>
-    </div>
+  <span class="step-arrow" aria-hidden="true">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+         stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+  </span>
+  <div class="step done">
+    <span class="step-number">2</span>
+    <span class="step-label">Quality check</span>
   </div>
-
+  <span class="step-arrow" aria-hidden="true">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+         stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+  </span>
+  <div class="step current">
+    <span class="step-number">3</span>
+    <span class="step-label">Review results</span>
+  </div>
 </div>
+
+<div class="row g-3 mb-3">
+  <div class="col-sm-4">
+    <div class="readout">
+      <span class="readout-label">Total processed</span>
+      <span class="readout-value">{{ total }}</span>
+    </div>
+  </div>
+  <div class="col-sm-4">
+    <div class="readout">
+      <span class="readout-label">Successfully scored</span>
+      <span class="readout-value accented">{{ screened|length }}</span>
+    </div>
+  </div>
+  <div class="col-sm-4">
+    <div class="readout {% if rejected %}readout-high{% endif %}">
+      <span class="readout-label">Quality failures</span>
+      <span class="readout-value">{{ rejected|length }}</span>
+    </div>
+  </div>
+</div>
+
+<div class="panel panel-lead">
+  <div class="panel-head">
+    <h2 class="panel-title">
+      This batch
+      <span class="panel-sub">
+        {{ screened|length }} of {{ total }} added to the clinical worklist
+      </span>
+    </h2>
+    <a class="btn btn-quiet btn-row" href="{% url 'screening:upload' %}">Process new batch</a>
+  </div>
+
+  <div class="table-scroll">
+    <table class="table">
+      <thead>
+        <tr>
+          <th>Patient reference</th>
+          <th>Triage band</th>
+          <th class="text-end">Model score</th>
+          <th>Quality</th>
+          <th class="text-end">Detail</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for record in screened %}
+          <tr>
+            <td>
+              <a href="{% url 'screening:case_detail' record.case_id %}">
+                {{ record.patient_reference }}
+              </a>
+            </td>
+            <td>
+              <span class="triage {{ record.triage_css_class }}">
+                {{ record.get_triage_level_display }}
+              </span>
+            </td>
+            <td class="text-end numeric">{{ record.tb_probability|floatformat:4 }}</td>
+            <td class="cell-quiet">{{ record.get_quality_status_display }}</td>
+            <td class="text-end">
+              <a href="{% url 'screening:case_detail' record.case_id %}">View</a>
+            </td>
+          </tr>
+        {% endfor %}
+
+        {% comment %}
+          The rejected images stay in the same table as the scored ones. A
+          batch of twenty that produced seventeen records should show twenty
+          rows, or the three that failed are easy to walk past.
+        {% endcomment %}
+        {% for failure in rejected %}
+          <tr>
+            <td class="cell-quiet">{{ failure.reference }}</td>
+            <td><span class="triage triage-high">Rejected</span></td>
+            <td class="text-end cell-quiet">&mdash;</td>
+            <td class="field-error">{{ failure.reason }}</td>
+            <td class="text-end cell-quiet mono-text" style="font-size: .6875rem;">
+              {{ failure.filename }}
+            </td>
+          </tr>
+        {% endfor %}
+
+        {% if not screened and not rejected %}
+          <tr><td colspan="5" class="table-empty">This batch held no images.</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="panel mt-3">
+  <div class="panel-head">
+    <h2 class="panel-title">
+      Continue clinical review
+      <span class="panel-sub">The scored radiographs are waiting in the worklist.</span>
+    </h2>
+    <a class="btn btn-action btn-row" href="{% url 'screening:worklist' %}">
+      View worklist
+      <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M5 12h14M13 6l6 6-6 6"/>
+      </svg>
+    </a>
+  </div>
+</div>
+
 {% endblock %}

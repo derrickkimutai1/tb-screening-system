@@ -3,6 +3,10 @@
   failed, and a template that pulls in context processors, the database or the
   model could fail in turn, leaving Django with nothing to render at all. This
   page needs no context and cannot itself break.
+
+  Its colours are therefore written out rather than taken from the stylesheet,
+  which is also a file that could be missing when this page is the one being
+  served. They are the workspace's own values, kept in step by hand.
 {% endcomment %}
 <!doctype html>
 <html lang="en-GB">
@@ -11,27 +15,49 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Something went wrong &middot; TB Screening</title>
   <style>
-    :root { color-scheme: dark; }
+    :root { color-scheme: light; }
+    * { box-sizing: border-box; }
     body {
       margin: 0; min-height: 100vh; display: flex; align-items: center;
       justify-content: center; padding: 2rem;
-      background: #131610; color: #edf1e2;
-      font-family: "Segoe UI", Arial, sans-serif;
+      background: #f3f6fc; color: #10203c;
+      font-family: "IBM Plex Sans", "Segoe UI", system-ui, Arial, sans-serif;
+      line-height: 1.55;
     }
-    .box { max-width: 34rem; border: 1px solid rgba(233,240,214,.13);
-           border-radius: 6px; background: #232720; padding: 2rem; }
-    .tag { font-family: Consolas, monospace; font-size: .625rem;
-           letter-spacing: .16em; text-transform: uppercase; color: #d7f225; }
-    h1 { font-size: 1.75rem; margin: .75rem 0 1rem; line-height: 1.15; }
-    p { font-size: .875rem; line-height: 1.6; color: #9ba491; }
-    a { display: inline-block; margin-top: 1.25rem; padding: .625rem 1.375rem;
-        background: #d7f225; color: #171a12; border-radius: 4px;
-        text-decoration: none; font-family: Consolas, monospace;
-        font-size: .6875rem; letter-spacing: .14em; text-transform: uppercase; }
+    .box {
+      max-width: 34rem; border: 1px solid #d3dcec; border-radius: 10px;
+      background: #fff; padding: 2rem;
+    }
+    .mark {
+      width: 32px; height: 32px; border-radius: 8px; background: #1d4ed8;
+      display: grid; place-items: center; margin-bottom: 1.25rem;
+    }
+    .tag {
+      margin: 0; font-size: .6875rem; font-weight: 600; letter-spacing: .09em;
+      text-transform: uppercase; color: #6b7b96;
+    }
+    h1 {
+      font-size: 1.5rem; font-weight: 600; letter-spacing: -.022em;
+      margin: .5rem 0 1rem; line-height: 1.2;
+    }
+    p { font-size: .875rem; color: #51637f; margin: 0 0 .75rem; }
+    a {
+      display: inline-block; margin-top: 1rem; padding: .5rem .9375rem;
+      background: #1d4ed8; color: #fff; border-radius: 8px;
+      text-decoration: none; font-size: .8125rem; font-weight: 600;
+    }
   </style>
 </head>
 <body>
   <div class="box">
+    <span class="mark" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#fff"
+           stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 3.5v7"/>
+        <path d="M12 10.5c-2.1 0-3.2 1.5-3.8 3.6-.6 2.1-.8 4-.5 5.4.2 1.3 1.5 1.9 2.5 1.2.9-.6 1.4-1.8 1.5-3.4"/>
+        <path d="M12 10.5c2.1 0 3.2 1.5 3.8 3.6.6 2.1.8 4 .5 5.4-.2 1.3-1.5 1.9-2.5 1.2-.9-.6-1.4-1.8-1.5-3.4"/>
+      </svg>
+    </span>
     <p class="tag">Error 500</p>
     <h1>Something went wrong at our end</h1>
     <p>

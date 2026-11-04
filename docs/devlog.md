@@ -612,3 +612,66 @@ endings and no longer trips the pre-commit hook.
 **Also closed:** the traceability gap "No deployed release over HTTPS". The
 release has been live on Azure Container Apps since 3 November and `/health/`
 answers 200. The row was still describing the blocker that had been removed.
+
+## 4 November 2026 — rebuilding the interface to the wireframes
+
+The Figma wireframes for Chapter 4 arrived, and the application did not look
+like them. They describe a clinical workspace: a fixed navigation rail, a
+header carrying the breadcrumb and the signed-in identity, white panels on a
+pale blue ground, and the score shown as a figure beside its threshold scale
+rather than as a gauge. What was there was the opposite — a dark olive ground,
+a condensed uppercase display face, an acid accent and a top masthead. A report
+whose wireframes disagree with its screenshots invites the obvious question,
+so the application moved rather than the drawings.
+
+**What this actually changed.** The stylesheet was rewritten around two sets of
+custom properties: the lit workspace and a reading room, the second because
+films are read with the lights down and a bright interface beside a dark film
+is the usual complaint. Nothing below the token block names a colour, so the
+two cannot drift. The interface face is now IBM Plex Sans, which was already
+vendored and unused; it was drawn for technical interfaces and holds at the
+sizes a worklist needs.
+
+**Three things the wireframes showed that did not exist**, and were built
+rather than faked. The dashboard's four tiles — screenings this month, high
+suspicion rate, pending review, clinical agreement — are computed in the view
+over denominators the tile states, because a percentage over nine decided cases
+is not a performance claim and a tile that hides the denominator invites it to
+be read as one. The worklist gained a search, a triage filter and an ordering.
+The case archive gained a decision filter and a date range, and the CSV export
+now shares one `filter_cases` function with the page, so a download cannot
+quietly cover a different span from the table it came from.
+
+**The reveal animation is gone.** `.rise` held `opacity: 0` and a scroll
+observer lifted it; the figures counted up from zero. For a clinical readout
+that is backwards — it should be correct the instant it paints. The test that
+guarded the old narrowing was rewritten to assert nothing hides content at all,
+which is the stronger claim.
+
+**Two defects found while checking, neither of them cosmetic.**
+
+The account-closing confirmation never ran. `profile.html` carried a literal
+newline inside a JavaScript string — the same backslash mangling that damaged
+the artefact writers on 3 November — so the script threw a `SyntaxError` on
+parse and `window.confirm` was never reached. The typed-address check on the
+server still held, so the account could not be closed by accident, but the
+second guard had been silently absent.
+
+The rail reintroduced the sideways scroll NFR-10 forbids. Below 1100 pixels the
+rail lies down as a strip, and the grid declared its content column `1fr`. A
+bare `1fr` track will not go narrower than its widest content, so the strip
+pushed every page to 966 pixels at a 375 pixel viewport — the exact defect the
+masthead had in October, reintroduced by the thing meant to prevent it.
+`minmax(0, 1fr)` fixes it. Measured afterwards at 375, 1024 and 1280: every
+page fits.
+
+**`--ink-dim` moved again**, from `#85907e` to `#5f6e8b`, because on white it
+measured 4.29:1 where AA asks 4.50 and on the sunken table header 4.47. The
+test that caught the last two moves named the hex it expected, which only
+records which colour was current when it was written; it now computes the
+contrast ratio for both themes against both grounds, so it will catch the next
+one too.
+
+Verified by walking every page in a browser at three widths and in both
+themes, screening a real test-split film end to end, and checking the chain
+verification, the explanation build and the printed report. 365 tests pass.

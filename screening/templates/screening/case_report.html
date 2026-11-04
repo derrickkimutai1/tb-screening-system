@@ -2,13 +2,11 @@
 {% comment %}
   A screening result laid out for paper.
 
-  Extends nothing. The interface is dark with a sticky masthead and a wide
-  layout, none of which belongs on a sheet of A4: printed, it wastes ink on a
-  black background and prints navigation nobody can click. This is black on
-  white, one column, with the clinical boundary where a reader cannot miss it.
-
-  The browser's own print dialogue turns it into a PDF, so the system needs no
-  PDF library to produce one.
+  Extends nothing. The workspace has a navigation rail, a sticky header and a
+  theme that can be dark, none of which belongs on a sheet of A4. This is one
+  column on white, with the clinical boundary where a reader cannot miss it,
+  and the browser's own print dialogue turns it into a PDF, so the system needs
+  no PDF library to produce one.
 {% endcomment %}
 <html lang="en-GB">
 <head>
@@ -18,52 +16,149 @@
   <link rel="icon" href="{% static 'screening/favicon.svg' %}" type="image/svg+xml">
   <style>
     /* Deliberately self-contained: a stylesheet that failed to load would
-       leave a clinical document unreadable rather than merely plain. */
-    :root { color-scheme: light; }
+       leave a clinical document unreadable rather than merely plain. The
+       colours are the workspace's own, held at values that survive a
+       greyscale printer. */
+    :root {
+      color-scheme: light;
+      --ink: #10203c;
+      --ink-muted: #51637f;
+      --ink-dim: #6b7b96;
+      --line: #dde4f0;
+      --brand: #1d4ed8;
+      --brand-wash: #eef3fd;
+      --high: #bf3426;
+      --high-wash: #fce9e6;
+      --medium: #96670a;
+      --medium-wash: #fcf1da;
+      --low: #2a4fc4;
+      --low-wash: #e9eefc;
+    }
     * { box-sizing: border-box; }
     body {
-      margin: 0 auto; padding: 2rem 1.5rem; max-width: 46rem;
-      background: #fff; color: #111;
-      font-family: Georgia, "Times New Roman", serif; font-size: 11pt; line-height: 1.5;
+      margin: 0 auto;
+      padding: 2.25rem 2rem 2rem;
+      max-width: 50rem;
+      background: #fff;
+      color: var(--ink);
+      font-family: "IBM Plex Sans", "Segoe UI", system-ui, Arial, sans-serif;
+      font-size: 10.5pt;
+      line-height: 1.5;
     }
-    header { border-bottom: 2px solid #111; padding-bottom: .75rem; margin-bottom: 1.5rem; }
-    .masthead { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; }
-    h1 { font-size: 15pt; margin: 0; letter-spacing: -.01em; }
-    .sub { font-size: 9pt; color: #555; margin: .15rem 0 0; }
+
+    .masthead {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      padding-bottom: 1.25rem;
+    }
+    .wordmark { display: flex; align-items: center; gap: .5rem; }
+    .wordmark .mark {
+      width: 26px; height: 26px; border-radius: 6px; background: var(--brand);
+      display: grid; place-items: center;
+    }
+    .wordmark .mark svg { width: 15px; height: 15px; }
+    .wordmark span { font-size: 11pt; font-weight: 600; letter-spacing: -.01em; }
+    .kind { font-size: 8.5pt; color: var(--ink-dim); }
+
+    h1 {
+      font-size: 17pt; font-weight: 600; letter-spacing: -.02em;
+      margin: 0 0 .25rem; text-transform: uppercase;
+    }
+    .sub { font-size: 9pt; color: var(--ink-muted); margin: 0; }
+    .rule { height: 2px; background: var(--brand); margin: .75rem 0 1.5rem; }
+
     h2 {
-      font-size: 10pt; text-transform: uppercase; letter-spacing: .08em;
-      margin: 1.75rem 0 .5rem; padding-bottom: .25rem; border-bottom: 1px solid #ccc;
+      font-size: 8.5pt; font-weight: 600; text-transform: uppercase;
+      letter-spacing: .1em; color: var(--ink-dim);
+      margin: 1.75rem 0 .625rem;
     }
-    table { width: 100%; border-collapse: collapse; }
-    td, th { padding: .3rem .5rem .3rem 0; vertical-align: top; text-align: left; }
-    tbody tr + tr td { border-top: 1px solid #eee; }
-    th { font-size: 9pt; text-transform: uppercase; letter-spacing: .06em; color: #555; font-weight: normal; }
-    .label { width: 13rem; color: #555; }
-    .mono { font-family: "Courier New", monospace; overflow-wrap: anywhere; }
-    .headline { font-size: 13pt; font-weight: bold; margin: 0 0 .25rem; }
-    .score { font-family: "Courier New", monospace; font-size: 20pt; font-weight: bold; }
+
+    .headline { display: flex; gap: 1.25rem; flex-wrap: wrap; }
+    .headline > * { flex: 1 1 15rem; }
+
+    .result-box {
+      padding: 1rem 1.125rem;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--brand-wash);
+    }
+    .micro {
+      display: block; font-size: 7.5pt; font-weight: 600; letter-spacing: .1em;
+      text-transform: uppercase; color: var(--ink-dim); margin-bottom: .5rem;
+    }
+    .score {
+      font-size: 26pt; font-weight: 600; letter-spacing: -.035em; line-height: 1;
+      font-variant-numeric: tabular-nums;
+    }
+    .result-row { display: flex; align-items: baseline; gap: .75rem; flex-wrap: wrap; }
+    .thresholds {
+      margin: .625rem 0 0; font-size: 8pt; color: var(--ink-muted);
+      font-variant-numeric: tabular-nums;
+    }
+
     .triage {
-      display: inline-block; padding: .15rem .6rem; border: 1.5px solid #111;
-      font-size: 9pt; text-transform: uppercase; letter-spacing: .08em; font-family: Arial, sans-serif;
+      display: inline-block; padding: .15rem .55rem; border-radius: 4px;
+      font-size: 8.5pt; font-weight: 500;
     }
-    .triage-high { background: #111; color: #fff; }
+    .triage-low { background: var(--low-wash); color: var(--low); }
+    .triage-medium { background: var(--medium-wash); color: var(--medium); }
+    .triage-high { background: var(--high-wash); color: var(--high); }
+
+    table { width: 100%; border-collapse: collapse; }
+    td, th { padding: .375rem .5rem .375rem 0; vertical-align: top; text-align: left; }
+    tbody tr + tr td { border-top: 1px solid var(--line); }
+    th {
+      font-size: 8pt; text-transform: uppercase; letter-spacing: .07em;
+      color: var(--ink-dim); font-weight: 600; border-bottom: 1px solid var(--line);
+    }
+    .label { width: 12rem; color: var(--ink-muted); }
+    .mono {
+      font-family: "IBM Plex Mono", "Courier New", monospace;
+      font-size: 9pt; overflow-wrap: anywhere;
+    }
+
     .boundary {
-      border: 1.5px solid #111; padding: .75rem 1rem; margin: 1.5rem 0;
-      font-size: 10pt;
+      border: 1px solid var(--line); border-left: 3px solid var(--brand);
+      border-radius: 6px; background: var(--brand-wash);
+      padding: .75rem 1rem; margin: 1.5rem 0; font-size: 9.5pt;
+      color: var(--ink-muted);
     }
+    .boundary strong { color: var(--ink); }
+
     figure { margin: 0; }
     .plates { display: flex; gap: 1rem; margin-top: .5rem; }
     .plates figure { flex: 1; }
-    .plates img { width: 100%; border: 1px solid #ccc; }
-    figcaption { font-size: 8.5pt; color: #555; margin-top: .25rem; }
-    footer { margin-top: 2rem; padding-top: .75rem; border-top: 1px solid #ccc; font-size: 8.5pt; color: #555; }
-    .actions { margin: 1.5rem 0; }
+    .plates img {
+      width: 100%; border: 1px solid var(--line); border-radius: 6px;
+      background: #0d1422;
+    }
+    figcaption { font-size: 8pt; color: var(--ink-muted); margin-top: .375rem; }
+
+    .signature {
+      margin-top: 2rem; padding-top: 2.25rem;
+      border-top: 1px solid var(--line);
+      display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap;
+      font-size: 8.5pt; color: var(--ink-muted);
+    }
+    .signature .line {
+      width: 16rem; border-top: 1px solid var(--ink-dim); padding-top: .25rem;
+    }
+
+    footer {
+      margin-top: 1.5rem; padding-top: .75rem; border-top: 1px solid var(--line);
+      font-size: 8pt; color: var(--ink-dim);
+    }
+
+    .actions { margin: 1.5rem 0 0; display: flex; gap: .5rem; }
     button, .back {
-      font-family: Arial, sans-serif; font-size: 10pt; padding: .45rem 1rem;
-      border: 1px solid #111; background: #111; color: #fff; cursor: pointer;
+      font-family: inherit; font-size: 9.5pt; font-weight: 600;
+      padding: .5rem 1rem; border-radius: 8px; cursor: pointer;
+      border: 1px solid var(--brand); background: var(--brand); color: #fff;
       text-decoration: none; display: inline-block;
     }
-    .back { background: #fff; color: #111; margin-left: .5rem; }
+    .back { background: #fff; color: var(--brand); border-color: var(--line); }
 
     @media (max-width: 30rem) {
       /* No scroll wrapper here: the tables give up the fixed label column and
@@ -74,46 +169,86 @@
     }
 
     @media print {
-      /* Nothing to click on paper, and no need to repeat the address. */
+      /* Nothing to click on paper. */
       .actions { display: none; }
-      body { padding: 0; max-width: none; font-size: 10.5pt; }
+      body { padding: 0; max-width: none; font-size: 10pt; }
       h2 { page-break-after: avoid; }
-      table, figure { page-break-inside: avoid; }
+      table, figure, .result-box { page-break-inside: avoid; }
       @page { margin: 18mm; }
     }
   </style>
 </head>
 <body>
 
-<header>
-  <div class="masthead">
-    <div>
-      <h1>Chest radiograph screening report</h1>
-      <p class="sub">
-        {{ record.facility.name|default:"Unassigned clinic" }} &middot;
-        AI-assisted tuberculosis screening and triage
-      </p>
-    </div>
-    <p class="sub mono">{{ record.patient_reference }}</p>
-  </div>
-</header>
-
-<div class="actions">
-  <button type="button" onclick="window.print()">Print or save as PDF</button>
-  <a class="back" href="{% url 'screening:case_detail' record.case_id %}">Back to the case</a>
+<div class="masthead">
+  <span class="wordmark">
+    <span class="mark" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8"
+           stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 3.5v7"/>
+        <path d="M12 10.5c-2.1 0-3.2 1.5-3.8 3.6-.6 2.1-.8 4-.5 5.4.2 1.3 1.5 1.9 2.5 1.2.9-.6 1.4-1.8 1.5-3.4"/>
+        <path d="M12 10.5c2.1 0 3.2 1.5 3.8 3.6.6 2.1.8 4 .5 5.4-.2 1.3-1.5 1.9-2.5 1.2-.9-.6-1.4-1.8-1.5-3.4"/>
+      </svg>
+    </span>
+    <span>TB Screening</span>
+  </span>
+  <span class="kind">
+    Report type:
+    {% if notes %}CLINICALLY REVIEWED{% else %}AUTOMATED TRIAGE ONLY{% endif %}
+  </span>
 </div>
 
-<h2>Result</h2>
-<p class="headline">{{ record.get_predicted_label_display }}</p>
-<p>
-  <span class="score">{{ record.tb_probability|floatformat:4 }}</span>
-  <span class="sub">model score, against a decision threshold of {{ record.decision_threshold|floatformat:3 }}</span>
+<h1>Clinical case report</h1>
+<p class="sub">
+  {{ record.facility.name|default:"Unassigned clinic" }} &middot;
+  Patient reference {{ record.patient_reference }}
 </p>
-<p>
-  <span class="triage {{ record.triage_css_class }}">{{ record.get_triage_level_display }}</span>
-</p>
+<div class="rule"></div>
+
+<div class="headline">
+  <div class="result-box">
+    <span class="micro">Automated triage result</span>
+    <div class="result-row">
+      <span class="score">{{ record.tb_probability|floatformat:4 }}</span>
+      <span class="triage {{ record.triage_css_class }}">
+        {{ record.get_triage_level_display }}
+      </span>
+    </div>
+    <p class="thresholds">
+      {{ record.get_predicted_label_display }} &middot;
+      model {{ record.model_version }} &middot;
+      thresholds {{ record.triage_low_medium_threshold|floatformat:3 }} /
+      {{ record.triage_medium_high_threshold|floatformat:3 }}
+    </p>
+  </div>
+
+  <div>
+    <span class="micro">Clinical review details</span>
+    <table>
+      <tbody>
+        <tr>
+          <td class="label">Decision</td>
+          <td>{{ record.get_review_status_display }}</td>
+        </tr>
+        <tr>
+          <td class="label">Reviewer</td>
+          <td>
+            {% if notes %}{{ notes.0.attributed_to }}{% else %}Not yet reviewed{% endif %}
+          </td>
+        </tr>
+        <tr>
+          <td class="label">Reviewed</td>
+          <td>
+            {% if notes %}{{ notes.0.created_at|date:"j F Y, H:i" }}{% else %}&mdash;{% endif %}
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
 {% if record.triage_justification %}
-  <p>{{ record.triage_justification }}</p>
+  <p class="sub" style="margin-top:1rem;">{{ record.triage_justification }}</p>
 {% endif %}
 
 <div class="boundary">
@@ -126,15 +261,14 @@
 <h2>The screening</h2>
 <table>
   <tbody>
-    <tr><td class="label">Case reference</td><td>{{ record.patient_reference }}</td></tr>
+    <tr><td class="label">Patient reference</td><td>{{ record.patient_reference }}</td></tr>
     <tr><td class="label">Case identifier</td><td class="mono">{{ record.case_id }}</td></tr>
     <tr><td class="label">Screened</td><td>{{ record.created_at|date:"j F Y, H:i" }}</td></tr>
     <tr><td class="label">Screened by</td><td>{{ record.screened_by.email|default:"—" }}</td></tr>
     <tr><td class="label">Clinic</td><td>{{ record.facility.name|default:"—" }}</td></tr>
     <tr><td class="label">Image quality</td><td>{{ record.get_quality_status_display }}{% if record.quality_message %} — {{ record.quality_message }}{% endif %}</td></tr>
     <tr><td class="label">Model</td><td class="mono">{{ record.model_version }}</td></tr>
-    <tr><td class="label">Triage thresholds</td><td class="mono">{{ record.triage_low_medium_threshold|floatformat:3 }} / {{ record.triage_medium_high_threshold|floatformat:3 }}</td></tr>
-    <tr><td class="label">Review status</td><td>{{ record.get_review_status_display }}</td></tr>
+    <tr><td class="label">Decision threshold</td><td class="mono">{{ record.decision_threshold|floatformat:3 }}</td></tr>
   </tbody>
 </table>
 
@@ -193,11 +327,11 @@
   </table>
 {% endif %}
 
+<h2>Reviewer's clinical notes</h2>
 {% if notes %}
-  <h2>Clinical review</h2>
   <table>
     <thead>
-      <tr><th>Date</th><th>Reviewer</th><th>Status set</th><th>Note</th></tr>
+      <tr><th>Date</th><th>Reviewer</th><th>Decision</th><th>Note</th></tr>
     </thead>
     <tbody>
       {% for note in notes %}
@@ -211,14 +345,31 @@
     </tbody>
   </table>
 {% else %}
-  <h2>Clinical review</h2>
   <p>No review has been recorded against this screening.</p>
 {% endif %}
 
+<div class="signature">
+  <span class="line">Clinician signature and seal</span>
+  <span>Printed {{ printed_at|date:"j F Y, H:i" }} by {{ printed_by }}</span>
+</div>
+
+<div class="boundary">
+  <strong>Regulatory notice.</strong>
+  Screening support prototype output. Not a diagnostic device and not clinically
+  validated for independent diagnostic use. All output must be reviewed by a
+  qualified clinician.
+</div>
+
+<div class="actions">
+  <button type="button" onclick="window.print()">Print or save as PDF</button>
+  <a class="back" href="{% url 'screening:case_detail' record.case_id %}">Back to the case</a>
+</div>
+
 <footer>
-  Printed {{ printed_at|date:"j F Y, H:i" }} by {{ printed_by }}.
-  Produced by a research prototype that has not been clinically validated and
-  is not a medical device. Model {{ record.model_version }}.
+  {{ record.facility.name|default:"Unassigned clinic" }} &middot;
+  {{ record.patient_reference }} &middot;
+  produced by a research prototype that has not been clinically validated and is
+  not a medical device.
 </footer>
 
 </body>

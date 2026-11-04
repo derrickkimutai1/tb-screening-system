@@ -1,16 +1,15 @@
 {% extends "screening/base.html" %}
 
 {% block title %}Access trail{% endblock %}
+{% block crumb %}Security audit{% endblock %}
 
 {% block pagehead %}
 <div class="pagehead">
-  <span class="micro micro-acid">Accountability</span>
-  <h1 class="display display-xl mt-2">
-    {{ total }} recorded<br>action{{ total|pluralize }}
-  </h1>
-  <p class="field-hint" style="max-width: 38rem;">
-    Every view, list, screening, review, refusal and export, with who did it,
-    when, and from where.
+  <h1 class="display display-xl">Security access trail</h1>
+  <p class="pagehead-note">
+    A traceable record of system access and clinical decisions: every view,
+    list, screening, review, refusal and export, with who did it, when, and from
+    where.
     {% if is_administrator %}
       You are an administrator, so this is the whole installation.
     {% else %}
@@ -22,27 +21,30 @@
 
 {% block content %}
 
-<div class="panel panel-lead mb-3 rise">
+<div class="panel panel-lead mb-3">
   <div class="panel-head">
-    <h2 class="panel-title">Integrity</h2>
-    <span class="micro" data-trail-state>Not checked</span>
+    <h2 class="panel-title">
+      Audit chain
+      <span class="panel-sub" data-trail-state>
+        Hash-chained rows. Not checked this session.
+      </span>
+    </h2>
+    <button type="button" class="btn btn-action btn-row" data-verify>
+      <span data-label>Verify chain integrity</span>
+    </button>
   </div>
   <div class="panel-body">
-    <p class="field-hint">
+    <p class="field-hint mt-0">
       Each row carries a fingerprint of its own contents and of the row before
-      it. Change any field of any row, or remove a row from between two
-      others, and the fingerprints stop matching. The check below walks the
-      whole chain and reports the first row that does not add up.
+      it. Change any field of any row, or remove a row from between two others,
+      and the fingerprints stop matching. The check walks the whole chain and
+      reports the first row that does not add up.
     </p>
     <p class="field-hint">
-      This detects alteration; it does not prevent it. Someone with write
-      access to the database could recompute the whole chain. Saying which of
-      the two this is matters more than the feature.
+      <strong>This detects alteration; it does not prevent it.</strong> Someone
+      with write access to the database could recompute the whole chain. Saying
+      which of the two this is matters more than the feature.
     </p>
-
-    <button type="button" class="btn btn-action mt-2" data-verify>
-      <span data-label>Verify the trail</span>
-    </button>
 
     <div class="notice mt-3" data-trail-result hidden>
       <strong data-trail-headline></strong>
@@ -52,66 +54,97 @@
   </div>
 </div>
 
-<div class="panel rise">
-  <div class="panel-head">
-    <h2 class="panel-title">Recorded actions</h2>
-    <form method="get" class="d-flex align-items-center gap-2">
-      <label class="micro" for="action">Action</label>
-      <select class="form-select form-select-sm" id="action" name="action"
-              onchange="this.form.submit()" style="width: auto;">
-        <option value="">All</option>
-        {% for value, label in actions %}
-          <option value="{{ value }}" {% if action == value %}selected{% endif %}>{{ label }}</option>
-        {% endfor %}
-      </select>
-    </form>
-  </div>
+<div class="panel">
+  <form method="get" class="filter-bar">
+    <span class="search-field">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+           stroke-linecap="round" aria-hidden="true">
+        <circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>
+      </svg>
+      <label class="visually-hidden" for="who">Search actor, clinic or resource</label>
+      <input type="search" class="form-control" id="who" name="who" value="{{ who }}"
+             placeholder="Search actor or resource" autocomplete="off">
+    </span>
+
+    <label class="visually-hidden" for="action">Action</label>
+    <select class="form-select" id="action" name="action">
+      <option value="">All actions</option>
+      {% for value, label in actions %}
+        <option value="{{ value }}" {% if action == value %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+
+    <button type="submit" class="btn btn-quiet">Apply</button>
+    {% if query %}
+      <a class="btn btn-quiet" href="{% url 'screening:access_trail' %}">Clear</a>
+    {% endif %}
+    <span class="filter-note">
+      {% if is_administrator %}Whole installation{% else %}Your clinic only{% endif %}
+    </span>
+  </form>
 
   {% if page.object_list %}
     <div class="table-scroll">
-      <table class="table mb-0">
+      <table class="table">
         <thead>
           <tr>
-            <th>When</th>
-            <th>Who</th>
-            <th>Did what</th>
-            <th>Case</th>
+            <th>Timestamp</th>
+            <th>Actor</th>
+            <th>Action</th>
+            <th>Resource</th>
             <th>Clinic</th>
             <th>From</th>
-            <th>Detail</th>
+            <th>Row hash</th>
           </tr>
         </thead>
         <tbody>
           {% for event in page.object_list %}
             <tr>
-              <td class="numeric">{{ event.created_at|date:"j M Y, H:i:s" }}</td>
+              <td class="numeric cell-quiet">{{ event.created_at|date:"Y-m-d  H:i:s" }}</td>
               <td>{{ event.actor_label|default:"anonymous" }}</td>
-              <td>{{ event.get_action_display }}</td>
-              <td class="numeric" style="font-size: 0.6875rem;">
-                {% if event.case_id %}{{ event.case_id }}{% else %}&mdash;{% endif %}
+              <td>
+                <span class="triage triage-low">{{ event.get_action_display }}</span>
               </td>
-              <td>{{ event.facility|default:"&mdash;" }}</td>
-              <td class="numeric">{{ event.ip_address|default:"&mdash;" }}</td>
-              <td>{{ event.detail|default:"&mdash;" }}</td>
+              <td class="mono-text" style="font-size: .6875rem;">
+                {% if event.case_id %}{{ event.case_id }}{% endif %}
+                {% if event.detail %}
+                  <span class="field-hint d-block mt-0">{{ event.detail }}</span>
+                {% endif %}
+                {% if not event.case_id and not event.detail %}&mdash;{% endif %}
+              </td>
+              <td class="cell-quiet">{{ event.facility|default:"—" }}</td>
+              <td class="numeric cell-quiet">{{ event.ip_address|default:"—" }}</td>
+              {% comment %}
+                The first and last few characters only. The whole digest adds
+                nothing a reader can use, and it would push every other column
+                off the screen; what matters is that the row carries one and
+                that the check below can walk them.
+              {% endcomment %}
+              <td class="cell-hash">
+                {% if event.entry_hash %}
+                  {{ event.entry_hash|slice:":6" }}&hellip;{{ event.entry_hash|slice:"-4:" }}
+                {% else %}&mdash;{% endif %}
+              </td>
             </tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
 
-    {% if page.has_other_pages %}
-      <div class="panel-body">
-        <nav class="pager">
+    <div class="pager">
+      <span>{{ total }} event{{ total|pluralize }} recorded</span>
+      {% if page.has_other_pages %}
+        <span class="pager-links">
           {% if page.has_previous %}
-            <a class="btn btn-quiet" href="?page={{ page.previous_page_number }}{% if action %}&amp;action={{ action }}{% endif %}">Previous</a>
+            <a class="btn btn-quiet btn-row" href="?page={{ page.previous_page_number }}{% if query %}&amp;{{ query }}{% endif %}">Previous</a>
           {% endif %}
-          <span class="micro">Page {{ page.number }} of {{ page.paginator.num_pages }}</span>
+          <span>{{ page.number }} / {{ page.paginator.num_pages }}</span>
           {% if page.has_next %}
-            <a class="btn btn-quiet" href="?page={{ page.next_page_number }}{% if action %}&amp;action={{ action }}{% endif %}">Next</a>
+            <a class="btn btn-quiet btn-row" href="?page={{ page.next_page_number }}{% if query %}&amp;{{ query }}{% endif %}">Next</a>
           {% endif %}
-        </nav>
-      </div>
-    {% endif %}
+        </span>
+      {% endif %}
+    </div>
   {% else %}
     <div class="panel-body">
       <p class="field-hint mb-0">Nothing recorded yet under this filter.</p>
@@ -119,11 +152,17 @@
   {% endif %}
 </div>
 
-<div class="notice notice-boundary mt-4">
-  What is deliberately not here: the radiograph, the score, or anything about
-  the patient. A row says somebody opened a case, not what they saw in it. An
-  audit trail that repeats the record it protects doubles the exposure instead
-  of reducing it.
+<div class="caveat mt-3">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+       stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/>
+  </svg>
+  <span>
+    <strong class="caveat-title">What is deliberately not here</strong>
+    The radiograph, the score, and anything about the patient. A row says
+    somebody opened a case, not what they saw in it. An audit trail that repeats
+    the record it protects doubles the exposure instead of reducing it.
+  </span>
 </div>
 
 <script>
@@ -151,12 +190,13 @@
         .then(function (response) { return response.json(); })
         .then(function (result) {
           box.hidden = false;
-          box.classList.toggle("notice-boundary", !result.intact);
+          box.classList.toggle("notice-boundary", result.intact);
+          box.classList.toggle("notice-caution", !result.intact);
           if (result.intact) {
             headline.textContent = result.checked + " rows verified.";
             detail.textContent =
               " The chain is intact: nothing has been altered or removed.";
-            if (state) state.textContent = "Intact";
+            if (state) state.textContent = "Chain intact, checked just now.";
           } else {
             headline.textContent =
               result.problems.length + (result.more ? "+" : "") +
@@ -170,17 +210,18 @@
               item.textContent = text;
               list.appendChild(item);
             });
-            if (state) state.textContent = "Broken";
+            if (state) state.textContent = "Chain broken.";
           }
         })
         .catch(function () {
           box.hidden = false;
+          box.classList.add("notice-caution");
           headline.textContent = "The check could not be run.";
           detail.textContent = " Reload the page and try again.";
         })
         .finally(function () {
           button.disabled = false;
-          if (label) label.textContent = "Verify the trail";
+          if (label) label.textContent = "Verify chain integrity";
         });
     });
   })();

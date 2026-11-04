@@ -1,140 +1,175 @@
 {% extends "screening/base.html" %}
 
-{% block title %}Screen a chest X-ray{% endblock %}
+{% block title %}Radiograph intake{% endblock %}
+{% block crumb %}Radiograph intake{% endblock %}
 
 {% block pagehead %}
 <div class="pagehead">
-  <span class="micro micro-acid">Step 01 / Screening</span>
-  <h1 class="display display-xl mt-2">Analyse a<br>chest radiograph</h1>
-  <p class="field-hint" style="max-width: 34rem;">
-    Upload a posterior-anterior chest X-ray with a non-identifying case reference. The
-    system returns a likelihood score, a triage level and a visual explanation, and stores
-    the record for review.
+  <h1 class="display display-xl">Radiograph intake</h1>
+  <p class="pagehead-note">
+    Upload posterior-anterior chest radiographs with a non-identifying patient
+    reference. Each image is quality checked, scored and stored for review.
   </p>
 </div>
 {% endblock %}
 
 {% block content %}
-<div class="row g-4">
 
-  <div class="col-lg-7">
-    <div class="panel panel-lead rise">
-      <div class="panel-head">
-        <h2 class="panel-title">New screening</h2>
-        <span class="micro">Required</span>
-      </div>
-      <div class="panel-body">
+{% comment %}
+  The three stages of an intake. They describe what this one form already
+  does on submission - check, score, store - rather than splitting it into
+  pages the server does not have.
+{% endcomment %}
+<div class="steps">
+  <div class="step current">
+    <span class="step-number">1</span>
+    <span class="step-label">Upload radiographs</span>
+  </div>
+  <span class="step-arrow" aria-hidden="true">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+         stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+  </span>
+  <div class="step">
+    <span class="step-number">2</span>
+    <span class="step-label">Quality check</span>
+  </div>
+  <span class="step-arrow" aria-hidden="true">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+         stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+  </span>
+  <div class="step">
+    <span class="step-number">3</span>
+    <span class="step-label">Review results</span>
+  </div>
+</div>
 
-        {% if unavailable %}
-          <div class="notice notice-caution mb-3">{{ unavailable }}</div>
-        {% endif %}
+{% if unavailable %}
+  <div class="notice notice-caution mb-3">{{ unavailable }}</div>
+{% endif %}
 
-        {% if form.non_field_errors %}
-          <div class="notice notice-caution mb-3">{{ form.non_field_errors }}</div>
-        {% endif %}
+{% if form.non_field_errors %}
+  <div class="notice notice-caution mb-3">{{ form.non_field_errors }}</div>
+{% endif %}
 
-        <form method="post" enctype="multipart/form-data" novalidate data-screening-form>
-          {% csrf_token %}
+<form method="post" enctype="multipart/form-data" novalidate data-screening-form>
+  {% csrf_token %}
 
-          <div class="mb-4">
+  <div class="row g-3">
+
+    <div class="col-lg-7">
+      <div class="panel panel-lead h-100">
+        <div class="panel-head">
+          <h2 class="panel-title">
+            Chest radiographs
+            <span class="panel-sub">PNG, JPG or JPEG &middot; up to {{ max_batch }} per batch</span>
+          </h2>
+        </div>
+        <div class="panel-body">
+
+          {% comment %}
+            The browser's own file input stays in the page and stays
+            focusable: it is what the keyboard and the screen reader use, and
+            it is the control the form actually submits. The panel below is a
+            second way to reach it for a pointer, not a replacement.
+          {% endcomment %}
+          <label class="visually-hidden" for="{{ form.xray_image.id_for_label }}">
+            Chest radiograph files
+          </label>
+          <div class="visually-hidden">{{ form.xray_image }}</div>
+
+          <div class="dropzone" data-dropzone>
+            <span class="dropzone-mark" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+                   stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 16V4m0 0L8 8m4-4 4 4"/>
+                <path d="M4 16v2.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V16"/>
+              </svg>
+            </span>
+            <span class="dropzone-title">Drag and drop radiographs here</span>
+            <span class="dropzone-note">
+              {{ form.xray_image.help_text }} &middot; up to {{ max_upload_mb }} MB each
+            </span>
+            <button type="button" class="btn btn-action mt-2" data-browse>Browse files</button>
+          </div>
+
+          {% for error in form.xray_image.errors %}
+            <p class="field-hint field-error">{{ error }}</p>
+          {% endfor %}
+
+          <p class="field-hint">
+            Patient data stays within your assigned clinic. Do not upload images
+            that carry a patient's name or number.
+          </p>
+
+          <div class="panel-rule mt-3">
             <label class="field-label" for="{{ form.patient_reference.id_for_label }}">
-              Case reference
+              Patient reference
             </label>
             {{ form.patient_reference }}
             <p class="field-hint">{{ form.patient_reference.help_text }}</p>
             {% for error in form.patient_reference.errors %}
-              <p class="field-hint" style="color: var(--triage-high);">{{ error }}</p>
+              <p class="field-hint field-error">{{ error }}</p>
             {% endfor %}
           </div>
 
-          <div class="mb-4">
-            <label class="field-label" for="{{ form.xray_image.id_for_label }}">
-              Chest radiograph
-            </label>
-            {{ form.xray_image }}
-            <p class="field-hint">{{ form.xray_image.help_text }}</p>
-            <p class="field-hint">
-              Hold Ctrl, or Shift, while selecting to choose several at once.
-            </p>
-            {% for error in form.xray_image.errors %}
-              <p class="field-hint" style="color: var(--triage-high);">{{ error }}</p>
-            {% endfor %}
+        </div>
+      </div>
+    </div>
 
-            <!-- Filled in by the script at the foot of this page. The user sees
-                 what they picked, and can drop a wrong file, before anything is
-                 uploaded or screened. -->
-            <div id="selection" class="selection" hidden>
-              <div class="selection-head">
-                <span class="micro">Selected</span>
-                <span class="micro" id="selection-count"></span>
-              </div>
-              <ul class="selection-list" id="selection-list"></ul>
-            </div>
+    <div class="col-lg-5">
+      <div class="panel h-100">
+        <div class="panel-head">
+          <h2 class="panel-title">
+            Upload queue
+            <span class="panel-sub" id="selection-count">No file selected yet</span>
+          </h2>
+        </div>
+        <div class="panel-body">
+
+          <div id="selection" class="selection" hidden>
+            <ul class="selection-list" id="selection-list"></ul>
           </div>
 
-          <button type="submit" class="btn btn-action" id="analyse">
-            <span data-label>Analyse radiograph</span>
+          <p class="field-hint" id="selection-empty">
+            Files you choose appear here with their size before anything is sent,
+            so a wrong one can be dropped rather than screened.
+          </p>
+
+          <button type="submit" class="btn btn-action mt-3 w-100" id="analyse">
+            <span data-label>Screen the batch</span>
           </button>
-        </form>
 
-      </div>
-    </div>
-  </div>
+          <p class="field-hint">
+            Quality is checked on the server after upload. An image that fails is
+            listed with its reason and is not scored.
+          </p>
 
-  <div class="col-lg-5">
+          <div class="panel-rule mt-3">
+            <p class="field-hint mt-0">
+              <strong>What comes back:</strong> a model score between 0.0000 and
+              1.0000, a triage level with the thresholds it was judged under, a
+              Grad-CAM explanation, and a stored record for clinical review.
+            </p>
+          </div>
 
-    <div class="notice notice-boundary mb-3 rise">
-      This prototype supports preliminary TB screening and prioritisation only. It does not
-      provide a final diagnosis. Clinical review and confirmatory testing remain necessary.
-    </div>
-
-    <div class="panel mb-3 rise">
-      <div class="panel-head">
-        <h2 class="panel-title">Output</h2>
-      </div>
-      <div class="table-scroll">
-        <table class="table">
-          <tbody>
-            <tr>
-              <td style="width: 42%; color: var(--ink-muted);">Screening result</td>
-              <td>Likely TB / Unlikely TB</td>
-            </tr>
-            <tr>
-              <td style="color: var(--ink-muted);">Model score</td>
-              <td class="numeric">0.0000 &ndash; 1.0000</td>
-            </tr>
-            <tr>
-              <td style="color: var(--ink-muted);">Triage level</td>
-              <td><span class="triage triage-low">Low suspicion</span></td>
-            </tr>
-            <tr>
-              <td style="color: var(--ink-muted);">Explanation</td>
-              <td>Grad-CAM overlay</td>
-            </tr>
-            <tr>
-              <td style="color: var(--ink-muted);">Record</td>
-              <td>Stored for review</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <div class="panel rise">
-      <div class="panel-head">
-        <h2 class="panel-title">Accepted images</h2>
-        <span class="micro numeric">Max {{ max_upload_mb }} MB</span>
-      </div>
-      <div class="panel-body">
-        <p class="mb-2">PNG, JPG or JPEG exports of adult or adolescent chest radiographs.</p>
-        <p class="field-hint mb-0">
-          Do not upload images containing patient identifiers. Use a non-identifying case
-          reference such as DEMO-001.
-        </p>
+        </div>
       </div>
     </div>
 
   </div>
+</form>
+
+<div class="caveat mt-3">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+       stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/>
+  </svg>
+  <span>
+    <strong class="caveat-title">Screening support only</strong>
+    This prototype prioritises radiographs for clinical review. It does not
+    provide a diagnosis, and a low score is not a clearance. Clinical review and
+    confirmatory testing remain necessary.
+  </span>
 </div>
 {% endblock %}
 
@@ -145,7 +180,7 @@
   // The file input is the browser's own and cannot have entries removed from
   // it directly, so the selection is held here as a list and written back with
   // DataTransfer whenever one is dropped. Without that, "Remove" would change
-  // the thumbnails and still upload the file.
+  // the queue on screen and still upload the file.
   //
   // Everything here is a convenience. The server validates the same things
   // again: a check that only runs in the browser is not a check.
@@ -154,8 +189,11 @@
     const panel = document.getElementById("selection");
     const list = document.getElementById("selection-list");
     const count = document.getElementById("selection-count");
+    const empty = document.getElementById("selection-empty");
     const submit = document.getElementById("analyse");
     const form = document.querySelector("[data-screening-form]");
+    const zone = document.querySelector("[data-dropzone]");
+    const browse = document.querySelector("[data-browse]");
     if (!input || !panel || !form) return;
 
     const limit = {{ max_batch|default:20 }};
@@ -167,6 +205,35 @@
       render();
     });
 
+    if (browse) browse.addEventListener("click", () => input.click());
+
+    // Dropping on the panel does the same thing as choosing through the
+    // dialogue, including the limit and the size warning, because it writes
+    // the same list back to the same input.
+    if (zone) {
+      ["dragenter", "dragover"].forEach((name) =>
+        zone.addEventListener(name, (event) => {
+          event.preventDefault();
+          zone.classList.add("is-over");
+        })
+      );
+      ["dragleave", "drop"].forEach((name) =>
+        zone.addEventListener(name, (event) => {
+          event.preventDefault();
+          zone.classList.remove("is-over");
+        })
+      );
+      zone.addEventListener("drop", (event) => {
+        const dropped = Array.from(event.dataTransfer.files).filter((file) =>
+          file.type.startsWith("image/")
+        );
+        if (!dropped.length) return;
+        chosen = chosen.concat(dropped);
+        write();
+        render();
+      });
+    }
+
     function write() {
       const transfer = new DataTransfer();
       chosen.forEach((file) => transfer.items.add(file));
@@ -176,9 +243,7 @@
     // A screening takes a few seconds, most of it in the model. A button that
     // still looks clickable during that wait invites a second click, and a
     // second click screens the same radiograph again: another record, another
-    // case reference, and a worklist with a duplicate in it. The sign-in forms
-    // already guard against this; the upload is the one that actually creates
-    // something, so it needs it more.
+    // patient reference, and a worklist with a duplicate in it.
     form.addEventListener("submit", (event) => {
       if (form.dataset.sent === "yes") {
         event.preventDefault();
@@ -208,7 +273,11 @@
     function render() {
       list.textContent = "";
       panel.hidden = chosen.length === 0;
+      if (empty) empty.hidden = chosen.length > 0;
+
       if (!chosen.length) {
+        count.textContent = "No file selected yet";
+        count.classList.remove("field-error");
         submit.disabled = false;
         return;
       }
@@ -216,8 +285,8 @@
       const tooMany = chosen.length > limit;
       count.textContent = tooMany
         ? `${chosen.length} selected, limit ${limit}`
-        : `${chosen.length} of ${limit}`;
-      count.style.color = tooMany ? "var(--triage-high)" : "";
+        : `${chosen.length} of ${limit} files added`;
+      count.classList.toggle("field-error", tooMany);
 
       chosen.forEach((file, index) => {
         const item = document.createElement("li");
@@ -242,7 +311,7 @@
         meta.textContent = oversize
           ? `${readable(file.size)} — over the limit, this will be rejected`
           : readable(file.size);
-        if (oversize) meta.style.color = "var(--triage-high)";
+        if (oversize) meta.classList.add("field-error");
 
         body.append(name, meta);
 

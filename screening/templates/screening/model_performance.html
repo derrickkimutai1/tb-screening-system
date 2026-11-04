@@ -1,17 +1,16 @@
 {% extends "screening/base.html" %}
 
 {% block title %}Model performance{% endblock %}
+{% block crumb %}Model performance{% endblock %}
 
 {% block pagehead %}
 <div class="pagehead">
-  <span class="micro micro-acid">Evidence</span>
-  <h1 class="display display-xl mt-2">
-    {% if available %}What this model<br>is measured to do{% else %}Measurements<br>not in this build{% endif %}
-  </h1>
-  <p class="field-hint" style="max-width: 40rem;">
-    Every figure here is read from the evaluation files the scripts produced,
-    at the moment this page loads. None of it is typed into the page, so a
-    number here cannot drift from the run that produced it.
+  <h1 class="display display-xl">Model transparency and performance</h1>
+  <p class="pagehead-note">
+    Validation results, the targets they are judged against, and what this model
+    cannot do. Every figure is read from the evaluation files the training
+    scripts produced, at the moment this page loads, so a number here cannot
+    drift from the run that produced it.
   </p>
 </div>
 {% endblock %}
@@ -25,82 +24,179 @@
   </div>
 {% else %}
 
-<div class="notice notice-boundary mb-3">
+<div class="panel mb-3">
+  <div class="panel-head">
+    <h2 class="panel-title">
+      <span class="rail-status" style="font-size: .9375rem; padding: 0;">
+        Model {{ test.provenance.model_version|default:model_version }}
+      </span>
+      <span class="panel-sub">
+        Held-out test split &middot; {{ test.test_images }} images,
+        {{ test.test_tb }} of them TB
+      </span>
+    </h2>
+    <span class="tag">Decision threshold {{ test.decision_threshold }}</span>
+  </div>
+</div>
+
+<div class="notice notice-caution mb-3">
   <strong>Read the miss rate before the accuracy.</strong>
-  On the held-out test set this model found
-  {{ matrix.true_positive }} of {{ positives }} TB radiographs and
-  <strong>missed {{ missed }}</strong>. A low score is not a clearance, and no
-  figure on this page changes that.
+  On the held-out test set this model found {{ matrix.true_positive }} of
+  {{ positives }} TB radiographs and <strong>missed {{ missed }}</strong>. A low
+  score is not a clearance, and no figure on this page changes that.
 </div>
 
 <div class="row g-3 mb-3">
-  <div class="col-sm-4">
-    <div class="readout rise">
-      <span class="readout-label">AUC</span>
-      <span class="readout-value numeric">{{ test.metrics.auc|floatformat:4 }}</span>
+  <div class="col-6 col-lg-3">
+    <div class="readout readout-medium readout-tint">
+      <span class="readout-label">Miss rate</span>
+      <span class="readout-value">{{ miss_rate|floatformat:4 }}</span>
+      <span class="readout-unit">{{ missed }} false negative{{ missed|pluralize }}</span>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="readout">
+      <span class="readout-label">Sensitivity</span>
+      <span class="readout-value accented">{{ test.metrics.recall|floatformat:4 }}</span>
+      <span class="readout-unit">
+        WHO asks for 0.90 &middot;
+        {% if sensitivity_met %}met{% else %}<strong>not met</strong>{% endif %}
+      </span>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="readout {% if not specificity_met %}readout-medium{% endif %}">
+      <span class="readout-label">Specificity</span>
+      <span class="readout-value">{{ test.metrics.specificity|floatformat:4 }}</span>
+      <span class="readout-unit">
+        WHO asks for 0.70 &middot;
+        {% if specificity_met %}met{% else %}<strong>not met</strong>{% endif %}
+      </span>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="readout">
+      <span class="readout-label">AUC (ROC)</span>
+      <span class="readout-value">{{ test.metrics.auc|floatformat:4 }}</span>
       <span class="readout-unit">
         95% CI {{ test.confidence_intervals_95.auc.0|floatformat:3 }}
-        to {{ test.confidence_intervals_95.auc.1|floatformat:3 }}
-      </span>
-    </div>
-  </div>
-  <div class="col-sm-4">
-    <div class="readout readout-high rise">
-      <span class="readout-label">Sensitivity</span>
-      <span class="readout-value numeric">{{ test.metrics.recall|floatformat:4 }}</span>
-      <span class="readout-unit">
-        WHO asks for 0.90 &middot; met
-      </span>
-    </div>
-  </div>
-  <div class="col-sm-4">
-    <div class="readout readout-medium rise">
-      <span class="readout-label">Specificity</span>
-      <span class="readout-value numeric">{{ test.metrics.specificity|floatformat:4 }}</span>
-      <span class="readout-unit">
-        WHO asks for 0.70 &middot; <strong>not met</strong>
+        &ndash; {{ test.confidence_intervals_95.auc.1|floatformat:3 }}
       </span>
     </div>
   </div>
 </div>
 
-<div class="row g-3">
+<div class="panel mb-3">
+  <div class="panel-head">
+    <h2 class="panel-title">
+      WHO triage target comparison
+      <span class="panel-sub">
+        The marker on each bar is the target; the fill is what was measured.
+      </span>
+    </h2>
+  </div>
+  <div class="panel-body">
+    <div class="row g-4">
+      <div class="col-md-6">
+        <div class="meter">
+          <div class="meter-head">
+            <span class="meter-name">Sensitivity</span>
+            <span class="verdict {% if sensitivity_met %}verdict-met{% else %}verdict-short{% endif %}">
+              {% if sensitivity_met %}Target met{% else %}Not met{% endif %}
+            </span>
+          </div>
+          <div class="meter-track">
+            <div class="meter-fill {% if not sensitivity_met %}short{% endif %}"
+                 style="width: {{ sensitivity_percent|floatformat:1 }}%"></div>
+            <span class="meter-target" style="left: 90%"></span>
+          </div>
+          <div class="meter-feet">
+            <span class="meter-now {% if not sensitivity_met %}short{% endif %}">
+              Measured {{ sensitivity_percent|floatformat:2 }}%
+            </span>
+            <span class="meter-goal">Target 90%</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-md-6">
+        <div class="meter">
+          <div class="meter-head">
+            <span class="meter-name">Specificity</span>
+            <span class="verdict {% if specificity_met %}verdict-met{% else %}verdict-short{% endif %}">
+              {% if specificity_met %}Target met{% else %}Not met{% endif %}
+            </span>
+          </div>
+          <div class="meter-track">
+            <div class="meter-fill {% if not specificity_met %}short{% endif %}"
+                 style="width: {{ specificity_percent|floatformat:1 }}%"></div>
+            <span class="meter-target" style="left: 70%"></span>
+          </div>
+          <div class="meter-feet">
+            <span class="meter-now {% if not specificity_met %}short{% endif %}">
+              Measured {{ specificity_percent|floatformat:2 }}%
+            </span>
+            <span class="meter-goal">Target 70%</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <p class="field-hint panel-rule mt-3">
+      The threshold was chosen on validation to reach 92 per cent sensitivity
+      rather than the 90 WHO asks for, because in screening a missed case costs
+      more than a false alarm. That margin earned its keep: sensitivity fell to
+      {{ test.metrics.recall|floatformat:4 }} in transfer, so a threshold picked
+      at exactly 0.900 would have landed below the requirement. No threshold
+      satisfies both targets at once on this data.
+    </p>
+  </div>
+</div>
+
+<div class="row g-3 mb-3">
   <div class="col-lg-7">
-    <div class="panel rise">
+    <div class="panel h-100">
       <div class="panel-head">
-        <h2 class="panel-title">On the held-out test set</h2>
-        <span class="micro numeric">{{ test.test_images }} images, {{ test.test_tb }} TB</span>
+        <h2 class="panel-title">
+          On the held-out test set
+          <span class="panel-sub">
+            Intervals from {{ test.bootstrap_samples }} bootstrap resamples
+          </span>
+        </h2>
       </div>
       <div class="table-scroll">
-        <table class="table mb-0">
+        <table class="table">
           <thead>
             <tr><th>Measure</th><th class="text-end">Value</th><th>95% confidence interval</th></tr>
           </thead>
           <tbody>
-            <tr><td>Sensitivity (recall)</td><td class="text-end numeric">{{ test.metrics.recall|floatformat:4 }}</td><td class="numeric">{{ test.confidence_intervals_95.recall.0|floatformat:3 }} – {{ test.confidence_intervals_95.recall.1|floatformat:3 }}</td></tr>
-            <tr><td>Specificity</td><td class="text-end numeric">{{ test.metrics.specificity|floatformat:4 }}</td><td class="numeric">{{ test.confidence_intervals_95.specificity.0|floatformat:3 }} – {{ test.confidence_intervals_95.specificity.1|floatformat:3 }}</td></tr>
-            <tr><td>Accuracy</td><td class="text-end numeric">{{ test.metrics.accuracy|floatformat:4 }}</td><td class="numeric">{{ test.confidence_intervals_95.accuracy.0|floatformat:3 }} – {{ test.confidence_intervals_95.accuracy.1|floatformat:3 }}</td></tr>
-            <tr><td>Precision</td><td class="text-end numeric">{{ test.metrics.precision|floatformat:4 }}</td><td class="numeric">{{ test.confidence_intervals_95.precision.0|floatformat:3 }} – {{ test.confidence_intervals_95.precision.1|floatformat:3 }}</td></tr>
-            <tr><td>AUC</td><td class="text-end numeric">{{ test.metrics.auc|floatformat:4 }}</td><td class="numeric">{{ test.confidence_intervals_95.auc.0|floatformat:3 }} – {{ test.confidence_intervals_95.auc.1|floatformat:3 }}</td></tr>
+            <tr><td>Sensitivity (recall)</td><td class="text-end numeric">{{ test.metrics.recall|floatformat:4 }}</td><td class="numeric cell-quiet">{{ test.confidence_intervals_95.recall.0|floatformat:3 }} &ndash; {{ test.confidence_intervals_95.recall.1|floatformat:3 }}</td></tr>
+            <tr><td>Specificity</td><td class="text-end numeric">{{ test.metrics.specificity|floatformat:4 }}</td><td class="numeric cell-quiet">{{ test.confidence_intervals_95.specificity.0|floatformat:3 }} &ndash; {{ test.confidence_intervals_95.specificity.1|floatformat:3 }}</td></tr>
+            <tr><td>Accuracy</td><td class="text-end numeric">{{ test.metrics.accuracy|floatformat:4 }}</td><td class="numeric cell-quiet">{{ test.confidence_intervals_95.accuracy.0|floatformat:3 }} &ndash; {{ test.confidence_intervals_95.accuracy.1|floatformat:3 }}</td></tr>
+            <tr><td>Precision</td><td class="text-end numeric">{{ test.metrics.precision|floatformat:4 }}</td><td class="numeric cell-quiet">{{ test.confidence_intervals_95.precision.0|floatformat:3 }} &ndash; {{ test.confidence_intervals_95.precision.1|floatformat:3 }}</td></tr>
+            <tr><td>AUC</td><td class="text-end numeric">{{ test.metrics.auc|floatformat:4 }}</td><td class="numeric cell-quiet">{{ test.confidence_intervals_95.auc.0|floatformat:3 }} &ndash; {{ test.confidence_intervals_95.auc.1|floatformat:3 }}</td></tr>
           </tbody>
         </table>
       </div>
       <div class="panel-body">
         <p class="field-hint mb-0">
-          Intervals come from {{ test.bootstrap_samples }} bootstrap resamples,
-          because 120 images cannot pin a figure precisely and a single number
-          would overstate how well it is known. Decision threshold
-          {{ test.decision_threshold }}, chosen on validation alone.
+          {{ test.test_images }} images cannot pin a figure precisely, and a
+          single number would overstate how well it is known.
         </p>
       </div>
     </div>
   </div>
 
   <div class="col-lg-5">
-    <div class="panel h-100 rise">
-      <div class="panel-head"><h2 class="panel-title">What it got right and wrong</h2></div>
+    <div class="panel h-100">
+      <div class="panel-head">
+        <h2 class="panel-title">
+          What it got right and wrong
+          <span class="panel-sub">At the threshold the system actually runs at</span>
+        </h2>
+      </div>
       <div class="table-scroll">
-        <table class="table mb-0">
+        <table class="table">
           <tbody>
             <tr><td>TB found</td><td class="text-end numeric">{{ matrix.true_positive }}</td></tr>
             <tr><td><strong>TB missed</strong></td><td class="text-end numeric"><strong>{{ matrix.false_negative }}</strong></td></tr>
@@ -119,64 +215,98 @@
   </div>
 </div>
 
-<div class="panel mt-3 rise">
+<div class="panel mb-3">
   <div class="panel-head">
-    <h2 class="panel-title">The four things this model cannot do</h2>
-    <span class="micro">measured, not assumed</span>
+    <h2 class="panel-title">
+      Known limitations and constraints
+      <span class="panel-sub">Measured, not assumed</span>
+    </h2>
   </div>
-  <div class="table-scroll">
-    <table class="table mb-0">
-      <thead>
-        <tr><th>Limitation</th><th class="text-end">Figure</th><th>What it means</th></tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td>Both WHO targets cannot be met at once</td>
-          <td class="text-end numeric">{{ test.metrics.specificity|floatformat:3 }}</td>
-          <td>Specificity falls short of 0.70 at the sensitivity required. A property of this model on this data, not a tuning oversight.</td>
-        </tr>
-        {% if calibration %}
-        <tr>
-          <td>The score is not a probability</td>
-          <td class="text-end numeric">{{ calibration.expected_calibration_error|floatformat:4 }}</td>
-          <td>Expected calibration error over {{ calibration.images }} images, systematically underconfident. This is why nothing here calls it a confidence.</td>
-        </tr>
-        {% endif %}
-        {% if across %}
-        <tr>
-          <td>Changing hospital costs accuracy</td>
-          <td class="text-end numeric">&minus;{{ across.generalisation_cost|floatformat:4 }}</td>
-          <td>AUC {{ across.auc_within_source|floatformat:3 }} within the training source against {{ across.auc_across_source|floatformat:3 }} on an unseen hospital. Kenyan equipment was never tested.</td>
-        </tr>
-        {% endif %}
-        {% if explanation %}
-        <tr>
-          <td>The explanation localises only weakly</td>
-          <td class="text-end numeric">{{ occlusion.lift_mean|floatformat:2 }}</td>
-          <td>
-            Lung-mask lift against {{ gradcam.lift_mean|floatformat:2 }} for the
-            Grad-CAM map it replaced, where 1.0 is a map placed at random. The
-            paired gain is {{ explanation.mean_difference|floatformat:3 }}
-            [{{ explanation.difference_ci_95.0|floatformat:3 }},
-            {{ explanation.difference_ci_95.1|floatformat:3 }}] over
-            {{ explanation.images }} films, and is not confirmed on the smaller
-            held-out set.
-          </td>
-        </tr>
-        {% endif %}
-      </tbody>
-    </table>
+  <div class="panel-body">
+    <ul class="limits">
+      <li>
+        <span class="limit-mark" aria-hidden="true">!</span>
+        <span>
+          <span class="limit-name">
+            Both WHO targets cannot be met at once
+            <span class="numeric">&middot; {{ test.metrics.specificity|floatformat:3 }}</span>
+          </span>
+          <span class="limit-body">
+            Specificity falls short of 0.70 at the sensitivity required. This is a
+            property of this model on this data, not a tuning oversight: the
+            validation curve already showed no threshold satisfying both.
+          </span>
+        </span>
+      </li>
+
+      {% if calibration %}
+        <li>
+          <span class="limit-mark" aria-hidden="true">!</span>
+          <span>
+            <span class="limit-name">
+              The score is not a probability
+              <span class="numeric">&middot; ECE {{ calibration.expected_calibration_error|floatformat:4 }}</span>
+            </span>
+            <span class="limit-body">
+              Expected calibration error over {{ calibration.images }} images,
+              systematically underconfident. This is why nothing in the interface
+              calls the score a confidence.
+            </span>
+          </span>
+        </li>
+      {% endif %}
+
+      {% if across %}
+        <li>
+          <span class="limit-mark" aria-hidden="true">!</span>
+          <span>
+            <span class="limit-name">
+              Changing hospital costs accuracy
+              <span class="numeric">&middot; &minus;{{ across.generalisation_cost|floatformat:4 }} AUC</span>
+            </span>
+            <span class="limit-body">
+              AUC {{ across.auc_within_source|floatformat:3 }} within the training
+              source against {{ across.auc_across_source|floatformat:3 }} on an
+              unseen hospital. No Kenyan equipment was ever tested.
+            </span>
+          </span>
+        </li>
+      {% endif %}
+
+      {% if explanation %}
+        <li>
+          <span class="limit-mark" aria-hidden="true">!</span>
+          <span>
+            <span class="limit-name">
+              The explanation localises only weakly
+              <span class="numeric">&middot; lift {{ gradcam.lift_mean|floatformat:2 }}</span>
+            </span>
+            <span class="limit-body">
+              Against {{ occlusion.lift_mean|floatformat:2 }} for the occlusion map,
+              where 1.00 is a map placed at random. The paired gain is
+              {{ explanation.mean_difference|floatformat:3 }}
+              [{{ explanation.difference_ci_95.0|floatformat:3 }},
+              {{ explanation.difference_ci_95.1|floatformat:3 }}] over
+              {{ explanation.images }} films, and is not confirmed on the smaller
+              held-out set.
+            </span>
+          </span>
+        </li>
+      {% endif %}
+    </ul>
   </div>
 </div>
 
 {% if architectures %}
-<div class="panel mt-3 rise">
+<div class="panel mb-3">
   <div class="panel-head">
-    <h2 class="panel-title">Why this model and not a larger one</h2>
-    <span class="micro">{{ architectures|length }} architectures, one schedule</span>
+    <h2 class="panel-title">
+      Why this model and not a larger one
+      <span class="panel-sub">{{ architectures|length }} architectures, one schedule, one seed</span>
+    </h2>
   </div>
   <div class="table-scroll">
-    <table class="table mb-0">
+    <table class="table">
       <thead>
         <tr>
           <th>Architecture</th>
@@ -188,21 +318,21 @@
       </thead>
       <tbody>
         {% for run in architectures %}
-        <tr>
-          <td>
-            {% if run.in_use %}<strong>{{ run.name }}</strong>{% else %}{{ run.name }}{% endif %}
-            {% if run.in_use %}<span class="micro micro-acid ms-2">in use</span>{% endif %}
-          </td>
-          <td class="text-end numeric">{{ run.parameter_count }}</td>
-          <td class="text-end numeric">{{ run.auc|floatformat:4 }}</td>
-          <td class="text-end numeric">{{ run.recall|floatformat:4 }}</td>
-          <td class="text-end numeric">
-            {{ run.gap_label }}
-            {% if not run.in_use %}
-              <span class="micro d-block">{{ run.times_larger|floatformat:1 }}&times; the size</span>
-            {% endif %}
-          </td>
-        </tr>
+          <tr>
+            <td>
+              {% if run.in_use %}<strong>{{ run.name }}</strong>{% else %}{{ run.name }}{% endif %}
+              {% if run.in_use %}<span class="triage triage-low ms-2">In use</span>{% endif %}
+            </td>
+            <td class="text-end numeric">{{ run.parameter_count }}</td>
+            <td class="text-end numeric">{{ run.auc|floatformat:4 }}</td>
+            <td class="text-end numeric">{{ run.recall|floatformat:4 }}</td>
+            <td class="text-end numeric">
+              {{ run.gap_label }}
+              {% if not run.in_use %}
+                <span class="field-hint d-block">{{ run.times_larger|floatformat:1 }}&times; the size</span>
+              {% endif %}
+            </td>
+          </tr>
         {% endfor %}
       </tbody>
     </table>
@@ -210,28 +340,32 @@
   <div class="panel-body">
     <p class="field-hint mb-0">
       Same manifest, same head, same two-stage schedule, same seed; only the
-      network differs. <strong>The largest one scores highest and is not the
-      one running here.</strong> A model that scores better but cannot run on
-      a clinic's CPU has no sensitivity at all, so the choice was made on
-      deployment and the cost of making it is the figure in the last column.
-      The run with no pretraining is in the table to show what the ImageNet
-      weights are worth: without them the same data barely separates the two
-      classes. Selection was on validation only, one run each, so these
-      figures carry no estimate of how much a second run with a different
-      seed would move them.
+      network differs. <strong>The largest one scores highest and is not the one
+      running here.</strong> A model that scores better but cannot run on a
+      clinic's CPU has no sensitivity at all, so the choice was made on
+      deployment and the cost of making it is the figure in the last column. The
+      run with no pretraining is in the table to show what the ImageNet weights
+      are worth: without them the same data barely separates the two classes.
+      Selection was on validation only, one run each, so these figures carry no
+      estimate of how much a second seed would move them.
     </p>
   </div>
 </div>
 {% endif %}
 
 {% if across %}
-<div class="panel mt-3 rise">
+<div class="panel mb-3">
   <div class="panel-head">
-    <h2 class="panel-title">Does it read the lungs, or the label in the corner?</h2>
-    <span class="micro numeric">{{ across.tested_on.images }} {{ across.tested_on.source }} films</span>
+    <h2 class="panel-title">
+      Does it read the lungs, or the label in the corner?
+      <span class="panel-sub">
+        {{ across.tested_on.images }} {{ across.tested_on.source }} films, regions
+        removed and the model re-scored
+      </span>
+    </h2>
   </div>
   <div class="table-scroll">
-    <table class="table mb-0">
+    <table class="table">
       <thead><tr><th>What the model could see</th><th class="text-end">AUC</th></tr></thead>
       <tbody>
         <tr><td>The whole radiograph</td><td class="text-end numeric">{{ across.regions.intact|floatformat:4 }}</td></tr>
@@ -242,23 +376,25 @@
   </div>
   <div class="panel-body">
     <p class="field-hint mb-0">
-      With the lungs blanked the model is close to a coin flip, so the signal
-      is in the lungs rather than in acquisition markers or borders. This is
-      the strongest evidence the project has that the score reflects pathology,
-      and it is causal: regions were removed and the model re-scored.
+      With the lungs blanked the model is close to a coin flip, so the signal is
+      in the lungs rather than in acquisition markers or borders. This is the
+      strongest evidence the project has that the score reflects pathology, and
+      it is causal rather than correlational.
     </p>
   </div>
 </div>
 {% endif %}
 
 {% if timing %}
-<div class="panel mt-3 rise">
+<div class="panel mb-3">
   <div class="panel-head">
-    <h2 class="panel-title">How long a screening takes</h2>
-    <span class="micro numeric">{{ timing.screenings }} consecutive</span>
+    <h2 class="panel-title">
+      How long a screening takes
+      <span class="panel-sub">{{ timing.screenings }} consecutive screenings</span>
+    </h2>
   </div>
   <div class="table-scroll">
-    <table class="table mb-0">
+    <table class="table">
       <tbody>
         <tr><td>Median, upload to a complete result with heatmap</td><td class="text-end numeric">{{ timing.median_seconds|floatformat:2 }}s</td></tr>
         <tr><td>90th percentile</td><td class="text-end numeric">{{ timing.p90_seconds|floatformat:2 }}s</td></tr>
@@ -277,14 +413,14 @@
 </div>
 {% endif %}
 
-<div class="notice notice-boundary mt-4">
+<div class="notice notice-boundary">
   <strong>What none of this establishes.</strong>
-  The model was trained and tested on {{ test.provenance.dataset.images }}
-  public radiographs from two archives, with no Kenyan data and no prospective study
-  against a microbiological reference standard. It is not a medical device, it
-  is not clinically validated, and it is not registered with any regulator.
-  These figures describe a research prototype on public data, which is a
-  different claim from the one a deployed screening tool would need to make.
+  The model was trained and tested on {{ test.provenance.dataset.images }} public
+  radiographs from two archives, with no Kenyan data and no prospective study
+  against a microbiological reference standard. It is not a medical device, it is
+  not clinically validated, and it is not registered with any regulator. These
+  figures describe a research prototype on public data, which is a different
+  claim from the one a deployed screening tool would need to make.
 </div>
 
 {% endif %}

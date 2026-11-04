@@ -1,16 +1,15 @@
 {% extends "screening/base.html" %}
 
-{% block title %}Worklist{% endblock %}
+{% block title %}Clinical worklist{% endblock %}
+{% block crumb %}Clinical worklist{% endblock %}
 
 {% block pagehead %}
 <div class="pagehead">
-  <span class="micro micro-acid">Awaiting review</span>
-  <h1 class="display display-xl mt-2">
-    {% if waiting %}{{ waiting }} case{{ waiting|pluralize }}<br>need{{ waiting|pluralize:"s," }} a decision{% else %}Nothing<br>is waiting{% endif %}
-  </h1>
-  <p class="field-hint" style="max-width: 36rem;">
+  <h1 class="display display-xl">Clinical worklist</h1>
+  <p class="pagehead-note">
     {% if waiting %}
-      Most urgent first, and within each level the longest waiting first.
+      Radiographs awaiting a decision, most urgent first and the longest waiting
+      first within each level.
       {% if oldest_days %}The oldest has been waiting {{ oldest_days }} day{{ oldest_days|pluralize }}.{% endif %}
     {% else %}
       Every screening at this clinic has been reviewed.
@@ -21,114 +20,166 @@
 
 {% block content %}
 
-{% if waiting %}
-  <div class="row g-3 mb-4">
-    <div class="col-sm-4">
-      <div class="readout readout-high rise">
-        <span class="readout-label">High suspicion</span>
-        <span class="readout-value numeric" data-count="{{ counts.high }}">{{ counts.high }}</span>
-      </div>
-    </div>
-    <div class="col-sm-4">
-      <div class="readout readout-medium rise">
-        <span class="readout-label">Medium suspicion</span>
-        <span class="readout-value numeric" data-count="{{ counts.medium }}">{{ counts.medium }}</span>
-      </div>
-    </div>
-    <div class="col-sm-4">
-      <div class="readout rise">
-        <span class="readout-label">Low suspicion</span>
-        <span class="readout-value numeric" data-count="{{ counts.low }}">{{ counts.low }}</span>
-      </div>
+<div class="row g-3 mb-3">
+  <div class="col-6 col-lg-3">
+    <div class="readout">
+      <span class="readout-label">Pending review</span>
+      <span class="readout-value">{{ waiting }}</span>
     </div>
   </div>
-{% endif %}
+  <div class="col-6 col-lg-3">
+    <div class="readout {% if counts.high %}readout-high{% endif %}">
+      <span class="readout-label">High suspicion</span>
+      <span class="readout-value">{{ counts.high }}</span>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="readout {% if counts.medium %}readout-medium{% endif %}">
+      <span class="readout-label">Medium suspicion</span>
+      <span class="readout-value">{{ counts.medium }}</span>
+    </div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="readout">
+      <span class="readout-label">Low suspicion</span>
+      <span class="readout-value">{{ counts.low }}</span>
+    </div>
+  </div>
+</div>
 
-<div class="panel panel-lead rise">
-  <div class="panel-head">
-    <h2 class="panel-title">The queue</h2>
-    <a class="micro micro-acid" href="{% url 'screening:case_list' %}">All cases &rarr;</a>
-  </div>
+<div class="panel panel-lead">
+  <form method="get" class="filter-bar">
+    <span class="search-field">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+           stroke-linecap="round" aria-hidden="true">
+        <circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>
+      </svg>
+      <label class="visually-hidden" for="reference">Search patient reference</label>
+      <input type="search" class="form-control" id="reference" name="reference"
+             value="{{ reference }}" placeholder="Search patient reference"
+             autocomplete="off">
+    </span>
+
+    <label class="visually-hidden" for="triage">Triage level</label>
+    <select class="form-select" id="triage" name="triage">
+      <option value="">All triage levels</option>
+      {% for value, label in triage_choices %}
+        <option value="{{ value }}" {% if triage == value %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+
+    <label class="visually-hidden" for="order">Order</label>
+    <select class="form-select" id="order" name="order">
+      <option value="urgent" {% if order == 'urgent' %}selected{% endif %}>Most urgent first</option>
+      <option value="oldest" {% if order == 'oldest' %}selected{% endif %}>Oldest first</option>
+      <option value="newest" {% if order == 'newest' %}selected{% endif %}>Newest first</option>
+    </select>
+
+    <button type="submit" class="btn btn-quiet">Apply</button>
+    {% if reference or triage or order != 'urgent' %}
+      <a class="btn btn-quiet" href="{% url 'screening:worklist' %}">Clear</a>
+    {% endif %}
+  </form>
 
   {% if page.object_list %}
-    <div class="panel-body p-0">
-      <div class="table-scroll">
-        <table class="table mb-0">
-          <thead>
-            <tr>
-              <th>Case reference</th>
-              <th>Triage</th>
-              <th class="text-end">Score</th>
-              <th>Waiting</th>
-              <th>Screened by</th>
-              <th>Quality</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for record in page.object_list %}
-              <tr>
-                <td>
-                  <a href="{% url 'screening:case_detail' record.case_id %}">
-                    {{ record.patient_reference }}
-                  </a>
-                </td>
-                <td>
-                  <span class="triage {{ record.triage_css_class }}">
-                    {{ record.get_triage_level_display }}
+    <div class="table-scroll">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Triage level</th>
+            <th class="text-end">Model score</th>
+            <th>Patient reference</th>
+            <th>Arrived</th>
+            <th>Waiting</th>
+            <th>Uploaded by</th>
+            <th>Quality</th>
+            <th class="text-end">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for record in page.object_list %}
+            {% comment %}
+              The first row of the first page is the next case to open, so it
+              is marked. On a later page nothing is the next case, and marking
+              a row there would point at the wrong one.
+            {% endcomment %}
+            <tr {% if forloop.first and page.number == 1 and order == 'urgent' %}class="row-lead"{% endif %}>
+              <td>
+                <span class="triage {{ record.triage_css_class }}">
+                  {{ record.get_triage_level_display }}
+                </span>
+              </td>
+              <td class="text-end numeric">{{ record.tb_probability|floatformat:4 }}</td>
+              <td>
+                <a href="{% url 'screening:case_detail' record.case_id %}">
+                  {{ record.patient_reference }}
+                </a>
+              </td>
+              <td class="numeric cell-quiet">{{ record.created_at|date:"Y-m-d  H:i" }}</td>
+              <td class="numeric">
+                {% if record.waiting_days %}
+                  <span class="{% if record.waiting_days >= 7 %}waiting-long{% endif %}">
+                    {{ record.waiting_days }} day{{ record.waiting_days|pluralize }}
                   </span>
-                </td>
-                <td class="text-end numeric">{{ record.tb_probability|floatformat:4 }}</td>
-                <td class="numeric">
-                  {% if record.waiting_days %}
-                    <span class="{% if record.waiting_days >= 7 %}waiting-long{% endif %}">
-                      {{ record.waiting_days }} day{{ record.waiting_days|pluralize }}
-                    </span>
-                  {% else %}
-                    Today
-                  {% endif %}
-                </td>
-                <td>{{ record.screened_by.email|default:"—" }}</td>
-                <td>{{ record.get_quality_status_display }}</td>
-                <td class="text-end">
-                  <a class="btn btn-quiet btn-row" href="{% url 'screening:case_detail' record.case_id %}">
-                    {% if may_review %}Review{% else %}Open{% endif %}
-                  </a>
-                </td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
+                {% else %}
+                  Today
+                {% endif %}
+              </td>
+              <td class="cell-quiet">{{ record.screened_by.email|default:"—" }}</td>
+              <td class="cell-quiet">{{ record.get_quality_status_display }}</td>
+              <td class="text-end">
+                <a class="btn btn-row {% if forloop.first and page.number == 1 and order == 'urgent' %}btn-action{% else %}btn-quiet{% endif %}"
+                   href="{% url 'screening:case_detail' record.case_id %}">
+                  {% if may_review %}Review{% else %}Open{% endif %}
+                  <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor"
+                       stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M5 12h14M13 6l6 6-6 6"/>
+                  </svg>
+                </a>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
     </div>
 
-    {% if page.has_other_pages %}
-      <div class="panel-body">
-        <nav class="pager">
+    <div class="pager">
+      <span>
+        Showing {{ page.object_list|length }} of {{ showing }} pending case{{ showing|pluralize }}
+        {% if showing != waiting %}(filtered from {{ waiting }}){% endif %}
+      </span>
+      {% if page.has_other_pages %}
+        <span class="pager-links">
           {% if page.has_previous %}
-            <a class="btn btn-quiet" href="?page={{ page.previous_page_number }}">Previous</a>
+            <a class="btn btn-quiet btn-row" href="?page={{ page.previous_page_number }}{% if reference %}&amp;reference={{ reference|urlencode }}{% endif %}{% if triage %}&amp;triage={{ triage }}{% endif %}&amp;order={{ order }}">Previous</a>
           {% endif %}
-          <span class="micro">Page {{ page.number }} of {{ page.paginator.num_pages }}</span>
+          <span>{{ page.number }} / {{ page.paginator.num_pages }}</span>
           {% if page.has_next %}
-            <a class="btn btn-quiet" href="?page={{ page.next_page_number }}">Next</a>
+            <a class="btn btn-quiet btn-row" href="?page={{ page.next_page_number }}{% if reference %}&amp;reference={{ reference|urlencode }}{% endif %}{% if triage %}&amp;triage={{ triage }}{% endif %}&amp;order={{ order }}">Next</a>
           {% endif %}
-        </nav>
-      </div>
-    {% endif %}
+        </span>
+      {% endif %}
+    </div>
   {% else %}
     <div class="panel-body">
       <p class="field-hint mb-0">
-        Nothing is awaiting review.
-        <a href="{% url 'screening:upload' %}">Screen a radiograph</a> to add to the queue.
+        {% if reference or triage %}
+          Nothing in the queue matches this filter.
+          <a href="{% url 'screening:worklist' %}">Clear it</a> to see the whole queue.
+        {% else %}
+          Nothing is awaiting review.
+          <a href="{% url 'screening:upload' %}">Screen a radiograph</a> to add to the queue.
+        {% endif %}
       </p>
     </div>
   {% endif %}
 </div>
 
 {% if not may_review %}
-  <div class="notice notice-boundary mt-4">
-    Your role is {{ user.profile.get_role_display|lower }}, so you can open these
-    cases but not record a review. A clinician has to make the decision.
+  <div class="notice notice-boundary mt-3">
+    Your role is {{ viewer_profile.get_role_display|lower }}, so you can open these
+    cases but not record a review. A clinician has to make the decision, and the
+    server refuses the review even if the form is bypassed.
   </div>
 {% endif %}
 

@@ -1,64 +1,66 @@
 {% extends "screening/base.html" %}
 
 {% block title %}Your profile{% endblock %}
+{% block crumb %}Your profile{% endblock %}
 
 {% block pagehead %}
 <div class="pagehead">
-  <span class="micro micro-acid">Account</span>
-  <h1 class="display display-xl mt-2">{{ profile.display_name }}</h1>
-  <p class="field-hint" style="max-width: 34rem;">
-    Your identity is confirmed by Google. What you are permitted to do here, and
-    where you work, are held by this system rather than by Google.
+  <h1 class="display display-xl">{{ profile.display_name }}</h1>
+  <p class="pagehead-note">
+    Your identity is confirmed by the provider you signed in with. What you are
+    permitted to do here, and where you work, are held by this system rather
+    than by them.
   </p>
 </div>
 {% endblock %}
 
 {% block content %}
-<div class="row g-4">
+<div class="row g-3">
 
   <div class="col-lg-5">
-    <div class="panel panel-lead rise">
+    <div class="panel panel-lead">
       <div class="panel-head">
-        <h2 class="panel-title">Identity</h2>
+        <h2 class="panel-title">Clinical identity</h2>
         <span class="triage {% if profile.may_review %}triage-low{% else %}triage-medium{% endif %}">
           {{ profile.get_role_display }}
         </span>
       </div>
+      <div class="table-scroll">
+        <table class="table">
+          <tbody>
+            <tr>
+              <td class="cell-quiet" style="width: 45%;">Signed in as</td>
+              <td class="mono-text" style="font-size: .75rem;">
+                {{ user.email|default:user.get_username }}
+              </td>
+            </tr>
+            <tr><td class="cell-quiet">Role</td><td>{{ profile.get_role_display }}</td></tr>
+            <tr>
+              <td class="cell-quiet">May record reviews</td>
+              <td>{% if profile.may_review %}Yes{% else %}No{% endif %}</td>
+            </tr>
+            <tr>
+              <td class="cell-quiet">Account created</td>
+              <td class="numeric">{{ profile.created_at|date:"j M Y" }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
       <div class="panel-body">
-        <div class="table-scroll">
-          <table class="table mb-0">
-            <tbody>
-              <tr>
-                <td style="color: var(--ink-muted);">Signed in as</td>
-                <td class="numeric">{{ user.email|default:user.get_username }}</td>
-              </tr>
-              <tr>
-                <td style="color: var(--ink-muted);">Role</td>
-                <td>{{ profile.get_role_display }}</td>
-              </tr>
-              <tr>
-                <td style="color: var(--ink-muted);">May record reviews</td>
-                <td>{% if profile.may_review %}Yes{% else %}No{% endif %}</td>
-              </tr>
-              <tr>
-                <td style="color: var(--ink-muted);">Account created</td>
-                <td class="numeric">{{ profile.created_at|date:"j M Y" }}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        <p class="field-hint mt-3 mb-0">
-          Your role is set by an administrator. If you could change it yourself it
-          would not restrict anything.
+        <p class="field-hint mb-0">
+          Your role is set by an administrator. If you could change it yourself
+          it would not restrict anything: anyone who could would grant
+          themselves the right to sign off TB cases.
         </p>
       </div>
     </div>
 
-    <div class="panel rise mt-4">
+    <div class="panel mt-3">
       <div class="panel-head">
-        <h2 class="panel-title">Facility</h2>
-        <span class="micro">Editable</span>
+        <h2 class="panel-title">
+          Assigned clinic
+          <span class="panel-sub">Cases are shared with everyone at the same clinic</span>
+        </h2>
       </div>
       <div class="panel-body">
         <form method="post" novalidate>
@@ -69,11 +71,11 @@
           {{ form.facility }}
           <p class="field-hint">{{ form.facility.help_text }}</p>
           <p class="field-hint">
-            Cases are shared with everyone at the same clinic. Leave this empty
-            and you will see only records that have no clinic either.
+            Leave this empty and you will see only records that have no clinic
+            either.
           </p>
           {% for error in form.facility.errors %}
-            <p class="field-hint" style="color: var(--triage-high);">{{ error }}</p>
+            <p class="field-hint field-error">{{ error }}</p>
           {% endfor %}
           <button type="submit" class="btn btn-action mt-2">Save</button>
         </form>
@@ -84,115 +86,120 @@
   <div class="col-lg-7">
     <div class="row g-3">
       <div class="col-sm-4">
-        <div class="readout rise">
+        <div class="readout">
           <span class="readout-label">Radiographs screened</span>
-          <span class="readout-value numeric" data-count="{{ screened_total }}">{{ screened_total }}</span>
+          <span class="readout-value">{{ screened_total }}</span>
         </div>
       </div>
       <div class="col-sm-4">
-        <div class="readout rise">
+        <div class="readout">
           <span class="readout-label">Cases reviewed</span>
-          <span class="readout-value numeric" data-count="{{ cases_reviewed }}">{{ cases_reviewed }}</span>
+          <span class="readout-value">{{ cases_reviewed }}</span>
         </div>
       </div>
       <div class="col-sm-4">
-        <div class="readout rise">
+        <div class="readout">
           <span class="readout-label">Notes written</span>
-          <span class="readout-value numeric" data-count="{{ reviewed_total }}">{{ reviewed_total }}</span>
+          <span class="readout-value">{{ reviewed_total }}</span>
         </div>
       </div>
     </div>
 
-    <div class="panel rise mt-4">
+    <div class="panel mt-3">
       <div class="panel-head">
-        <h2 class="panel-title">Your recent reviews</h2>
-        <span class="micro">Latest {{ recent_reviews|length }}</span>
+        <h2 class="panel-title">
+          Your recent reviews
+          <span class="panel-sub">Latest {{ recent_reviews|length }}</span>
+        </h2>
       </div>
-      <div class="panel-body p-0">
-        {% if recent_reviews %}
-          <div class="table-scroll">
-            <table class="table mb-0">
-              <thead>
-                <tr><th>Date</th><th>Case</th><th>Status set</th><th>Note</th></tr>
-              </thead>
-              <tbody>
-                {% for note in recent_reviews %}
-                  <tr>
-                    <td class="numeric">{{ note.created_at|date:"j M, H:i" }}</td>
-                    <td>
-                      <a href="{% url 'screening:case_detail' note.record.case_id %}">
-                        {{ note.record.patient_reference }}
-                      </a>
-                    </td>
-                    <td>{{ note.get_status_set_display }}</td>
-                    <td>{{ note.note|truncatechars:70 }}</td>
-                  </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
-        {% else %}
-          <p class="field-hint m-3 mb-0">
+      {% if recent_reviews %}
+        <div class="table-scroll">
+          <table class="table">
+            <thead>
+              <tr><th>Date</th><th>Case</th><th>Decision</th><th>Note</th></tr>
+            </thead>
+            <tbody>
+              {% for note in recent_reviews %}
+                <tr>
+                  <td class="numeric cell-quiet">{{ note.created_at|date:"j M, H:i" }}</td>
+                  <td>
+                    <a href="{% url 'screening:case_detail' note.record.case_id %}">
+                      {{ note.record.patient_reference }}
+                    </a>
+                  </td>
+                  <td>{{ note.get_status_set_display }}</td>
+                  <td>{{ note.note|truncatechars:70 }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="panel-body">
+          <p class="field-hint mt-0 mb-0">
             You have not recorded a review yet.
             {% if not profile.may_review %}
               Your role does not permit recording one.
             {% else %}
-              Open a case from <a href="{% url 'screening:case_list' %}">Cases</a> to add one.
+              Open a case from <a href="{% url 'screening:case_list' %}">the archive</a>
+              to add one.
             {% endif %}
           </p>
-        {% endif %}
-      </div>
+        </div>
+      {% endif %}
     </div>
   </div>
 
 </div>
 
-<div class="panel mt-3 rise">
+<div class="panel mt-3">
   <div class="panel-head">
-    <h2 class="panel-title">Your data</h2>
-    <span class="micro">Data Protection Act 2019</span>
+    <h2 class="panel-title">
+      Your data
+      <span class="panel-sub">Data Protection Act 2019</span>
+    </h2>
   </div>
   <div class="panel-body">
-    <p class="field-hint">
-      The Act gives you a copy of the personal data held about you, and the
-      right to have it erased. Both are below. Neither is unlimited, and the
-      limit is stated rather than left for you to discover.
+    <p class="field-hint mt-0">
+      The Act gives you a copy of the personal data held about you, and the right
+      to have it erased. Both are below. Neither is unlimited, and the limit is
+      stated rather than left for you to discover.
     </p>
 
     <div class="row g-4 mt-1">
       <div class="col-md-6">
-        <h3 class="micro micro-acid">Take a copy</h3>
+        <h3 class="panel-title">Take a copy</h3>
         <p class="field-hint">
           A JSON file of your account, your role and clinic, the screenings you
-          performed, the reviews you wrote and the actions recorded against
-          you. Machine-readable, because a right to your data is not a right to
-          a screenshot.
+          performed, the reviews you wrote and the actions recorded against you.
+          Machine-readable, because a right to your data is not a right to a
+          screenshot.
         </p>
         <p class="field-hint">
           It does not contain the radiographs or the scores. A screening is a
-          record of a patient held by the clinic, not yours because you
-          uploaded it.
+          record of a patient held by the clinic, not yours because you uploaded
+          it.
         </p>
-        <a class="btn btn-quiet" href="{% url 'screening:export_my_data' %}">
+        <a class="btn btn-quiet mt-2" href="{% url 'screening:export_my_data' %}">
           Download my data
         </a>
       </div>
 
       <div class="col-md-6">
-        <h3 class="micro micro-acid">Close this account</h3>
+        <h3 class="panel-title">Close this account</h3>
         <p class="field-hint">
           Removes your account and your ability to sign in, and unlinks every
           record from it.
         </p>
         <p class="field-hint">
-          <strong>It does not delete clinical records.</strong> The screenings
-          and reviews stay with the clinic under the name already written into
-          them, and the access trail keeps its rows. A log that somebody
-          leaving could empty would answer nothing, and a patient's screening
-          is not the operator's to erase.
+          <strong>It does not delete clinical records.</strong> The screenings and
+          reviews stay with the clinic under the name already written into them,
+          and the access trail keeps its rows. A log that somebody leaving could
+          empty would answer nothing, and a patient's screening is not the
+          operator's to erase.
         </p>
         <form method="post" action="{% url 'screening:delete_my_account' %}"
-              data-close-account>
+              data-close-account class="mt-2">
           {% csrf_token %}
           <label class="field-label" for="confirm_email">
             Type <strong>{{ user.email }}</strong> to confirm
@@ -200,7 +207,7 @@
           <input type="email" class="form-control" id="confirm_email"
                  name="confirm_email" autocomplete="off" required
                  placeholder="{{ user.email }}">
-          <button type="submit" class="btn btn-quiet mt-2" style="border-color: var(--triage-high); color: var(--triage-high);">
+          <button type="submit" class="btn btn-danger-quiet mt-2">
             Close my account permanently
           </button>
         </form>
@@ -217,9 +224,7 @@
     if (!form) return;
     form.addEventListener("submit", function (event) {
       const sure = window.confirm(
-        "Close this account permanently?
-
-" +
+        "Close this account permanently?\n\n" +
         "You will be signed out and will not be able to sign in again with " +
         "this address unless an administrator sets it up afresh. Clinical " +
         "records stay with the clinic."
