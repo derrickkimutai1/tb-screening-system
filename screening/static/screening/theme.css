@@ -1005,6 +1005,16 @@ code {
   transition: border-color 0.12s ease, background 0.12s ease;
 }
 .dropzone.is-over { border-color: var(--brand); background: var(--brand-wash); }
+/* The message below the panel says which field is at fault; the panel should
+   not leave the reader to work that out from the order of the page. */
+.dropzone.is-invalid {
+  border-color: var(--triage-high);
+  background: var(--triage-high-wash);
+}
+.dropzone.is-invalid .dropzone-mark {
+  background: var(--surface);
+  color: var(--triage-high);
+}
 .dropzone-mark {
   width: 44px;
   height: 44px;
