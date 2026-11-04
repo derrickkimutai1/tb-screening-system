@@ -191,7 +191,31 @@ JSON. That JSON is a password.
 
 If the command is refused, the university tenant does not allow creating
 service principals. Deploy by hand in that case; nothing else here depends on
-it.
+it, and the next section says how.
+
+### Deploying by hand, without wiring anything up
+
+The images are published whether or not the deploy job runs, and the package is
+public, so pointing the application at one needs no credential beyond your own
+Azure sign-in. In Cloud Shell, with the twelve-character tag of the commit you
+want - every run's summary prints it, and it is the short commit hash:
+
+```bash
+az containerapp update     --name tb-screening --resource-group tb-screening     --image ghcr.io/derrickkimutai1/tb-screening-system:COMMIT
+```
+
+Then check it is actually serving, rather than merely Running:
+
+```bash
+curl -s https://tb-screening.happybay-20a0549c.southafricanorth.azurecontainerapps.io/health/
+```
+
+It answers 200 with the database reachable and the model loaded. The first
+request after a quiet period waits for the container to start and for
+TensorFlow to load, so allow it the better part of a minute before concluding
+anything.
+
+This is also the rollback: the same command with an earlier tag.
 
 **2. Give it to GitHub.** Repository **Settings**, **Secrets and variables**,
 **Actions**:

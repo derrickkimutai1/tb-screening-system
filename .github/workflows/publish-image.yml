@@ -88,6 +88,46 @@ jobs:
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "From commit ${{ steps.image.outputs.sha }}." >> "$GITHUB_STEP_SUMMARY"
 
+      # Whether anything will now point the application at it.
+      #
+      # The deploy job below is gated on a repository variable, and a job that
+      # GitHub skips writes nothing anywhere: the run goes green, the image is
+      # published, and the running application carries on serving whatever it
+      # was last given. That is a quiet way to be months out of date, and this
+      # repository was exactly that - the interface was rebuilt and the
+      # deployed site kept serving the previous one for a day before anybody
+      # looked. So the summary says which of the two happened, and when it is
+      # the second it gives the one command that fixes it.
+      - name: Say whether this image will be deployed
+        env:
+          WIRED: ${{ vars.AZURE_DEPLOY }}
+          APP: ${{ vars.AZURE_APP_NAME || 'tb-screening' }}
+          GROUP: ${{ vars.AZURE_RESOURCE_GROUP || 'tb-screening' }}
+          IMAGE: ${{ steps.image.outputs.name }}:${{ steps.image.outputs.short }}
+        run: |
+          set -euo pipefail
+          {
+            echo ""
+            if [ "${WIRED}" = "true" ]; then
+              echo "The deploy job will now point the application at this image."
+            else
+              echo "### Published, not deployed"
+              echo ""
+              echo "\`AZURE_DEPLOY\` is not set to \`true\`, so nothing has pointed the"
+              echo "running application at this image. It is still serving whichever one"
+              echo "it was last given."
+              echo ""
+              echo "To deploy this image by hand, in Azure Cloud Shell:"
+              echo ""
+              echo "    az containerapp update \\"
+              echo "        --name ${APP} --resource-group ${GROUP} \\"
+              echo "        --image ${IMAGE}"
+              echo ""
+              echo "To have every future push deploy itself, see"
+              echo "\`docs/deployment-azure.md\`, *Deploying from GitHub*."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
   # Point the running application at the image just built.
   #
   # Separate from publishing, because publishing is useful on its own: an image
