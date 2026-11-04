@@ -177,6 +177,26 @@ useful on its own: it can be deployed by hand, rolled back to, or pulled by
 somebody else, and none of that should depend on this repository holding
 credentials for one subscription.
 
+### The short way
+
+`deploy/wire-up-github-deploy.sh` does all of this. It needs the two sign-ins
+below done first, because they are your own credentials and no script should
+be asking for them:
+
+```bash
+az login
+gh auth login
+bash deploy/wire-up-github-deploy.sh
+```
+
+It finds the application and the resource group it is actually in, creates a
+service principal scoped to that group, hands the credential to GitHub without
+printing it, sets the four variables, and starts a run. Running it again
+rotates the credential. The rest of this section is what it does, for when it
+cannot be used or something it did needs checking.
+
+### The long way
+
 **1. Make a credential that can change this one application.** In Cloud Shell,
 with your own subscription id:
 
