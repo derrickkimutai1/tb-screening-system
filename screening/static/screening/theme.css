@@ -1410,6 +1410,137 @@ code {
   color: var(--ink-muted);
 }
 
+/* ---- Onboarding ----------------------------------------------------------- */
+
+/* One centred card rather than the two-column gate: this page is a form to
+   fill in, not a decision to make, and the fields read better in one column
+   of the eye's width than split across a screen. */
+.onboard {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--ground);
+}
+
+.onboard-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.5rem clamp(1.25rem, 4vw, 2.5rem);
+}
+.onboard-step { font-size: 0.8125rem; color: var(--ink-dim); }
+.onboard-step .sep { color: var(--line-strong); margin: 0 0.25rem; }
+
+.onboard-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem clamp(1.25rem, 4vw, 2.5rem) 2.5rem;
+}
+.onboard-main > * { width: 100%; max-width: 40rem; }
+
+.onboard-head { text-align: center; margin-bottom: 1.75rem; }
+.onboard-head .pagehead-note { margin-left: auto; margin-right: auto; }
+
+.onboard-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  padding: 1.5rem;
+}
+
+.onboard-foot {
+  margin: 0;
+  padding: 0 clamp(1.25rem, 4vw, 2.5rem) 2rem;
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--ink-dim);
+}
+
+/* ---- The account pages --------------------------------------------------- */
+
+/* allauth ships these, and its markup carries no classes, so the elements
+   themselves are styled inside this wrapper rather than forking a dozen
+   templates to add a class to each. */
+.allauth-body h1,
+.allauth-body h2 {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  margin: 1.5rem 0 0.5rem;
+}
+.allauth-body > h1:first-child,
+.allauth-body > h2:first-child { margin-top: 0; }
+.allauth-body p { font-size: 0.8125rem; color: var(--ink-muted); }
+.allauth-body ul { list-style: none; margin: 0.75rem 0; padding: 0; }
+.allauth-body li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.625rem 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.8125rem;
+}
+.allauth-body li:last-child { border-bottom: 0; }
+.allauth-body label { font-size: 0.8125rem; color: var(--ink); }
+
+.allauth-body input[type="text"],
+.allauth-body input[type="email"],
+.allauth-body input[type="password"],
+.allauth-body select,
+.allauth-body textarea {
+  width: 100%;
+  max-width: 22rem;
+  padding: 0.5rem 0.6875rem;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 0.8125rem;
+}
+.allauth-body input:focus,
+.allauth-body select:focus {
+  outline: none;
+  border-color: var(--brand);
+  box-shadow: var(--ring);
+}
+
+.allauth-body button,
+.allauth-body input[type="submit"] {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4375rem;
+  padding: 0.4375rem 0.875rem;
+  margin: 0.25rem 0.375rem 0.25rem 0;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--brand);
+  font-family: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.allauth-body button:hover,
+.allauth-body input[type="submit"]:hover {
+  background: var(--brand-wash);
+  border-color: var(--brand-edge);
+}
+/* The primary action on these pages is always the last submit in its form. */
+.allauth-body form > button[type="submit"]:only-of-type {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: #fff;
+}
+[data-theme="dark"] .allauth-body form > button[type="submit"]:only-of-type { color: #0b1220; }
+
 /* ---- Idle warning -------------------------------------------------------- */
 
 .idle-warning {

@@ -30,6 +30,12 @@
 </head>
 <body class="gate-body">
 
+{% comment %}
+  Most pages that sign somebody in are the two-column gate, so that is what
+  this block holds. Onboarding is drawn as a single centred card instead, and
+  replaces the frame rather than fighting the grid from inside it.
+{% endcomment %}
+{% block frame %}
 <div class="gate">
   <div class="gate-frame">
     {% block content %}{% endblock %}
@@ -38,6 +44,7 @@
     Screening support prototype. Not a diagnostic device and not clinically validated.
   </p>
 </div>
+{% endblock %}
 
 {% block scripts %}{% endblock %}
 </body>

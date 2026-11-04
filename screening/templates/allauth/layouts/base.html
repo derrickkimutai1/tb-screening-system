@@ -16,19 +16,18 @@
 
 {% block pagehead %}
 <div class="pagehead">
-  <span class="micro micro-acid">Account</span>
-  <h1 class="display display-lg mt-2">{% block page_heading %}Your account{% endblock %}</h1>
-  <p class="field-hint" style="max-width: 34rem;">
-    Settings held by this system. Your name, role and facility are on
+  <h1 class="display display-xl">{% block page_heading %}Your account{% endblock %}</h1>
+  <p class="pagehead-note">
+    Sign-in settings held by this system. Your name, role and clinic are on
     <a href="{% url 'screening:profile' %}">your profile</a>.
   </p>
 </div>
 {% endblock %}
 
-{% block content %}
+{% block body %}
 <div class="row g-4">
   <div class="col-lg-8">
-    <div class="panel panel-lead rise">
+    <div class="panel panel-lead">
       <div class="panel-head">
         <h2 class="panel-title">{% block panel_title %}Details{% endblock %}</h2>
         <span class="micro">Managed here</span>
@@ -40,13 +39,13 @@
           {% endfor %}
         {% endif %}
 
-        {% block inner_content %}{% endblock %}
+        {% block content %}{% endblock %}
       </div>
     </div>
   </div>
 
   <div class="col-lg-4">
-    <div class="panel rise">
+    <div class="panel">
       <div class="panel-head">
         <h2 class="panel-title">Elsewhere</h2>
       </div>

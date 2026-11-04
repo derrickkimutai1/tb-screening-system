@@ -1,129 +1,163 @@
 {% extends "account/base_auth.html" %}
 
-{% block title %}Complete your account{% endblock %}
+{% block title %}Complete your profile{% endblock %}
 
-{% block content %}
+{% comment %}
+  Drawn as a single centred card rather than the two-column gate the other
+  sign-in pages use, because this one is a form to fill in rather than a
+  decision to make. It replaces the frame instead of sitting inside it.
+{% endcomment %}
+{% block frame %}
+<div class="onboard">
 
-<section class="gate-plate">
-  <p class="micro micro-acid">First sign-in</p>
-  <h1 class="display display-lg gate-wordmark">Almost&nbsp;there</h1>
-  <p class="gate-qualifier">Complete your account</p>
+  <header class="onboard-bar">
+    <span class="gate-brand" style="margin: 0; padding: 0;">
+      <span class="rail-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+             stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 3.5v7"/>
+          <path d="M12 10.5c-2.1 0-3.2 1.5-3.8 3.6-.6 2.1-.8 4-.5 5.4.2 1.3 1.5 1.9 2.5 1.2.9-.6 1.4-1.8 1.5-3.4"/>
+          <path d="M12 10.5c2.1 0 3.2 1.5 3.8 3.6.6 2.1.8 4 .5 5.4-.2 1.3-1.5 1.9-2.5 1.2-.9-.6-1.4-1.8-1.5-3.4"/>
+        </svg>
+      </span>
+      <span class="rail-name" style="font-size: 1rem;">TB Screening</span>
+    </span>
+    <span class="onboard-step">
+      Secure onboarding <span class="sep" aria-hidden="true">/</span> Step 2 of 2
+    </span>
+  </header>
 
-  <dl class="gate-spec">
-    <div>
-      <dt>Signed in as</dt>
-      <dd>{{ account.extra_data.email|default:"your provider account" }}</dd>
-    </div>
-    <div><dt>Verified by</dt><dd>{{ account.provider|default:"your provider"|title }}</dd></div>
-    <div><dt>Starting role</dt><dd>Radiographer</dd></div>
-  </dl>
-
-  <p class="gate-note">
-    Your provider has confirmed who you are. It cannot say where you work or
-    what you are permitted to do here, so the system asks once and an administrator sets
-    the rest.
-  </p>
-</section>
-
-<section class="gate-action">
-  <div class="gate-action-head">
-    <span class="micro">Your details</span>
-    <span class="micro gate-state gate-state-ready">Verified</span>
-  </div>
-
-  {% if form.non_field_errors %}
-    <div class="notice notice-caution mb-3">{{ form.non_field_errors }}</div>
-  {% endif %}
-
-  <form method="post" action="{% url 'socialaccount_signup' %}" novalidate>
-    {% csrf_token %}
-
-    <div class="mb-3">
-      <label class="field-label" for="{{ form.first_name.id_for_label }}">
-        {{ form.first_name.label }}
-      </label>
-      {{ form.first_name }}
-      {% for error in form.first_name.errors %}
-        <p class="field-hint field-error">{{ error }}</p>
-      {% endfor %}
+  <main class="onboard-main">
+    <div class="onboard-head">
+      <h1 class="display display-xl">Complete your profile</h1>
+      <p class="pagehead-note">
+        Confirm your clinical identity and the facility you are assigned to.
+      </p>
     </div>
 
-    <div class="mb-3">
-      <label class="field-label" for="{{ form.last_name.id_for_label }}">
-        {{ form.last_name.label }}
-      </label>
-      {{ form.last_name }}
-      {% for error in form.last_name.errors %}
-        <p class="field-hint field-error">{{ error }}</p>
-      {% endfor %}
-    </div>
+    {% if form.non_field_errors %}
+      <div class="notice notice-caution mb-3">{{ form.non_field_errors }}</div>
+    {% endif %}
 
-    <div class="mb-3">
-      <label class="field-label" for="{{ form.email.id_for_label }}">Email address</label>
-      {{ form.email }}
-      <p class="field-hint">Confirmed by your provider. This cannot be changed here.</p>
-      {% for error in form.email.errors %}
-        <p class="field-hint field-error">{{ error }}</p>
-      {% endfor %}
-    </div>
+    <form method="post" action="{% url 'socialaccount_signup' %}" novalidate>
+      {% csrf_token %}
+      <div class="onboard-card">
 
-    <div class="mb-4">
-      <label class="field-label" for="{{ form.facility.id_for_label }}">
-        {{ form.facility.label }}
-      </label>
-      {{ form.facility }}
-      <p class="field-hint">{{ form.facility.help_text }}</p>
-      {% for error in form.facility.errors %}
-        <p class="field-hint field-error">{{ error }}</p>
-      {% endfor %}
-    </div>
+        <h2 class="panel-title">Your details</h2>
+        <p class="field-hint mt-1 mb-3">
+          {{ account.extra_data.email|default:"Your provider account" }} has been
+          verified by {{ account.provider|default:"your provider"|title }}. It
+          cannot say where you work or what you may do here, so the system asks
+          once and an administrator sets the rest.
+        </p>
 
-    <div class="mb-4">
-      <span class="field-label">{{ form.role.label }}</span>
-      <div class="role-choice">
-        {% for choice in form.role %}
-          {% comment %}
-            The difference between the two is which work a person does, so it
-            is said on the card rather than left to the label. Administrator is
-            not offered: it carries the right to change what everyone else may
-            do, and a form offering it would let anybody take it.
-          {% endcomment %}
-          <label>
-            {{ choice.tag }}
-            {{ choice.choice_label }}
-            <span class="role-option">
-              {% if choice.data.value == 'clinician' %}
-                All radiographer duties, plus recording clinical review
-                decisions against your own name.
-              {% else %}
-                Capture and upload radiographs, and read the automated triage
-                results.
-              {% endif %}
-            </span>
-          </label>
-        {% endfor %}
+        <div class="row g-3">
+          <div class="col-sm-6">
+            <label class="field-label" for="{{ form.first_name.id_for_label }}">
+              {{ form.first_name.label }}
+            </label>
+            {{ form.first_name }}
+            {% for error in form.first_name.errors %}
+              <p class="field-hint field-error">{{ error }}</p>
+            {% endfor %}
+          </div>
+          <div class="col-sm-6">
+            <label class="field-label" for="{{ form.last_name.id_for_label }}">
+              {{ form.last_name.label }}
+            </label>
+            {{ form.last_name }}
+            {% for error in form.last_name.errors %}
+              <p class="field-hint field-error">{{ error }}</p>
+            {% endfor %}
+          </div>
+
+          <div class="col-sm-6">
+            <label class="field-label" for="{{ form.email.id_for_label }}">
+              Email address
+            </label>
+            {{ form.email }}
+            <p class="field-hint">Confirmed by your provider; not editable here.</p>
+            {% for error in form.email.errors %}
+              <p class="field-hint field-error">{{ error }}</p>
+            {% endfor %}
+          </div>
+          <div class="col-sm-6">
+            <label class="field-label" for="{{ form.facility.id_for_label }}">
+              {{ form.facility.label }}
+            </label>
+            {{ form.facility }}
+            <p class="field-hint">{{ form.facility.help_text }}</p>
+            {% for error in form.facility.errors %}
+              <p class="field-hint field-error">{{ error }}</p>
+            {% endfor %}
+          </div>
+        </div>
+
+        <div class="panel-rule mt-3">
+          <span class="field-label">{{ form.role.label }}</span>
+          <div class="role-choice">
+            {% for choice in form.role %}
+              {% comment %}
+                The difference between the two is which work a person does, so
+                it is said on the card rather than left to the label.
+                Administrator is not offered: it carries the right to change
+                what everyone else may do, and a form offering it would let
+                anybody take it.
+              {% endcomment %}
+              <label>
+                {{ choice.tag }}
+                {{ choice.choice_label }}
+                <span class="role-option">
+                  {% if choice.data.value == 'clinician' %}
+                    All radiographer duties, plus recording clinical review
+                    decisions against your own name.
+                  {% else %}
+                    Capture and upload radiographs, and read the automated
+                    triage results.
+                  {% endif %}
+                </span>
+              </label>
+            {% endfor %}
+          </div>
+          <p class="field-hint">{{ form.role.help_text }}</p>
+          {% for error in form.role.errors %}
+            <p class="field-hint field-error">{{ error }}</p>
+          {% endfor %}
+        </div>
+
+        <div class="caveat mt-3">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 3 4.5 6v6c0 4.3 3.1 7.8 7.5 9 4.4-1.2 7.5-4.7 7.5-9V6z"/>
+          </svg>
+          <span>
+            As a clinician, every review decision is recorded against your name
+            in a trail that cannot be altered without it showing. An
+            administrator can change a role later; nobody can make themselves
+            one.
+          </span>
+        </div>
+
+        <button type="submit" class="btn btn-action w-100 mt-3">
+          Create my account
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M5 12h14M13 6l6 6-6 6"/>
+          </svg>
+        </button>
+
+        <p class="field-hint" style="text-align: center;">
+          Access is restricted to authorised clinical staff.
+          <a href="{% url 'account_login' %}">Cancel</a>
+        </p>
+
       </div>
-      <p class="field-hint">{{ form.role.help_text }}</p>
-      {% for error in form.role.errors %}
-        <p class="field-hint field-error">{{ error }}</p>
-      {% endfor %}
-    </div>
+    </form>
+  </main>
 
-    <div class="notice notice-boundary mb-3">
-      Both roles screen radiographs and read cases. A <strong>clinician</strong>
-      may also record a review, and every review is stored against your name in
-      a trail that cannot be altered without it showing. An administrator can
-      change a role later; nobody can make themselves one.
-    </div>
-
-    <button type="submit" class="btn btn-action">Create account</button>
-    <a class="btn btn-quiet ms-2" href="{% url 'account_login' %}">Cancel</a>
-  </form>
-
-  <p class="gate-fineprint">
-    The system stores your name, email address and the clinic you enter. It never
-    receives your password.
+  <p class="onboard-foot">
+    The system stores your name, email address and the clinic you enter. It
+    never receives your password.
   </p>
-</section>
-
+</div>
 {% endblock %}

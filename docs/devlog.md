@@ -675,3 +675,46 @@ one too.
 Verified by walking every page in a browser at three widths and in both
 themes, screening a real test-split film end to end, and checking the chain
 verification, the explanation build and the printed report. 365 tests pass.
+
+## 4 November 2026 — the two pages the redesign had missed
+
+Asked whether everything had been redesigned, and checking rather than
+answering turned up two places where it had not.
+
+**The account pages have never been framed.** `/accounts/email/` and
+`/accounts/3rdparty/` rendered allauth's raw markup — bare headings, bare
+buttons, a bare input — floating inside the application shell with no panel
+around it. The cause is a block-name collision: `allauth/layouts/base.html`
+called its frame `content`, and every allauth page it wraps defines a block
+called `content` too, so the leaf won and the frame was discarded. The
+`manage.html` shim written to route around this could not work either, because
+it also defined `content`. `screening/base.html` now has an outer `body` block
+for a layout that needs to wrap a page rather than be one, the account layout
+fills that, and `content` is left free for the page inside it.
+
+The two tests covering these pages both passed throughout. They asserted
+`screening/base.html` was in the template chain, which it was: the rail, the
+header and the footer were all present. What they could not see was that the
+panel between them was gone. The new test looks for the page's own heading
+*inside* the panel body, and was checked against the broken layout to make
+sure it fails there.
+
+allauth's markup carries no classes, so the elements themselves are styled
+inside the one `.allauth-body` wrapper rather than forking a dozen templates.
+
+**Onboarding was the wrong shape.** The wireframe draws "Complete your
+profile" as a single centred card with its own slim top bar; it had been built
+as the two-column gate the other sign-in pages use. It is a form to fill in
+rather than a decision to make, and the fields read better in one column.
+`account/base_auth.html` gained a `frame` block so a page can replace the gate
+instead of fighting the grid from inside it.
+
+That page only appears partway through a provider sign-in, which cannot be
+driven locally, so it was rendered outside its flow with the same form and the
+same template and served from the dev server to be looked at. The card measures
+640 pixels at 1440, as drawn.
+
+**Count:** of the eleven wireframes, ten were already built as drawn and the
+eleventh is now. Six templates were never touched by the redesign; four of
+them inherit the system and were checked in a browser, and the other two were
+these.

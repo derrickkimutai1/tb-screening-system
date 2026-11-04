@@ -2008,6 +2008,44 @@ class AllauthPageTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTrue(themed, "allauth's connections page is unstyled")
 
+    def test_an_account_page_renders_inside_the_panel(self):
+        """The shell being applied is not the same as the page being framed.
+
+        The two checks above pass as soon as `screening/base.html` is in the
+        chain, and it was: the account pages carried the rail, the header and
+        the footer. What they did not carry was the panel, because the layout
+        named its frame `content` and every allauth page it wraps defines a
+        block called `content` too, so the leaf won and the frame was
+        discarded in silence. The pages rendered as bare allauth markup
+        floating in the shell for as long as they have existed.
+
+        The frame is now `body`, which no allauth template defines. This
+        asserts the panel is actually around the page rather than merely
+        somewhere in the inheritance chain.
+        """
+        pages = {
+            "account_email": "Email Addresses",
+            "socialaccount_connections": "Account Connections",
+        }
+        for name, heading in pages.items():
+            with self.subTest(page=name):
+                response = self.client.get(reverse(name), follow=True)
+                markup = response.content.decode()
+
+                self.assertIn(
+                    'class="panel-body allauth-body"',
+                    markup,
+                    f"{name} lost the panel the account layout provides",
+                )
+                # And the page's own heading is inside the panel rather than
+                # standing where the panel should have been, which is the half
+                # the frame check above cannot see.
+                opened = markup.split('class="panel-body allauth-body"', 1)[1]
+                inside = opened.split("</div>", 1)[0]
+                self.assertIn(
+                    heading, inside, f"{name} renders outside the panel, not within it"
+                )
+
     def test_changing_a_password_explains_there_is_none(self):
         """Offering to change a password this system never stores is a lie."""
         response = self.client.get(reverse("account_change_password"), follow=True)

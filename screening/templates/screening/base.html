@@ -235,7 +235,14 @@
       {% endif %}
 
       {% block pagehead %}{% endblock %}
-      {% block content %}{% endblock %}
+      {% comment %}
+        Two holes rather than one. A page fills `content` and never thinks
+        about `body`; a layout that has to wrap that page in a frame of its
+        own fills `body` instead, which leaves `content` free for the page it
+        is wrapping. The account pages need exactly that, because the ones
+        allauth ships define a block called `content` themselves.
+      {% endcomment %}
+      {% block body %}{% block content %}{% endblock %}{% endblock %}
     </main>
 
     <footer class="colophon">
