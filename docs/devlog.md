@@ -856,3 +856,54 @@ Counted across `media/uploads/`: 62 files holding 37 distinct images, two of
 which account for 22 files on their own. Scored across those 37, the model
 spans 0.0016 to 0.9999 and fills the middle, which is the answer to whether
 identical scores meant a collapsed model. They meant identical inputs.
+
+## Moving the code to meet the document, rather than the other way round
+
+Reading the approved proposal against the running system turned up four
+divergences. Two of them were mine to fix in code; the other two are the
+document's to correct.
+
+**NFR-08 asks that every result be displayed with its heatmap**, so that no
+prediction reaches a clinician without the picture that produced it. The
+explanation was being built when a case was first opened, which meant the
+result page arrived saying "building the explanation" - a requirement about
+what is displayed is not met by a page that will display it shortly. The
+obvious response was to reword NFR-08. The better one was to notice that
+deferring is only needed for a batch: an occlusion map is several hundred
+forward passes, and twenty of them would spend minutes on images nobody has
+opened, but one fits inside the ten seconds NFR-01 allows, and the measured
+6.24 second median already included building it. A single screening now
+builds its map before the redirect; a batch still defers. The build moved
+into `build_explanation`, called by both paths, so there is one implementation
+rather than two that drift.
+
+One existing test failed on this, correctly: it asserted that the map is built
+on first view, which was true when it was written and is the behaviour that
+changed. Rewritten to fail where the failure now happens, with a second test
+added for the deferred path, because the two now fail in different places.
+
+**NFR-06 and NFR-07 contradict each other** and no code resolves that. NFR-06
+says a record is stored only after both inference and heatmap succeed; NFR-07
+says a failed heatmap must leave the prediction standing, which requires the
+record to exist. The implementation follows NFR-07, since losing a valid
+screening to a failed picture is the worse outcome, and records the
+explanation's state explicitly so nothing points at a file that was never
+written. NFR-06 needs rewording to say that.
+
+## "Pending review" was offered as a decision
+
+The review dropdown was built from the model's status choices unfiltered, so
+its first entry - and therefore its default - was "Pending review". A
+clinician who typed a note and submitted recorded a review that decided
+nothing and left the case in the queue, while the audit trail logged that a
+review had been recorded.
+
+It had happened three times on one case during a walkthrough before anyone
+noticed, and a case sitting at 0.9758 with a clinical note on it was still
+pending. In a clinic the reviewer would believe they were finished.
+
+Pending is the state a case arrives in, not a judgement anybody reaches. The
+choices are now the two real decisions, the field opens on nothing so there is
+no careless default to land on, and the server refuses a crafted submission
+that sets a case back to pending. Seven tests, four of which were confirmed to
+fail with the guard removed.

@@ -351,6 +351,9 @@
               Review decision
             </label>
             {{ review_form.status_set }}
+            {% for error in review_form.status_set.errors %}
+              <p class="field-hint field-error">{{ error }}</p>
+            {% endfor %}
 
             <div class="mt-3">
               <label class="field-label" for="{{ review_form.note.id_for_label }}">

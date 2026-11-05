@@ -6,7 +6,7 @@ it describes, and this one cannot.
 
 Built 06 November 2026.
 
-**384 of 384 automated tests pass.** The same suite runs on
+**395 of 395 automated tests pass.** The same suite runs on
 every push through GitHub Actions, against PostgreSQL, alongside lint,
 formatting and migration checks.
 
@@ -98,18 +98,42 @@ formatting and migration checks.
 | 37 | A batch over the cap is refused | Behaves as the condition describes | Pass |
 | 38 | The batch page lists every screened case | Behaves as the condition describes | Pass |
 
+### EagerExplanationTests
+
+*A single screening arrives with its map already made.*
+
+| # | Condition | Expected | Outcome |
+|---|---|---|---|
+| 39 | A single screening has its explanation before the page renders | Behaves as the condition describes | Pass |
+| 40 | The result page shows the heatmap rather than a promise | Behaves as the condition describes | Pass |
+| 41 | A batch still defers its explanations | Behaves as the condition describes | Pass |
+
+### ReviewDecisionTests
+
+*"Pending" is a state a case arrives in, not a decision anyone reaches.*
+
+| # | Condition | Expected | Outcome |
+|---|---|---|---|
+| 42 | Pending is not offered as a decision | Behaves as the condition describes | Pass |
+| 43 | Both real decisions are offered | Behaves as the condition describes | Pass |
+| 44 | An undecided case opens on no decision | Nothing is preselected, so nothing can be submitted by accident. | Pass |
+| 45 | The server refuses a review that sets pending | Behaves as the condition describes | Pass |
+| 46 | A review with no decision is refused and says so | Behaves as the condition describes | Pass |
+| 47 | A real decision is still recorded | Behaves as the condition describes | Pass |
+| 48 | A decided case opens on the decision it carries | Behaves as the condition describes | Pass |
+
 ### DuplicateInBatchTests
 
 *The same film twice in one submission.*
 
 | # | Condition | Expected | Outcome |
 |---|---|---|---|
-| 39 | The same image twice is screened once | Behaves as the condition describes | Pass |
-| 40 | Identical pixels under different names are still one film | The case that caused this: two names, one chest. | Pass |
-| 41 | The repeat is reported against the one it repeats | Behaves as the condition describes | Pass |
-| 42 | Different films are both screened | The guard must not swallow a real batch. | Pass |
-| 43 | The rejected copy leaves nothing in storage | Behaves as the condition describes | Pass |
-| 44 | The same film may be screened again later | Within one batch it is a mistake; across visits it is a follow-up. | Pass |
+| 49 | The same image twice is screened once | Behaves as the condition describes | Pass |
+| 50 | Identical pixels under different names are still one film | The case that caused this: two names, one chest. | Pass |
+| 51 | The repeat is reported against the one it repeats | Behaves as the condition describes | Pass |
+| 52 | Different films are both screened | The guard must not swallow a real batch. | Pass |
+| 53 | The rejected copy leaves nothing in storage | Behaves as the condition describes | Pass |
+| 54 | The same film may be screened again later | Within one batch it is a mistake; across visits it is a follow-up. | Pass |
 
 ### BatchReferenceTests
 
@@ -117,9 +141,9 @@ formatting and migration checks.
 
 | # | Condition | Expected | Outcome |
 |---|---|---|---|
-| 45 | A lone image is not renamed | Behaves as the condition describes | Pass |
-| 46 | A batch numbers from one | Behaves as the condition describes | Pass |
-| 47 | Numbering is zero padded so it sorts | Behaves as the condition describes | Pass |
+| 55 | A lone image is not renamed | Behaves as the condition describes | Pass |
+| 56 | A batch numbers from one | Behaves as the condition describes | Pass |
+| 57 | Numbering is zero padded so it sorts | Behaves as the condition describes | Pass |
 
 ### SignInTests
 
@@ -127,14 +151,14 @@ formatting and migration checks.
 
 | # | Condition | Expected | Outcome |
 |---|---|---|---|
-| 48 | An anonymous visitor is sent to the sign in page | Behaves as the condition describes | Pass |
-| 49 | A case record is not readable without a session | Behaves as the condition describes | Pass |
-| 50 | A signed in clinician reaches the screening page | Behaves as the condition describes | Pass |
-| 51 | Registration follows the setting when open | A demonstration admits anyone who can receive mail at an address. | Pass |
-| 52 | Registration follows the setting when closed | A deployment holding real records admits only accounts made in advance. | Pass |
-| 53 | There is no password either way | Identity comes from a provider or a code, so none is ever stored. | Pass |
-| 54 | The gate still renders without any provider | A checkout with no .env must still start, for CI and for marking. | Pass |
-| 55 | The email route is offered even with no provider | It is the way in when a provider is down or absent. | Pass |
+| 58 | An anonymous visitor is sent to the sign in page | Behaves as the condition describes | Pass |
+| 59 | A case record is not readable without a session | Behaves as the condition describes | Pass |
+| 60 | A signed in clinician reaches the screening page | Behaves as the condition describes | Pass |
+| 61 | Registration follows the setting when open | A demonstration admits anyone who can receive mail at an address. | Pass |
+| 62 | Registration follows the setting when closed | A deployment holding real records admits only accounts made in advance. | Pass |
+| 63 | There is no password either way | Identity comes from a provider or a code, so none is ever stored. | Pass |
+| 64 | The gate still renders without any provider | A checkout with no .env must still start, for CI and for marking. | Pass |
+| 65 | The email route is offered even with no provider | It is the way in when a provider is down or absent. | Pass |
 
 ### AllowlistTests
 
@@ -142,14 +166,14 @@ formatting and migration checks.
 
 | # | Condition | Expected | Outcome |
 |---|---|---|---|
-| 56 | An empty allowlist admits anyone | Behaves as the condition describes | Pass |
-| 57 | A listed address is admitted | Behaves as the condition describes | Pass |
-| 58 | An unlisted address is refused | Behaves as the condition describes | Pass |
-| 59 | A listed domain admits its members | Behaves as the condition describes | Pass |
-| 60 | A domain allowlist refuses other domains | Behaves as the condition describes | Pass |
-| 61 | Matching ignores case and surrounding space | Behaves as the condition describes | Pass |
-| 62 | An account without an address is refused | Behaves as the condition describes | Pass |
-| 63 | A lookalike domain is refused | notstrathmore.edu must not pass a strathmore.edu allowlist. | Pass |
+| 66 | An empty allowlist admits anyone | Behaves as the condition describes | Pass |
+| 67 | A listed address is admitted | Behaves as the condition describes | Pass |
+| 68 | An unlisted address is refused | Behaves as the condition describes | Pass |
+| 69 | A listed domain admits its members | Behaves as the condition describes | Pass |
+| 70 | A domain allowlist refuses other domains | Behaves as the condition describes | Pass |
+| 71 | Matching ignores case and surrounding space | Behaves as the condition describes | Pass |
+| 72 | An account without an address is refused | Behaves as the condition describes | Pass |
+| 73 | A lookalike domain is refused | notstrathmore.edu must not pass a strathmore.edu allowlist. | Pass |
 
 ### ProfileTests
 
@@ -157,17 +181,17 @@ formatting and migration checks.
 
 | # | Condition | Expected | Outcome |
 |---|---|---|---|
-| 64 | A profile is created with the account | No view should ever have to cope with a user that has none. | Pass |
-| 65 | A new account starts as a radiographer | Behaves as the condition describes | Pass |
-| 66 | A radiographer may not review | Behaves as the condition describes | Pass |
-| 67 | A clinician may review | Behaves as the condition describes | Pass |
-| 68 | An administrator may review | Behaves as the condition describes | Pass |
-| 69 | The page loads for its owner | Behaves as the condition describes | Pass |
-| 70 | The page requires a session | Behaves as the condition describes | Pass |
-| 71 | The facility can be set by its owner | Behaves as the condition describes | Pass |
-| 72 | A clinic cannot be invented from the profile form | Free text was the defect: one spelling mistake made two caseloads. | Pass |
-| 73 | A retired clinic is not offered | Behaves as the condition describes | Pass |
-| 74 | The role cannot be set by its owner | Choosing your own role would make the role meaningless. | Pass |
+| 74 | A profile is created with the account | No view should ever have to cope with a user that has none. | Pass |
+| 75 | A new account starts as a radiographer | Behaves as the condition describes | Pass |
+| 76 | A radiographer may not review | Behaves as the condition describes | Pass |
+| 77 | A clinician may review | Behaves as the condition describes | Pass |
+| 78 | An administrator may review | Behaves as the condition describes | Pass |
+| 79 | The page loads for its owner | Behaves as the condition describes | Pass |
+| 80 | The page requires a session | Behaves as the condition describes | Pass |
+| 81 | The facility can be set by its owner | Behaves as the condition describes | Pass |
+| 82 | A clinic cannot be invented from the profile form | Free text was the defect: one spelling mistake made two caseloads. | Pass |
+| 83 | A retired clinic is not offered | Behaves as the condition describes | Pass |
+| 84 | The role cannot be set by its owner | Choosing your own role would make the role meaningless. | Pass |
 
 ### ReviewPermissionTests
 
@@ -175,11 +199,11 @@ formatting and migration checks.
 
 | # | Condition | Expected | Outcome |
 |---|---|---|---|
-| 75 | A radiographer is refused | Behaves as the condition describes | Pass |
-| 76 | A radiographer is not offered the form | Behaves as the condition describes | Pass |
-| 77 | A clinician may record one | Behaves as the condition describes | Pass |
-| 78 | The note is attributed to the signed in user | Not to a typed name, which nothing could verify. | Pass |
-| 79 | A note survives its author being removed | A clinical record should not lose its history when someone leaves. | Pass |
+| 85 | A radiographer is refused | Behaves as the condition describes | Pass |
+| 86 | A radiographer is not offered the form | Behaves as the condition describes | Pass |
+| 87 | A clinician may record one | Behaves as the condition describes | Pass |
+| 88 | The note is attributed to the signed in user | Not to a typed name, which nothing could verify. | Pass |
+| 89 | A note survives its author being removed | A clinical record should not lose its history when someone leaves. | Pass |
 
 ### MetadataStrippingTests
 
@@ -187,10 +211,10 @@ formatting and migration checks.
 
 | # | Condition | Expected | Outcome |
 |---|---|---|---|
-| 80 | Gps coordinates do not survive | Behaves as the condition describes | Pass |
-| 81 | The camera make does not survive | Behaves as the condition describes | Pass |
-| 82 | The pixels are preserved | Behaves as the condition describes | Pass |
-| 83 | A file that cannot be decoded is returned unchanged | Failing here would replace a specific message with a generic error. | Pass |
+| 90 | Gps coordinates do not survive | Behaves as the condition describes | Pass |
+| 91 | The camera make does not survive | Behaves as the condition describes | Pass |
+| 92 | The pixels are preserved | Behaves as the condition describes | Pass |
+| 93 | A file that cannot be decoded is returned unchanged | Failing here would replace a specific message with a generic error. | Pass |
 
 ### FailureScenarioTests
 
@@ -198,21 +222,22 @@ formatting and migration checks.
 
 | # | Condition | Expected | Outcome |
 |---|---|---|---|
-| 84 | A text file renamed as a png is refused | An extension is a claim, not evidence. The bytes have to decode. | Pass |
-| 85 | An empty file is refused | Behaves as the condition describes | Pass |
-| 86 | A filename cannot escape the upload directory | The stored name comes from the case id, never from the upload. | Pass |
-| 87 | A filename carrying instructions is only ever data | A name is stored as a label; nothing in the pipeline interprets it. | Pass |
-| 88 | One corrupt file stops the batch before anything is screened | Either the whole selection is acceptable or none of it is screened. | Pass |
-| 89 | An unreadable overlay does not discard a valid prediction | A failed explanation is recorded, not raised. | Pass |
-| 90 | An absent model explains itself and stores nothing | The rest of the application has to keep working without the model. | Pass |
-| 91 | An absent model does not leave the upload behind | Behaves as the condition describes | Pass |
-| 92 | A session that has gone away sends the user back to sign in | Behaves as the condition describes | Pass |
-| 93 | An anonymous visitor cannot read a case by guessing its id | Behaves as the condition describes | Pass |
-| 94 | An unknown case id is not found rather than an error | Behaves as the condition describes | Pass |
-| 95 | The same radiograph twice creates two distinct cases | Documented behaviour: a repeat screening is a separate event. | Pass |
-| 96 | Health reports ready when the model and database answer | Behaves as the condition describes | Pass |
-| 97 | Health reports degraded with 503 when the model cannot load | A container that is listening but cannot predict must not take traffic. | Pass |
-| 98 | Health needs no session | A health check arrives without one, and must not be redirected. | Pass |
+| 94 | A text file renamed as a png is refused | An extension is a claim, not evidence. The bytes have to decode. | Pass |
+| 95 | An empty file is refused | Behaves as the condition describes | Pass |
+| 96 | A filename cannot escape the upload directory | The stored name comes from the case id, never from the upload. | Pass |
+| 97 | A filename carrying instructions is only ever data | A name is stored as a label; nothing in the pipeline interprets it. | Pass |
+| 98 | One corrupt file stops the batch before anything is screened | Either the whole selection is acceptable or none of it is screened. | Pass |
+| 99 | An unreadable overlay does not discard a valid prediction | A failed explanation is recorded, not raised. | Pass |
+| 100 | A deferred explanation that fails is recorded too | The batch path still builds on first view, and still has to survive. | Pass |
+| 101 | An absent model explains itself and stores nothing | The rest of the application has to keep working without the model. | Pass |
+| 102 | An absent model does not leave the upload behind | Behaves as the condition describes | Pass |
+| 103 | A session that has gone away sends the user back to sign in | Behaves as the condition describes | Pass |
+| 104 | An anonymous visitor cannot read a case by guessing its id | Behaves as the condition describes | Pass |
+| 105 | An unknown case id is not found rather than an error | Behaves as the condition describes | Pass |
+| 106 | The same radiograph twice creates two distinct cases | Documented behaviour: a repeat screening is a separate event. | Pass |
+| 107 | Health reports ready when the model and database answer | Behaves as the condition describes | Pass |
+| 108 | Health reports degraded with 503 when the model cannot load | A container that is listening but cannot predict must not take traffic. | Pass |
+| 109 | Health needs no session | A health check arrives without one, and must not be redirected. | Pass |
 
 ### ProfileWithoutSignalTests
 
@@ -220,12 +245,12 @@ formatting and migration checks.
 
 | # | Condition | Expected | Outcome |
 |---|---|---|---|
-| 99 | The fixture really has no profile | Otherwise the tests below would pass for the wrong reason. | Pass |
-| 100 | The accessor creates the missing profile | Behaves as the condition describes | Pass |
-| 101 | The accessor does not create a second one | Behaves as the condition describes | Pass |
-| 102 | A legacy account defaults to the least privileged role | Behaves as the condition describes | Pass |
-| 103 | The profile page opens for a legacy account | This is the page that raised RelatedObjectDoesNotExist. | Pass |
-| 104 | A case page opens for a legacy account | Behaves as the condition describes | Pass |
+| 110 | The fixture really has no profile | Otherwise the tests below would pass for the wrong reason. | Pass |
+| 111 | The accessor creates the missing profile | Behaves as the condition describes | Pass |
+| 112 | The accessor does not create a second one | Behaves as the condition describes | Pass |
+| 113 | A legacy account defaults to the least privileged role | Behaves as the condition describes | Pass |
+| 114 | The profile page opens for a legacy account | This is the page that raised RelatedObjectDoesNotExist. | Pass |
+| 115 | A case page opens for a legacy account | Behaves as the condition describes | Pass |
 
 ### SocialSignupFormTests
 
@@ -233,14 +258,14 @@ formatting and migration checks.
 
 | # | Condition | Expected | Outcome |
 |---|---|---|---|
-| 105 | A username is not asked for | Nothing shows a username, so a clinician is never asked to invent one. | Pass |
-| 106 | The email cannot be edited | Editing it would claim an address Google never vouched for. | Pass |
-| 107 | The two clinical roles are offered | Which of the two a person is, is a thing only they know here. | Pass |
-| 108 | Administrator is not offered | It is not clinical work, it is the right to change everyone's role. | Pass |
-| 109 | Administrator cannot be submitted anyway | A field absent from a page is still reachable with a crafted post. | Pass |
-| 110 | The offered roles come from the model | A role added later should appear without this being remembered. | Pass |
-| 111 | A name is required | Behaves as the condition describes | Pass |
-| 112 | A facility is optional | It can be set later from the profile page, so it must not block sign-in. | Pass |
+| 116 | A username is not asked for | Nothing shows a username, so a clinician is never asked to invent one. | Pass |
+| 117 | The email cannot be edited | Editing it would claim an address Google never vouched for. | Pass |
+| 118 | The two clinical roles are offered | Which of the two a person is, is a thing only they know here. | Pass |
+| 119 | Administrator is not offered | It is not clinical work, it is the right to change everyone's role. | Pass |
+| 120 | Administrator cannot be submitted anyway | A field absent from a page is still reachable with a crafted post. | Pass |
+| 121 | The offered roles come from the model | A role added later should appear without this being remembered. | Pass |
+| 122 | A name is required | Behaves as the condition describes | Pass |
+| 123 | A facility is optional | It can be set later from the profile page, so it must not block sign-in. | Pass |
 
 ### AdministratorAccountTests
 
@@ -248,11 +273,11 @@ formatting and migration checks.
 
 | # | Condition | Expected | Outcome |
 |---|---|---|---|
-| 113 | The named address is made an administrator | Behaves as the condition describes | Pass |
-| 114 | The match ignores case | An address typed into a form is not reliably lower case. | Pass |
-| 115 | Everybody else starts at the default | Behaves as the condition describes | Pass |
-| 116 | An unset address makes nobody an administrator | A checkout with no .env should not make its first user powerful. | Pass |
-| 117 | The signup form cannot demote the administrator | The form's own choices exclude the role, so saving would clear it. | Pass |
+| 124 | The named address is made an administrator | Behaves as the condition describes | Pass |
+| 125 | The match ignores case | An address typed into a form is not reliably lower case. | Pass |
+| 126 | Everybody else starts at the default | Behaves as the condition describes | Pass |
+| 127 | An unset address makes nobody an administrator | A checkout with no .env should not make its first user powerful. | Pass |
+| 128 | The signup form cannot demote the administrator | The form's own choices exclude the role, so saving would clear it. | Pass |
 
 ### SocialSignupPageTests
 
@@ -260,10 +285,10 @@ formatting and migration checks.
 
 | # | Condition | Expected | Outcome |
 |---|---|---|---|
-| 118 | It redirects when no sign in is in progress | Opening it directly is not a route into the system. | Pass |
-| 119 | The project template is the one configured | allauth ships a plain version; the gate-styled one must win. | Pass |
-| 120 | A provider signup is not asked to verify its address again | Opening local registration must not add a step to the Google route. | Pass |
-| 121 | Automatic signup is off | Otherwise allauth creates the account and the form is never shown. | Pass |
+| 129 | It redirects when no sign in is in progress | Opening it directly is not a route into the system. | Pass |
+| 130 | The project template is the one configured | allauth ships a plain version; the gate-styled one must win. | Pass |
+| 131 | A provider signup is not asked to verify its address again | Opening local registration must not add a step to the Google route. | Pass |
+| 132 | Automatic signup is off | Otherwise allauth creates the account and the form is never shown. | Pass |
 
 ### EmailCodeSignInTests
 
@@ -271,19 +296,19 @@ formatting and migration checks.
 
 | # | Condition | Expected | Outcome |
 |---|---|---|---|
-| 122 | The request page is reachable without a session | Behaves as the condition describes | Pass |
-| 123 | Requesting a code sends exactly one message | Behaves as the condition describes | Pass |
-| 124 | The message carries a six digit code | Behaves as the condition describes | Pass |
-| 125 | The subject identifies the system | Behaves as the condition describes | Pass |
-| 126 | A valid code signs the user in | Behaves as the condition describes | Pass |
-| 127 | A wrong code does not sign the user in | Behaves as the condition describes | Pass |
-| 128 | A wrong code is explained on the page | Four sign-in pages share one partial for this; a silent form strands people. | Pass |
-| 129 | A code cannot be spent twice | Otherwise a code read from a forwarded message stays usable. | Pass |
-| 130 | An unknown address yields no usable code | The page must not become an account checker. | Pass |
-| 131 | An unknown address looks the same as a known one | Behaves as the condition describes | Pass |
-| 132 | Signing in by code still lands on the screening page | Behaves as the condition describes | Pass |
-| 133 | The allowlist still governs when one is configured | Opening registration must not quietly disable the allowlist. | Pass |
-| 134 | The attempt cap is configured | A six-digit code is guessable in a way a password is not. | Pass |
+| 133 | The request page is reachable without a session | Behaves as the condition describes | Pass |
+| 134 | Requesting a code sends exactly one message | Behaves as the condition describes | Pass |
+| 135 | The message carries a six digit code | Behaves as the condition describes | Pass |
+| 136 | The subject identifies the system | Behaves as the condition describes | Pass |
+| 137 | A valid code signs the user in | Behaves as the condition describes | Pass |
+| 138 | A wrong code does not sign the user in | Behaves as the condition describes | Pass |
+| 139 | A wrong code is explained on the page | Four sign-in pages share one partial for this; a silent form strands people. | Pass |
+| 140 | A code cannot be spent twice | Otherwise a code read from a forwarded message stays usable. | Pass |
+| 141 | An unknown address yields no usable code | The page must not become an account checker. | Pass |
+| 142 | An unknown address looks the same as a known one | Behaves as the condition describes | Pass |
+| 143 | Signing in by code still lands on the screening page | Behaves as the condition describes | Pass |
+| 144 | The allowlist still governs when one is configured | Opening registration must not quietly disable the allowlist. | Pass |
+| 145 | The attempt cap is configured | A six-digit code is guessable in a way a password is not. | Pass |
 
 ### EmailCodeRateLimitTests
 
@@ -291,8 +316,8 @@ formatting and migration checks.
 
 | # | Condition | Expected | Outcome |
 |---|---|---|---|
-| 135 | Repeated requests are refused | Three in five minutes, per the configured limit. | Pass |
-| 136 | The limits name both steps | Behaves as the condition describes | Pass |
+| 146 | Repeated requests are refused | Three in five minutes, per the configured limit. | Pass |
+| 147 | The limits name both steps | Behaves as the condition describes | Pass |
 
 ### DevelopmentCodeTests
 
@@ -300,11 +325,11 @@ formatting and migration checks.
 
 | # | Condition | Expected | Outcome |
 |---|---|---|---|
-| 137 | The code is shown in development | Behaves as the condition describes | Pass |
-| 138 | Nothing is shown when debug is off | Which is the case in the container and in every deployment. | Pass |
-| 139 | Nothing is shown once real mail is configured | Behaves as the condition describes | Pass |
-| 140 | A message with no code yields nothing | The unknown-account message has no code and must not render one. | Pass |
-| 141 | The backend records the recipient | Behaves as the condition describes | Pass |
+| 148 | The code is shown in development | Behaves as the condition describes | Pass |
+| 149 | Nothing is shown when debug is off | Which is the case in the container and in every deployment. | Pass |
+| 150 | Nothing is shown once real mail is configured | Behaves as the condition describes | Pass |
+| 151 | A message with no code yields nothing | The unknown-account message has no code and must not render one. | Pass |
+| 152 | The backend records the recipient | Behaves as the condition describes | Pass |
 
 ### OpenRegistrationTests
 
@@ -312,17 +337,17 @@ formatting and migration checks.
 
 | # | Condition | Expected | Outcome |
 |---|---|---|---|
-| 142 | The signup page is reachable | Behaves as the condition describes | Pass |
-| 143 | The gate registers from the same field it signs in from | There is no separate "create an account" route to choose. | Pass |
-| 144 | An unknown address can create an account | Behaves as the condition describes | Pass |
-| 145 | The account is not usable until the code is entered | Behaves as the condition describes | Pass |
-| 146 | Entering the code signs the newcomer in | Behaves as the condition describes | Pass |
-| 147 | A newcomer lands on the screening page | Behaves as the condition describes | Pass |
-| 148 | A newcomer gets a profile and the least privileged role | Behaves as the condition describes | Pass |
-| 149 | A wrong code leaves the newcomer out | Behaves as the condition describes | Pass |
-| 150 | Registration can be closed for a real deployment | A database of real patients should not admit the whole internet. | Pass |
-| 151 | Restarting clears a half finished sign in | Someone who typed the wrong address must be able to change it. | Pass |
-| 152 | Restarting refuses a get | It changes session state, so it must not be reachable by a link. | Pass |
+| 153 | The signup page is reachable | Behaves as the condition describes | Pass |
+| 154 | The gate registers from the same field it signs in from | There is no separate "create an account" route to choose. | Pass |
+| 155 | An unknown address can create an account | Behaves as the condition describes | Pass |
+| 156 | The account is not usable until the code is entered | Behaves as the condition describes | Pass |
+| 157 | Entering the code signs the newcomer in | Behaves as the condition describes | Pass |
+| 158 | A newcomer lands on the screening page | Behaves as the condition describes | Pass |
+| 159 | A newcomer gets a profile and the least privileged role | Behaves as the condition describes | Pass |
+| 160 | A wrong code leaves the newcomer out | Behaves as the condition describes | Pass |
+| 161 | Registration can be closed for a real deployment | A database of real patients should not admit the whole internet. | Pass |
+| 162 | Restarting clears a half finished sign in | Someone who typed the wrong address must be able to change it. | Pass |
+| 163 | Restarting refuses a get | It changes session state, so it must not be reachable by a link. | Pass |
 
 ### ContinueWithEmailTests
 
@@ -330,20 +355,20 @@ formatting and migration checks.
 
 | # | Condition | Expected | Outcome |
 |---|---|---|---|
-| 153 | The gate carries the field rather than a link | Typing an address should not require visiting another page first. | Pass |
-| 154 | A new address is registered and sent a code | Behaves as the condition describes | Pass |
-| 155 | A new address can finish and is signed in | Behaves as the condition describes | Pass |
-| 156 | An existing address is sent a sign in code | Behaves as the condition describes | Pass |
-| 157 | An existing address does not create a second account | Behaves as the condition describes | Pass |
-| 158 | The person is never asked which case they are in | Both branches end on a page asking for six digits. | Pass |
-| 159 | An invalid address is refused on the gate | Behaves as the condition describes | Pass |
-| 160 | An empty address is refused | Behaves as the condition describes | Pass |
-| 161 | The address is lowercased | Behaves as the condition describes | Pass |
-| 162 | The allowlist is applied before anything is created | A refused address must not become an account or receive a code. | Pass |
-| 163 | A closed system refuses an unknown address | Behaves as the condition describes | Pass |
-| 164 | A closed system still signs in a known address | Behaves as the condition describes | Pass |
-| 165 | It refuses a get | It sends mail and creates accounts, so it must not be a link. | Pass |
-| 166 | A bare post to the login view is not an error | A keyed rate limit with no key raised ImproperlyConfigured, a 500. | Pass |
+| 164 | The gate carries the field rather than a link | Typing an address should not require visiting another page first. | Pass |
+| 165 | A new address is registered and sent a code | Behaves as the condition describes | Pass |
+| 166 | A new address can finish and is signed in | Behaves as the condition describes | Pass |
+| 167 | An existing address is sent a sign in code | Behaves as the condition describes | Pass |
+| 168 | An existing address does not create a second account | Behaves as the condition describes | Pass |
+| 169 | The person is never asked which case they are in | Both branches end on a page asking for six digits. | Pass |
+| 170 | An invalid address is refused on the gate | Behaves as the condition describes | Pass |
+| 171 | An empty address is refused | Behaves as the condition describes | Pass |
+| 172 | The address is lowercased | Behaves as the condition describes | Pass |
+| 173 | The allowlist is applied before anything is created | A refused address must not become an account or receive a code. | Pass |
+| 174 | A closed system refuses an unknown address | Behaves as the condition describes | Pass |
+| 175 | A closed system still signs in a known address | Behaves as the condition describes | Pass |
+| 176 | It refuses a get | It sends mail and creates accounts, so it must not be a link. | Pass |
+| 177 | A bare post to the login view is not an error | A keyed rate limit with no key raised ImproperlyConfigured, a 500. | Pass |
 
 ### AllauthPageTests
 
@@ -351,12 +376,12 @@ formatting and migration checks.
 
 | # | Condition | Expected | Outcome |
 |---|---|---|---|
-| 167 | The email page uses the application frame | Behaves as the condition describes | Pass |
-| 168 | The connections page uses the application frame | Behaves as the condition describes | Pass |
-| 169 | An account page renders inside the panel | The shell being applied is not the same as the page being framed. | Pass |
-| 170 | Changing a password explains there is none | Offering to change a password this system never stores is a lie. | Pass |
-| 171 | Resetting a password explains there is none | Behaves as the condition describes | Pass |
-| 172 | A signed out visitor is sent to the gate not the profile | Behaves as the condition describes | Pass |
+| 178 | The email page uses the application frame | Behaves as the condition describes | Pass |
+| 179 | The connections page uses the application frame | Behaves as the condition describes | Pass |
+| 180 | An account page renders inside the panel | The shell being applied is not the same as the page being framed. | Pass |
+| 181 | Changing a password explains there is none | Offering to change a password this system never stores is a lie. | Pass |
+| 182 | Resetting a password explains there is none | Behaves as the condition describes | Pass |
+| 183 | A signed out visitor is sent to the gate not the profile | Behaves as the condition describes | Pass |
 
 ### SignupDestinationTests
 
@@ -364,9 +389,9 @@ formatting and migration checks.
 
 | # | Condition | Expected | Outcome |
 |---|---|---|---|
-| 173 | A new account lands on the screening page | Not on allauth's email-management form, which is where it went. | Pass |
-| 174 | The page they were heading for is honoured | Behaves as the condition describes | Pass |
-| 175 | An offsite destination is refused | An unchecked next parameter is an open redirect. | Pass |
+| 184 | A new account lands on the screening page | Not on allauth's email-management form, which is where it went. | Pass |
+| 185 | The page they were heading for is honoured | Behaves as the condition describes | Pass |
+| 186 | An offsite destination is refused | An unchecked next parameter is an open redirect. | Pass |
 
 ### ErrorPageTests
 
@@ -374,10 +399,10 @@ formatting and migration checks.
 
 | # | Condition | Expected | Outcome |
 |---|---|---|---|
-| 176 | A missing case uses the project 404 | Behaves as the condition describes | Pass |
-| 177 | A refused review uses the project 403 | A radiographer POSTing a review met Django's bare 403. | Pass |
-| 178 | A signed out page claims nothing about the model | The rail reports a check. With no session, no check has run. | Pass |
-| 179 | The 500 page needs no context | It must render when the thing that failed is the database or model. | Pass |
+| 187 | A missing case uses the project 404 | Behaves as the condition describes | Pass |
+| 188 | A refused review uses the project 403 | A radiographer POSTing a review met Django's bare 403. | Pass |
+| 189 | A signed out page claims nothing about the model | The rail reports a check. With no session, no check has run. | Pass |
+| 190 | The 500 page needs no context | It must render when the thing that failed is the database or model. | Pass |
 
 ### ComparisonPanelTests
 
@@ -385,9 +410,9 @@ formatting and migration checks.
 
 | # | Condition | Expected | Outcome |
 |---|---|---|---|
-| 180 | Hidden while the explanation is still being built | Behaves as the condition describes | Pass |
-| 181 | Hidden when the explanation failed | Behaves as the condition describes | Pass |
-| 182 | Shown once a comparison map exists | Behaves as the condition describes | Pass |
+| 191 | Hidden while the explanation is still being built | Behaves as the condition describes | Pass |
+| 192 | Hidden when the explanation failed | Behaves as the condition describes | Pass |
+| 193 | Shown once a comparison map exists | Behaves as the condition describes | Pass |
 
 ### HttpsRedirectTests
 
@@ -395,9 +420,9 @@ formatting and migration checks.
 
 | # | Condition | Expected | Outcome |
 |---|---|---|---|
-| 183 | The health probe is answered rather than redirected | Behaves as the condition describes | Pass |
-| 184 | Everything else is sent to https | Behaves as the condition describes | Pass |
-| 185 | The exemption covers the health endpoint and nothing more | A pattern loose enough to exempt a real page would be worse. | Pass |
+| 194 | The health probe is answered rather than redirected | Behaves as the condition describes | Pass |
+| 195 | Everything else is sent to https | Behaves as the condition describes | Pass |
+| 196 | The exemption covers the health endpoint and nothing more | A pattern loose enough to exempt a real page would be worse. | Pass |
 
 ### SearchInputTests
 
@@ -405,10 +430,10 @@ formatting and migration checks.
 
 | # | Condition | Expected | Outcome |
 |---|---|---|---|
-| 186 | A null byte does not reach the database | Behaves as the condition describes | Pass |
-| 187 | Control characters are dropped | A newline or an escape in a stored audit row is nobody's search. | Pass |
-| 188 | A long search is capped | The box holds a patient reference, and the trail stores what was typed. | Pass |
-| 189 | A search still finds what it should | Cleaning the input must not stop it working. | Pass |
+| 197 | A null byte does not reach the database | Behaves as the condition describes | Pass |
+| 198 | Control characters are dropped | A newline or an escape in a stored audit row is nobody's search. | Pass |
+| 199 | A long search is capped | The box holds a patient reference, and the trail stores what was typed. | Pass |
+| 200 | A search still finds what it should | Cleaning the input must not stop it working. | Pass |
 
 ### ResponsiveLayoutTests
 
@@ -416,17 +441,17 @@ formatting and migration checks.
 
 | # | Condition | Expected | Outcome |
 |---|---|---|---|
-| 190 | The navigation rail collapses on a narrow screen | The rail is 220 pixels of a 375 pixel screen if it stays a column. | Pass |
-| 191 | Tables scroll inside their panel | A seven-column table is wider than a phone and must not drag the page. | Pass |
-| 192 | Content is visible without scripting | No panel may start hidden waiting for a script to reveal it. | Pass |
-| 193 | Both base templates mark the document as scripted | The rule only lifts if something sets the class, on every page. | Pass |
-| 194 | The sign in page does not publish the operating point | A gate that names the threshold tells an attacker what to aim at. | Pass |
-| 195 | The content column can shrink below its contents | NFR-10 asks the interface to render legibly from 1024 pixels up. | Pass |
-| 196 | Every pair the interface puts text on meets aa | Measured rather than pinned to a hex. | Pass |
-| 197 | The primary button label is readable on its own fill | White on the brand colour in one theme, near-black in the other. | Pass |
-| 198 | Links use the palette rather than bootstraps default | Bootstrap 5.3 reads --bs-link-color-rgb; setting the other does nothing. | Pass |
-| 199 | Every table is wrapped | An unwrapped one reintroduces the sideways scroll on its own page. | Pass |
-| 200 | A standalone document keeps its tables inside the page | It cannot use the wrapper, so it has to solve this another way. | Pass |
+| 201 | The navigation rail collapses on a narrow screen | The rail is 220 pixels of a 375 pixel screen if it stays a column. | Pass |
+| 202 | Tables scroll inside their panel | A seven-column table is wider than a phone and must not drag the page. | Pass |
+| 203 | Content is visible without scripting | No panel may start hidden waiting for a script to reveal it. | Pass |
+| 204 | Both base templates mark the document as scripted | The rule only lifts if something sets the class, on every page. | Pass |
+| 205 | The sign in page does not publish the operating point | A gate that names the threshold tells an attacker what to aim at. | Pass |
+| 206 | The content column can shrink below its contents | NFR-10 asks the interface to render legibly from 1024 pixels up. | Pass |
+| 207 | Every pair the interface puts text on meets aa | Measured rather than pinned to a hex. | Pass |
+| 208 | The primary button label is readable on its own fill | White on the brand colour in one theme, near-black in the other. | Pass |
+| 209 | Links use the palette rather than bootstraps default | Bootstrap 5.3 reads --bs-link-color-rgb; setting the other does nothing. | Pass |
+| 210 | Every table is wrapped | An unwrapped one reintroduces the sideways scroll on its own page. | Pass |
+| 211 | A standalone document keeps its tables inside the page | It cannot use the wrapper, so it has to solve this another way. | Pass |
 
 ### FacilityScopeTests
 
@@ -434,18 +459,18 @@ formatting and migration checks.
 
 | # | Condition | Expected | Outcome |
 |---|---|---|---|
-| 201 | A colleague at the same clinic sees the case | Without this the review workflow cannot work at all. | Pass |
-| 202 | Another clinic does not | Behaves as the condition describes | Pass |
-| 203 | Someone with no clinic sees nothing | A stranger who registers must not inherit a clinic's caseload. | Pass |
-| 204 | An administrator sees everything | Somebody has to be able to. | Pass |
-| 205 | An anonymous visitor sees nothing | Behaves as the condition describes | Pass |
-| 206 | The case list is scoped | Behaves as the condition describes | Pass |
-| 207 | The dashboard is scoped | Behaves as the condition describes | Pass |
-| 208 | A case at another clinic is not found rather than refused | A 403 would confirm the reference exists. | Pass |
-| 209 | Screening stamps the record with who and where | Behaves as the condition describes | Pass |
-| 210 | A record keeps its clinic when the screener moves | The facility is copied, not followed. | Pass |
-| 211 | A record survives its screener being removed | Behaves as the condition describes | Pass |
-| 212 | The profile counts what this user screened | Behaves as the condition describes | Pass |
+| 212 | A colleague at the same clinic sees the case | Without this the review workflow cannot work at all. | Pass |
+| 213 | Another clinic does not | Behaves as the condition describes | Pass |
+| 214 | Someone with no clinic sees nothing | A stranger who registers must not inherit a clinic's caseload. | Pass |
+| 215 | An administrator sees everything | Somebody has to be able to. | Pass |
+| 216 | An anonymous visitor sees nothing | Behaves as the condition describes | Pass |
+| 217 | The case list is scoped | Behaves as the condition describes | Pass |
+| 218 | The dashboard is scoped | Behaves as the condition describes | Pass |
+| 219 | A case at another clinic is not found rather than refused | A 403 would confirm the reference exists. | Pass |
+| 220 | Screening stamps the record with who and where | Behaves as the condition describes | Pass |
+| 221 | A record keeps its clinic when the screener moves | The facility is copied, not followed. | Pass |
+| 222 | A record survives its screener being removed | Behaves as the condition describes | Pass |
+| 223 | The profile counts what this user screened | Behaves as the condition describes | Pass |
 
 ### NoFacilityNoticeTests
 
@@ -453,10 +478,10 @@ formatting and migration checks.
 
 | # | Condition | Expected | Outcome |
 |---|---|---|---|
-| 213 | The notice appears when no clinic is set | Behaves as the condition describes | Pass |
-| 214 | The notice goes once a clinic is set | Behaves as the condition describes | Pass |
-| 215 | A signed out visitor never sees it | Behaves as the condition describes | Pass |
-| 216 | Setting a clinic from the profile joins the caseload | The whole point: a record at that clinic becomes visible. | Pass |
+| 224 | The notice appears when no clinic is set | Behaves as the condition describes | Pass |
+| 225 | The notice goes once a clinic is set | Behaves as the condition describes | Pass |
+| 226 | A signed out visitor never sees it | Behaves as the condition describes | Pass |
+| 227 | Setting a clinic from the profile joins the caseload | The whole point: a record at that clinic becomes visible. | Pass |
 
 ### AccessTrailTests
 
@@ -464,19 +489,19 @@ formatting and migration checks.
 
 | # | Condition | Expected | Outcome |
 |---|---|---|---|
-| 217 | Opening a case is recorded | Behaves as the condition describes | Pass |
-| 218 | An event records who what when and from where | Behaves as the condition describes | Pass |
-| 219 | Listing cases is recorded with the search term | Behaves as the condition describes | Pass |
-| 220 | Screening is recorded | Behaves as the condition describes | Pass |
-| 221 | A refused review is recorded | A refusal is the event most worth having. | Pass |
-| 222 | A recorded review is recorded | Behaves as the condition describes | Pass |
-| 223 | The trail survives the account being removed | Deleting a user must not erase the evidence of what they did. | Pass |
-| 224 | The trail survives the case being removed | Behaves as the condition describes | Pass |
-| 225 | No clinical detail is copied into the trail | An audit row that duplicates the record doubles the exposure. | Pass |
-| 226 | A failure to log does not break the request | A clinician must not lose a screening because the log failed. | Pass |
-| 227 | The proxy header is ignored unless configured | Otherwise a caller writes whatever address it likes into the trail. | Pass |
-| 228 | The proxy header is used when configured | Behaves as the condition describes | Pass |
-| 229 | The trail cannot be edited through the admin | Behaves as the condition describes | Pass |
+| 228 | Opening a case is recorded | Behaves as the condition describes | Pass |
+| 229 | An event records who what when and from where | Behaves as the condition describes | Pass |
+| 230 | Listing cases is recorded with the search term | Behaves as the condition describes | Pass |
+| 231 | Screening is recorded | Behaves as the condition describes | Pass |
+| 232 | A refused review is recorded | A refusal is the event most worth having. | Pass |
+| 233 | A recorded review is recorded | Behaves as the condition describes | Pass |
+| 234 | The trail survives the account being removed | Deleting a user must not erase the evidence of what they did. | Pass |
+| 235 | The trail survives the case being removed | Behaves as the condition describes | Pass |
+| 236 | No clinical detail is copied into the trail | An audit row that duplicates the record doubles the exposure. | Pass |
+| 237 | A failure to log does not break the request | A clinician must not lose a screening because the log failed. | Pass |
+| 238 | The proxy header is ignored unless configured | Otherwise a caller writes whatever address it likes into the trail. | Pass |
+| 239 | The proxy header is used when configured | Behaves as the condition describes | Pass |
+| 240 | The trail cannot be edited through the admin | Behaves as the condition describes | Pass |
 
 ### SessionTimeoutTests
 
@@ -484,11 +509,11 @@ formatting and migration checks.
 
 | # | Condition | Expected | Outcome |
 |---|---|---|---|
-| 230 | The session expires after a short idle period | Django's default of fourteen days is wrong for a clinic. | Pass |
-| 231 | The window slides with activity | A clinician working through a batch must not be thrown out mid-task. | Pass |
-| 232 | Closing the browser ends the session | Behaves as the condition describes | Pass |
-| 233 | The page warns before the server acts | Behaves as the condition describes | Pass |
-| 234 | A signed out visitor gets no countdown | Behaves as the condition describes | Pass |
+| 241 | The session expires after a short idle period | Django's default of fourteen days is wrong for a clinic. | Pass |
+| 242 | The window slides with activity | A clinician working through a batch must not be thrown out mid-task. | Pass |
+| 243 | Closing the browser ends the session | Behaves as the condition describes | Pass |
+| 244 | The page warns before the server acts | Behaves as the condition describes | Pass |
+| 245 | A signed out visitor gets no countdown | Behaves as the condition describes | Pass |
 
 ### PackagedOperatorTests
 
@@ -496,13 +521,13 @@ formatting and migration checks.
 
 | # | Condition | Expected | Outcome |
 |---|---|---|---|
-| 235 | It does nothing on the server | The deployed system must be unaffected by this existing. | Pass |
-| 236 | It signs the operator in without a gate | Behaves as the condition describes | Pass |
-| 237 | The operator can review what it screens | There is nobody else to assign a role, so it administers itself. | Pass |
-| 238 | The operator has a clinic so scoping behaves normally | Behaves as the condition describes | Pass |
-| 239 | The operator cannot be signed in as | No password, so the account is reachable only from this machine. | Pass |
-| 240 | Repeated requests reuse one operator | Behaves as the condition describes | Pass |
-| 241 | Work is still attributed and logged | Not asking who you are is not the same as not recording what you did. | Pass |
+| 246 | It does nothing on the server | The deployed system must be unaffected by this existing. | Pass |
+| 247 | It signs the operator in without a gate | Behaves as the condition describes | Pass |
+| 248 | The operator can review what it screens | There is nobody else to assign a role, so it administers itself. | Pass |
+| 249 | The operator has a clinic so scoping behaves normally | Behaves as the condition describes | Pass |
+| 250 | The operator cannot be signed in as | No password, so the account is reachable only from this machine. | Pass |
+| 251 | Repeated requests reuse one operator | Behaves as the condition describes | Pass |
+| 252 | Work is still attributed and logged | Not asking who you are is not the same as not recording what you did. | Pass |
 
 ### PackagedSettingsTests
 
@@ -510,10 +535,10 @@ formatting and migration checks.
 
 | # | Condition | Expected | Outcome |
 |---|---|---|---|
-| 242 | Sqlite is selected by the launcher switch | Behaves as the condition describes | Pass |
-| 243 | The data directory follows the launcher | Behaves as the condition describes | Pass |
-| 244 | Media lives beside the database | Behaves as the condition describes | Pass |
-| 245 | The static root can be pointed at the bundle | PyInstaller unpacks elsewhere, so this cannot be fixed to the project. | Pass |
+| 253 | Sqlite is selected by the launcher switch | Behaves as the condition describes | Pass |
+| 254 | The data directory follows the launcher | Behaves as the condition describes | Pass |
+| 255 | Media lives beside the database | Behaves as the condition describes | Pass |
+| 256 | The static root can be pointed at the bundle | PyInstaller unpacks elsewhere, so this cannot be fixed to the project. | Pass |
 
 ### AuditChainTests
 
@@ -521,20 +546,20 @@ formatting and migration checks.
 
 | # | Condition | Expected | Outcome |
 |---|---|---|---|
-| 246 | Removing the account does not break the chain | Deleting a user is administration, not tampering. | Pass |
-| 247 | Who acted survives the account being removed | Dropping actor_id from the hash must not lose the person. | Pass |
-| 248 | Altering a row is still detected after that change | Loosening what is hashed must not loosen what is caught. | Pass |
-| 249 | A row is sealed when it is written | Behaves as the condition describes | Pass |
-| 250 | The first row follows nothing | Behaves as the condition describes | Pass |
-| 251 | Each row follows the one before it | Behaves as the condition describes | Pass |
-| 252 | An untouched chain verifies | Behaves as the condition describes | Pass |
-| 253 | Editing a row is detected | Edited straight in the database, bypassing the application. | Pass |
-| 254 | Back dating a row is detected | The timestamp is in the hash, so moving an event in time shows. | Pass |
-| 255 | Removing a row is detected | The row after it claims to follow something no longer there. | Pass |
-| 256 | The break names where the trail stops being trustworthy | Behaves as the condition describes | Pass |
-| 257 | Resaving a row does not reseal it | Otherwise an edit could launder itself by saving through the ORM. | Pass |
-| 258 | The command reports an intact chain | Behaves as the condition describes | Pass |
-| 259 | The command exits non zero when broken | So it can be run on a schedule and noticed rather than read. | Pass |
+| 257 | Removing the account does not break the chain | Deleting a user is administration, not tampering. | Pass |
+| 258 | Who acted survives the account being removed | Dropping actor_id from the hash must not lose the person. | Pass |
+| 259 | Altering a row is still detected after that change | Loosening what is hashed must not loosen what is caught. | Pass |
+| 260 | A row is sealed when it is written | Behaves as the condition describes | Pass |
+| 261 | The first row follows nothing | Behaves as the condition describes | Pass |
+| 262 | Each row follows the one before it | Behaves as the condition describes | Pass |
+| 263 | An untouched chain verifies | Behaves as the condition describes | Pass |
+| 264 | Editing a row is detected | Edited straight in the database, bypassing the application. | Pass |
+| 265 | Back dating a row is detected | The timestamp is in the hash, so moving an event in time shows. | Pass |
+| 266 | Removing a row is detected | The row after it claims to follow something no longer there. | Pass |
+| 267 | The break names where the trail stops being trustworthy | Behaves as the condition describes | Pass |
+| 268 | Resaving a row does not reseal it | Otherwise an edit could launder itself by saving through the ORM. | Pass |
+| 269 | The command reports an intact chain | Behaves as the condition describes | Pass |
+| 270 | The command exits non zero when broken | So it can be run on a schedule and noticed rather than read. | Pass |
 
 ### PruneMediaTests
 
@@ -542,15 +567,15 @@ formatting and migration checks.
 
 | # | Condition | Expected | Outcome |
 |---|---|---|---|
-| 260 | A file with no record is reported | Behaves as the condition describes | Pass |
-| 261 | Reporting does not remove anything | The default has to be safe, because this cannot be undone. | Pass |
-| 262 | Delete removes it | Behaves as the condition describes | Pass |
-| 263 | A file a record points at is never touched | Behaves as the condition describes | Pass |
-| 264 | An overlay a record points at is never touched | The explanation and the comparison are stored in their own fields. | Pass |
-| 265 | A file written in the last hour is left alone | An upload writes the image before the row describing it commits. | Pass |
-| 266 | The dated folders go once they are empty | Behaves as the condition describes | Pass |
-| 267 | It says how much was removed | Behaves as the condition describes | Pass |
-| 268 | No media directory is not an error | A fresh clone has never stored anything. | Pass |
+| 271 | A file with no record is reported | Behaves as the condition describes | Pass |
+| 272 | Reporting does not remove anything | The default has to be safe, because this cannot be undone. | Pass |
+| 273 | Delete removes it | Behaves as the condition describes | Pass |
+| 274 | A file a record points at is never touched | Behaves as the condition describes | Pass |
+| 275 | An overlay a record points at is never touched | The explanation and the comparison are stored in their own fields. | Pass |
+| 276 | A file written in the last hour is left alone | An upload writes the image before the row describing it commits. | Pass |
+| 277 | The dated folders go once they are empty | Behaves as the condition describes | Pass |
+| 278 | It says how much was removed | Behaves as the condition describes | Pass |
+| 279 | No media directory is not an error | A fresh clone has never stored anything. | Pass |
 
 ### ClinicalWorkflowTests
 
@@ -558,27 +583,27 @@ formatting and migration checks.
 
 | # | Condition | Expected | Outcome |
 |---|---|---|---|
-| 269 | The worklist holds only what is awaiting review | Behaves as the condition describes | Pass |
-| 270 | High suspicion comes before medium whatever the order screened | The point of a queue is that the urgent case is not at the bottom. | Pass |
-| 271 | Within one level the longest waiting comes first | Behaves as the condition describes | Pass |
-| 272 | The counts break the queue down by triage level | Behaves as the condition describes | Pass |
-| 273 | The oldest waiting case is reported in days | Behaves as the condition describes | Pass |
-| 274 | Waiting days is blank once a case has been reviewed | It measures how long a decision is overdue, not the record's age. | Pass |
-| 275 | An empty queue says so | Behaves as the condition describes | Pass |
-| 276 | The worklist stops at the clinic boundary | Behaves as the condition describes | Pass |
-| 277 | The report carries the result and the clinical boundary | Behaves as the condition describes | Pass |
-| 278 | The report states who printed it and when | A sheet of paper with no provenance cannot go in a patient's file. | Pass |
-| 279 | The report hides the screen controls when printed | Behaves as the condition describes | Pass |
-| 280 | A report for another clinic is not found | Behaves as the condition describes | Pass |
-| 281 | Printing a report is recorded in the audit trail | Behaves as the condition describes | Pass |
-| 282 | An earlier screening of the same reference is shown | Behaves as the condition describes | Pass |
-| 283 | The case being read is not listed as its own history | Behaves as the condition describes | Pass |
-| 284 | The reference is matched whatever the case | DEMO-001 and demo-001 are one patient, not two. | Pass |
-| 285 | History does not reach into another clinic | The same reference at two clinics is two different patients. | Pass |
-| 286 | The export is a csv download with a row per case | Behaves as the condition describes | Pass |
-| 287 | The export honours the filters it was taken with | Otherwise the download is not the table the user was looking at. | Pass |
-| 288 | The export cannot reach another clinic | Behaves as the condition describes | Pass |
-| 289 | The export is recorded as a bulk access | A download of every record is the access most worth having logged. | Pass |
+| 280 | The worklist holds only what is awaiting review | Behaves as the condition describes | Pass |
+| 281 | High suspicion comes before medium whatever the order screened | The point of a queue is that the urgent case is not at the bottom. | Pass |
+| 282 | Within one level the longest waiting comes first | Behaves as the condition describes | Pass |
+| 283 | The counts break the queue down by triage level | Behaves as the condition describes | Pass |
+| 284 | The oldest waiting case is reported in days | Behaves as the condition describes | Pass |
+| 285 | Waiting days is blank once a case has been reviewed | It measures how long a decision is overdue, not the record's age. | Pass |
+| 286 | An empty queue says so | Behaves as the condition describes | Pass |
+| 287 | The worklist stops at the clinic boundary | Behaves as the condition describes | Pass |
+| 288 | The report carries the result and the clinical boundary | Behaves as the condition describes | Pass |
+| 289 | The report states who printed it and when | A sheet of paper with no provenance cannot go in a patient's file. | Pass |
+| 290 | The report hides the screen controls when printed | Behaves as the condition describes | Pass |
+| 291 | A report for another clinic is not found | Behaves as the condition describes | Pass |
+| 292 | Printing a report is recorded in the audit trail | Behaves as the condition describes | Pass |
+| 293 | An earlier screening of the same reference is shown | Behaves as the condition describes | Pass |
+| 294 | The case being read is not listed as its own history | Behaves as the condition describes | Pass |
+| 295 | The reference is matched whatever the case | DEMO-001 and demo-001 are one patient, not two. | Pass |
+| 296 | History does not reach into another clinic | The same reference at two clinics is two different patients. | Pass |
+| 297 | The export is a csv download with a row per case | Behaves as the condition describes | Pass |
+| 298 | The export honours the filters it was taken with | Otherwise the download is not the table the user was looking at. | Pass |
+| 299 | The export cannot reach another clinic | Behaves as the condition describes | Pass |
+| 300 | The export is recorded as a bulk access | A download of every record is the access most worth having logged. | Pass |
 
 ### TemplateCommentTests
 
@@ -586,8 +611,8 @@ formatting and migration checks.
 
 | # | Condition | Expected | Outcome |
 |---|---|---|---|
-| 290 | No inline comment runs past the end of its line | Behaves as the condition describes | Pass |
-| 291 | A template renders none of its own comment text | The check above reads the file; this one reads what comes out of it. | Pass |
+| 301 | No inline comment runs past the end of its line | Behaves as the condition describes | Pass |
+| 302 | A template renders none of its own comment text | The check above reads the file; this one reads what comes out of it. | Pass |
 
 ### LazyExplanationTests
 
@@ -595,16 +620,16 @@ formatting and migration checks.
 
 | # | Condition | Expected | Outcome |
 |---|---|---|---|
-| 292 | A new screening leaves the explanation pending | Behaves as the condition describes | Pass |
-| 293 | Opening the case builds the map | Behaves as the condition describes | Pass |
-| 294 | The method that produced the map is recorded with it | An old Grad-CAM image must never be read as a current occlusion map. | Pass |
-| 295 | A second open does not build it again | 625 forward passes is not something to repeat on every page load. | Pass |
-| 296 | A failed explanation is not retried on every view | It would spend the same work to fail the same way. | Pass |
-| 297 | The endpoint refuses a get | It creates something and costs real work, so a prefetch must not fire it. | Pass |
-| 298 | Another clinic cannot make one built | Behaves as the condition describes | Pass |
-| 299 | Signing out closes the endpoint | Behaves as the condition describes | Pass |
-| 300 | The case page asks for the map only while one is awaited | Behaves as the condition describes | Pass |
-| 301 | The printed report says when no map exists | A sheet that silently omits it would read as though none was wanted. | Pass |
+| 303 | A new screening leaves the explanation pending | Behaves as the condition describes | Pass |
+| 304 | Opening the case builds the map | Behaves as the condition describes | Pass |
+| 305 | The method that produced the map is recorded with it | An old Grad-CAM image must never be read as a current occlusion map. | Pass |
+| 306 | A second open does not build it again | 625 forward passes is not something to repeat on every page load. | Pass |
+| 307 | A failed explanation is not retried on every view | It would spend the same work to fail the same way. | Pass |
+| 308 | The endpoint refuses a get | It creates something and costs real work, so a prefetch must not fire it. | Pass |
+| 309 | Another clinic cannot make one built | Behaves as the condition describes | Pass |
+| 310 | Signing out closes the endpoint | Behaves as the condition describes | Pass |
+| 311 | The case page asks for the map only while one is awaited | Behaves as the condition describes | Pass |
+| 312 | The printed report says when no map exists | A sheet that silently omits it would read as though none was wanted. | Pass |
 
 ### ExplanationMethodTests
 
@@ -612,9 +637,9 @@ formatting and migration checks.
 
 | # | Condition | Expected | Outcome |
 |---|---|---|---|
-| 302 | Occlusion covers the whole image including the far edge | A lesion in the lower zones must not sit in a band never measured. | Pass |
-| 303 | Occlusion returns a normalised map | Behaves as the condition describes | Pass |
-| 304 | Occlusion refuses when nothing supported the score | Behaves as the condition describes | Pass |
+| 313 | Occlusion covers the whole image including the far edge | A lesion in the lower zones must not sit in a band never measured. | Pass |
+| 314 | Occlusion returns a normalised map | Behaves as the condition describes | Pass |
+| 315 | Occlusion refuses when nothing supported the score | Behaves as the condition describes | Pass |
 
 ### ProtectedMediaTests
 
@@ -622,12 +647,12 @@ formatting and migration checks.
 
 | # | Condition | Expected | Outcome |
 |---|---|---|---|
-| 305 | A stranger cannot fetch a radiograph | The defect this view exists for: it used to answer 200. | Pass |
-| 306 | The clinic that owns the case can | Behaves as the condition describes | Pass |
-| 307 | Another clinic cannot | The image carries the same boundary as the case page. | Pass |
-| 308 | A path climbing out of the media folder is refused | Behaves as the condition describes | Pass |
-| 309 | A file not named after a case is not served | Nothing else in that folder is this view's to hand out. | Pass |
-| 310 | A missing file is not found rather than an error | Behaves as the condition describes | Pass |
+| 316 | A stranger cannot fetch a radiograph | The defect this view exists for: it used to answer 200. | Pass |
+| 317 | The clinic that owns the case can | Behaves as the condition describes | Pass |
+| 318 | Another clinic cannot | The image carries the same boundary as the case page. | Pass |
+| 319 | A path climbing out of the media folder is refused | Behaves as the condition describes | Pass |
+| 320 | A file not named after a case is not served | Nothing else in that folder is this view's to hand out. | Pass |
+| 321 | A missing file is not found rather than an error | Behaves as the condition describes | Pass |
 
 ### MinimumImageSizeTests
 
@@ -635,10 +660,10 @@ formatting and migration checks.
 
 | # | Condition | Expected | Outcome |
 |---|---|---|---|
-| 311 | A thumbnail is rejected | Behaves as the condition describes | Pass |
-| 312 | The message names the size and the requirement | A rejection without a reason sends somebody hunting for the cause. | Pass |
-| 313 | One short edge is enough to refuse it | Behaves as the condition describes | Pass |
-| 314 | An image at exactly the minimum is allowed through | The boundary is inclusive; 224 is the model's own input size. | Pass |
+| 322 | A thumbnail is rejected | Behaves as the condition describes | Pass |
+| 323 | The message names the size and the requirement | A rejection without a reason sends somebody hunting for the cause. | Pass |
+| 324 | One short edge is enough to refuse it | Behaves as the condition describes | Pass |
+| 325 | An image at exactly the minimum is allowed through | The boundary is inclusive; 224 is the model's own input size. | Pass |
 
 ### PresentationCodeTests
 
@@ -646,11 +671,11 @@ formatting and migration checks.
 
 | # | Condition | Expected | Outcome |
 |---|---|---|---|
-| 315 | The flag shows the code while developing | Behaves as the condition describes | Pass |
-| 316 | Debug off refuses it even when the flag is set | A deployment must not be able to display codes by setting one name. | Pass |
-| 317 | Without the flag configured mail is used | Behaves as the condition describes | Pass |
-| 318 | The template tag stays silent under the real backend | Two independent guards, so neither alone can leak a code. | Pass |
-| 319 | The template tag stays silent when debug is off | Behaves as the condition describes | Pass |
+| 326 | The flag shows the code while developing | Behaves as the condition describes | Pass |
+| 327 | Debug off refuses it even when the flag is set | A deployment must not be able to display codes by setting one name. | Pass |
+| 328 | Without the flag configured mail is used | Behaves as the condition describes | Pass |
+| 329 | The template tag stays silent under the real backend | Two independent guards, so neither alone can leak a code. | Pass |
+| 330 | The template tag stays silent when debug is off | Behaves as the condition describes | Pass |
 
 ### AccessTrailPageTests
 
@@ -658,13 +683,13 @@ formatting and migration checks.
 
 | # | Condition | Expected | Outcome |
 |---|---|---|---|
-| 320 | The page needs a session | Behaves as the condition describes | Pass |
-| 321 | A clinician sees only their own clinic | The trail carries the same boundary as the caseload it describes. | Pass |
-| 322 | An administrator sees the whole installation | Behaves as the condition describes | Pass |
-| 323 | The check reports an intact chain | Behaves as the condition describes | Pass |
-| 324 | The check names an altered row | The demonstration this page exists for. | Pass |
-| 325 | The check refuses a get | It reads every row, so a prefetch must not fire it. | Pass |
-| 326 | The trail does not carry the score or the image | A log that repeats the record it protects doubles the exposure. | Pass |
+| 331 | The page needs a session | Behaves as the condition describes | Pass |
+| 332 | A clinician sees only their own clinic | The trail carries the same boundary as the caseload it describes. | Pass |
+| 333 | An administrator sees the whole installation | Behaves as the condition describes | Pass |
+| 334 | The check reports an intact chain | Behaves as the condition describes | Pass |
+| 335 | The check names an altered row | The demonstration this page exists for. | Pass |
+| 336 | The check refuses a get | It reads every row, so a prefetch must not fire it. | Pass |
+| 337 | The trail does not carry the score or the image | A log that repeats the record it protects doubles the exposure. | Pass |
 
 ### ModelPerformancePageTests
 
@@ -672,19 +697,19 @@ formatting and migration checks.
 
 | # | Condition | Expected | Outcome |
 |---|---|---|---|
-| 327 | It needs a session | Behaves as the condition describes | Pass |
-| 328 | It shows the figures from the artifacts | Not from the template, so they cannot drift apart. | Pass |
-| 329 | The missed cases are stated before the accuracy | A screening tool that hides its miss rate is misleading by layout. | Pass |
-| 330 | The unmet who target is shown as unmet | Behaves as the condition describes | Pass |
-| 331 | A build without the artifacts says so rather than breaking | The packaged build may not carry them; it must not 500. | Pass |
-| 332 | Every compared architecture reaches the page | The comparison was run and then visible only to whoever had the repository. | Pass |
-| 333 | The figures are read from the log rather than typed | Behaves as the condition describes | Pass |
-| 334 | The model in use is marked as the one in use | Taken from the installed model's metadata, not named in the page. | Pass |
-| 335 | The page does not hide that a larger network scored higher | The comparison is worth nothing if it only reports the flattering half. | Pass |
-| 336 | The comparison is ordered by what it measured | Behaves as the condition describes | Pass |
-| 337 | A build without the log shows the rest of the page | The desktop build is assembled file by file and may not carry it. | Pass |
-| 338 | A row written by an older script is skipped rather than guessed | Half a comparison is better than one with an invented figure in it. | Pass |
-| 339 | No log at all is an empty comparison not an error | Behaves as the condition describes | Pass |
+| 338 | It needs a session | Behaves as the condition describes | Pass |
+| 339 | It shows the figures from the artifacts | Not from the template, so they cannot drift apart. | Pass |
+| 340 | The missed cases are stated before the accuracy | A screening tool that hides its miss rate is misleading by layout. | Pass |
+| 341 | The unmet who target is shown as unmet | Behaves as the condition describes | Pass |
+| 342 | A build without the artifacts says so rather than breaking | The packaged build may not carry them; it must not 500. | Pass |
+| 343 | Every compared architecture reaches the page | The comparison was run and then visible only to whoever had the repository. | Pass |
+| 344 | The figures are read from the log rather than typed | Behaves as the condition describes | Pass |
+| 345 | The model in use is marked as the one in use | Taken from the installed model's metadata, not named in the page. | Pass |
+| 346 | The page does not hide that a larger network scored higher | The comparison is worth nothing if it only reports the flattering half. | Pass |
+| 347 | The comparison is ordered by what it measured | Behaves as the condition describes | Pass |
+| 348 | A build without the log shows the rest of the page | The desktop build is assembled file by file and may not carry it. | Pass |
+| 349 | A row written by an older script is skipped rather than guessed | Half a comparison is better than one with an invented figure in it. | Pass |
+| 350 | No log at all is an empty comparison not an error | Behaves as the condition describes | Pass |
 
 ### DataRightsTests
 
@@ -692,16 +717,16 @@ formatting and migration checks.
 
 | # | Condition | Expected | Outcome |
 |---|---|---|---|
-| 340 | The export is machine readable | A right to your data is not a right to a screenshot. | Pass |
-| 341 | It contains the person | Behaves as the condition describes | Pass |
-| 342 | It does not contain the patient | Somebody else's radiograph is not yours because you uploaded it. | Pass |
-| 343 | Taking a copy is itself recorded | Behaves as the condition describes | Pass |
-| 344 | The wrong address changes nothing | A destructive action reached by one click is reached by accident. | Pass |
-| 345 | The right address closes it | Behaves as the condition describes | Pass |
-| 346 | The clinical records stay with the clinic | A radiographer leaving a hospital does not delete the films. | Pass |
-| 347 | The audit trail survives and still verifies | A log somebody leaving could empty would answer nothing. | Pass |
-| 348 | The last administrator cannot lock everyone out | Behaves as the condition describes | Pass |
-| 349 | Closing an account refuses a get | Behaves as the condition describes | Pass |
+| 351 | The export is machine readable | A right to your data is not a right to a screenshot. | Pass |
+| 352 | It contains the person | Behaves as the condition describes | Pass |
+| 353 | It does not contain the patient | Somebody else's radiograph is not yours because you uploaded it. | Pass |
+| 354 | Taking a copy is itself recorded | Behaves as the condition describes | Pass |
+| 355 | The wrong address changes nothing | A destructive action reached by one click is reached by accident. | Pass |
+| 356 | The right address closes it | Behaves as the condition describes | Pass |
+| 357 | The clinical records stay with the clinic | A radiographer leaving a hospital does not delete the films. | Pass |
+| 358 | The audit trail survives and still verifies | A log somebody leaving could empty would answer nothing. | Pass |
+| 359 | The last administrator cannot lock everyone out | Behaves as the condition describes | Pass |
+| 360 | Closing an account refuses a get | Behaves as the condition describes | Pass |
 
 ### PaletteImageTests
 
@@ -709,9 +734,9 @@ formatting and migration checks.
 
 | # | Condition | Expected | Outcome |
 |---|---|---|---|
-| 350 | A palette image keeps its pixels | Behaves as the condition describes | Pass |
-| 351 | The palette itself does not survive | The indirection is dropped; the picture is not. | Pass |
-| 352 | Metadata is still removed | Fixing the palette must not quietly stop the stripping. | Pass |
+| 361 | A palette image keeps its pixels | Behaves as the condition describes | Pass |
+| 362 | The palette itself does not survive | The indirection is dropped; the picture is not. | Pass |
+| 363 | Metadata is still removed | Fixing the palette must not quietly stop the stripping. | Pass |
 
 ### BlankImageTests
 
@@ -719,10 +744,10 @@ formatting and migration checks.
 
 | # | Condition | Expected | Outcome |
 |---|---|---|---|
-| 353 | A black rectangle is refused | Behaves as the condition describes | Pass |
-| 354 | A white rectangle is refused | Blank is blank whichever end of the scale it sits at. | Pass |
-| 355 | The message says what is wrong rather than that it is dark | Behaves as the condition describes | Pass |
-| 356 | A real radiograph is not caught by this | The limit has to sit far below anything diagnostic. | Pass |
+| 364 | A black rectangle is refused | Behaves as the condition describes | Pass |
+| 365 | A white rectangle is refused | Blank is blank whichever end of the scale it sits at. | Pass |
+| 366 | The message says what is wrong rather than that it is dark | Behaves as the condition describes | Pass |
+| 367 | A real radiograph is not caught by this | The limit has to sit far below anything diagnostic. | Pass |
 
 ### AwkwardRecordTests
 
@@ -730,13 +755,13 @@ formatting and migration checks.
 
 | # | Condition | Expected | Outcome |
 |---|---|---|---|
-| 357 | A reference that is a formula is exported as text | Otherwise opening the file runs what somebody typed into a form. | Pass |
-| 358 | The formula text itself is not lost | Made safe, not silently altered beyond recognition. | Pass |
-| 359 | Commas quotes and newlines do not break a row | Behaves as the condition describes | Pass |
-| 360 | A non ascii reference survives | Behaves as the condition describes | Pass |
-| 361 | The case page survives a missing image | A Space has no persistent disk, so this is the deployed state. | Pass |
-| 362 | The printed report survives a missing image | Behaves as the condition describes | Pass |
-| 363 | A missing image does not hide the result | The screening is still a screening without its picture. | Pass |
+| 368 | A reference that is a formula is exported as text | Otherwise opening the file runs what somebody typed into a form. | Pass |
+| 369 | The formula text itself is not lost | Made safe, not silently altered beyond recognition. | Pass |
+| 370 | Commas quotes and newlines do not break a row | Behaves as the condition describes | Pass |
+| 371 | A non ascii reference survives | Behaves as the condition describes | Pass |
+| 372 | The case page survives a missing image | A Space has no persistent disk, so this is the deployed state. | Pass |
+| 373 | The printed report survives a missing image | Behaves as the condition describes | Pass |
+| 374 | A missing image does not hide the result | The screening is still a screening without its picture. | Pass |
 
 ### MicrosoftSignInTests
 
@@ -744,12 +769,12 @@ formatting and migration checks.
 
 | # | Condition | Expected | Outcome |
 |---|---|---|---|
-| 364 | The button is hidden until credentials exist | An offer that cannot work is worse than no offer. | Pass |
-| 365 | The button appears once configured | Behaves as the condition describes | Pass |
-| 366 | The route exists | Behaves as the condition describes | Pass |
-| 367 | It sends the request microsoft expects | Behaves as the condition describes | Pass |
-| 368 | The callback matches what the documentation registers | A redirect URI that disagrees with the portal fails at the last step. | Pass |
-| 369 | A single tenant restricts the sign in | The right setting for a hospital, the wrong one for a demonstration. | Pass |
+| 375 | The button is hidden until credentials exist | An offer that cannot work is worse than no offer. | Pass |
+| 376 | The button appears once configured | Behaves as the condition describes | Pass |
+| 377 | The route exists | Behaves as the condition describes | Pass |
+| 378 | It sends the request microsoft expects | Behaves as the condition describes | Pass |
+| 379 | The callback matches what the documentation registers | A redirect URI that disagrees with the portal fails at the last step. | Pass |
+| 380 | A single tenant restricts the sign in | The right setting for a hospital, the wrong one for a demonstration. | Pass |
 
 ### GitHubSignInTests
 
@@ -757,13 +782,13 @@ formatting and migration checks.
 
 | # | Condition | Expected | Outcome |
 |---|---|---|---|
-| 370 | The button is hidden until credentials exist | An offer that cannot work is worse than no offer. | Pass |
-| 371 | The button appears once configured | Behaves as the condition describes | Pass |
-| 372 | The route exists | Behaves as the condition describes | Pass |
-| 373 | It sends the request github expects | Behaves as the condition describes | Pass |
-| 374 | It asks for the scope that reveals an address | A GitHub account may keep every address private. | Pass |
-| 375 | The callback matches what the documentation registers | A redirect URI that disagrees with the registration fails last. | Pass |
-| 376 | The page reports ready when only github is configured | The readiness flag had named two providers and would go stale. | Pass |
+| 381 | The button is hidden until credentials exist | An offer that cannot work is worse than no offer. | Pass |
+| 382 | The button appears once configured | Behaves as the condition describes | Pass |
+| 383 | The route exists | Behaves as the condition describes | Pass |
+| 384 | It sends the request github expects | Behaves as the condition describes | Pass |
+| 385 | It asks for the scope that reveals an address | A GitHub account may keep every address private. | Pass |
+| 386 | The callback matches what the documentation registers | A redirect URI that disagrees with the registration fails last. | Pass |
+| 387 | The page reports ready when only github is configured | The readiness flag had named two providers and would go stale. | Pass |
 
 ### GradCamComparisonTests
 
@@ -771,14 +796,14 @@ formatting and migration checks.
 
 | # | Condition | Expected | Outcome |
 |---|---|---|---|
-| 377 | Both maps are produced | Behaves as the condition describes | Pass |
-| 378 | Each map records which method made it | So a stored picture can always be traced to the method behind it. | Pass |
-| 379 | They are stored apart | Behaves as the condition describes | Pass |
-| 380 | A failed comparison does not cost the explanation | The comparison is the part allowed to be missing. | Pass |
-| 381 | The page says the comparison is not what the result rests on | Behaves as the condition describes | Pass |
-| 382 | The page carries both measurements and the random baseline | A figure without its baseline persuades of nothing. | Pass |
-| 383 | The page admits the improvement is not confirmed held out | Stating the limit first is the point of showing both. | Pass |
-| 384 | The printed report carries only the explanation | A sheet for a patient file must not carry a map measured at chance. | Pass |
+| 388 | Both maps are produced | Behaves as the condition describes | Pass |
+| 389 | Each map records which method made it | So a stored picture can always be traced to the method behind it. | Pass |
+| 390 | They are stored apart | Behaves as the condition describes | Pass |
+| 391 | A failed comparison does not cost the explanation | The comparison is the part allowed to be missing. | Pass |
+| 392 | The page says the comparison is not what the result rests on | Behaves as the condition describes | Pass |
+| 393 | The page carries both measurements and the random baseline | A figure without its baseline persuades of nothing. | Pass |
+| 394 | The page admits the improvement is not confirmed held out | Stating the limit first is the point of showing both. | Pass |
+| 395 | The printed report carries only the explanation | A sheet for a patient file must not carry a map measured at chance. | Pass |
 
 ---
 

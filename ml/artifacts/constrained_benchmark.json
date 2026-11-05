@@ -1,0 +1,19 @@
+{
+  "measures": "one complete screening: upload, quality check, model and explanation",
+  "screenings": 20,
+  "machine": {
+    "platform": "Windows-10-10.0.26200-SP0",
+    "processor": "AMD64 Family 25 Model 80 Stepping 0, AuthenticAMD",
+    "cores_on_machine": 12,
+    "cores_available_to_process": 1,
+    "peak_memory_mb": 1323.0,
+    "gpu": "none; TensorFlow has no GPU support on native Windows"
+  },
+  "median_seconds": 11.238,
+  "p90_seconds": 12.804,
+  "slowest_seconds": 34.85,
+  "fastest_seconds": 10.054,
+  "within_ten_seconds": 0,
+  "model_file_mb": 26.0,
+  "note": "Pinned to a single core so the figure describes a machine a clinic could actually buy, rather than the twelve-core development laptop NFR-01 was measured on. Memory is the measured peak of this process, not a cap."
+}

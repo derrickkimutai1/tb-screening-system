@@ -158,6 +158,24 @@ class ProfileForm(forms.ModelForm):
         field.empty_label = "Not set"
 
 
+# The decisions a reviewer can actually make.
+#
+# "Pending review" is the state a case arrives in, not a judgement anybody
+# reaches, and offering it as the first option in the dropdown meant it was
+# also the default: a clinician who typed a note and submitted recorded a
+# review that decided nothing and left the case in the queue. It happened
+# three times on one case during a walkthrough before anyone noticed, and in
+# a clinic the person would believe they were finished.
+#
+# The empty label forces a choice rather than supplying one. There is no
+# careless default to land on.
+REVIEW_DECISIONS = [("", "Choose a decision")] + [
+    (value, label)
+    for value, label in PredictionRecord.ReviewStatus.choices
+    if value != PredictionRecord.ReviewStatus.PENDING
+]
+
+
 class ReviewForm(forms.Form):
     """Records a reviewer's decision and note against a case.
 
@@ -167,8 +185,10 @@ class ReviewForm(forms.Form):
     """
 
     status_set = forms.ChoiceField(
-        choices=PredictionRecord.ReviewStatus.choices,
+        choices=REVIEW_DECISIONS,
         widget=forms.Select(attrs={"class": "form-select"}),
+        label="Review decision",
+        error_messages={"required": "Choose a decision before submitting the review."},
     )
     note = forms.CharField(
         widget=forms.Textarea(attrs={"class": "form-control", "rows": 3}),

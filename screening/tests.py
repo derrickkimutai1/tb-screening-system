@@ -581,6 +581,119 @@ class BatchUploadTests(SignedIn, TestCase):
         self.assertContains(response, "WARD-B-02")
 
 
+class EagerExplanationTests(SignedIn, TestCase):
+    """A single screening arrives with its map already made.
+
+    NFR-08 requires every result to be displayed with a Grad-CAM heatmap, so
+    that no prediction reaches a clinician without the picture that produced
+    it. Deferring the build to first view meant the result page arrived
+    saying "building the explanation", which does not meet that however
+    briefly it says it.
+
+    A batch still defers. An occlusion map is several hundred forward passes
+    and twenty of them would spend minutes on images nobody has opened, which
+    is the ten seconds NFR-01 allows spent many times over.
+    """
+
+    def post(self, images, reference="EAGER-01"):
+        return self.client.post(
+            reverse("screening:upload"),
+            {"patient_reference": reference, "xray_image": images},
+        )
+
+    def test_a_single_screening_has_its_explanation_before_the_page_renders(self):
+        self.post([make_image()], "EAGER-SINGLE")
+
+        record = PredictionRecord.objects.get(patient_reference="EAGER-SINGLE")
+        self.assertEqual(
+            record.explanation_status,
+            PredictionRecord.ExplanationStatus.GENERATED,
+        )
+        self.assertTrue(record.explanation_image)
+
+    def test_the_result_page_shows_the_heatmap_rather_than_a_promise(self):
+        self.post([make_image()], "EAGER-PAGE")
+        record = PredictionRecord.objects.get(patient_reference="EAGER-PAGE")
+
+        page = self.client.get(reverse("screening:case_detail", args=[record.case_id]))
+        self.assertContains(page, record.explanation_image.url)
+        self.assertNotContains(page, "Building the explanation")
+
+    def test_a_batch_still_defers_its_explanations(self):
+        self.post([make_image(f"chest{n}.png") for n in range(3)], "EAGER-BATCH")
+
+        statuses = set(
+            PredictionRecord.objects.filter(
+                patient_reference__startswith="EAGER-BATCH"
+            ).values_list("explanation_status", flat=True)
+        )
+        self.assertEqual(statuses, {PredictionRecord.ExplanationStatus.PENDING})
+
+
+class ReviewDecisionTests(SignedIn, TestCase):
+    """ "Pending" is a state a case arrives in, not a decision anyone reaches.
+
+    It was the first entry in the decision dropdown and therefore its default,
+    so a clinician who typed a note and submitted recorded a review that
+    decided nothing and left the case in the queue. Found by walking the
+    application: it had happened three times on one case before anyone
+    noticed, and in a clinic the reviewer would believe they were finished.
+    """
+
+    def setUp(self):
+        super().setUp()
+        # SignedIn lands on the default role, which is radiographer and may
+        # not review at all. This is about what a reviewer is offered.
+        self.clinician.profile.role = Profile.Role.CLINICIAN
+        self.clinician.profile.save()
+        self.record = screened_case(patient_reference="DECIDE-01")
+
+    def page(self):
+        return self.client.get(reverse("screening:case_detail", args=[self.record.case_id]))
+
+    def review(self, **fields):
+        return self.client.post(
+            reverse("screening:case_detail", args=[self.record.case_id]), fields
+        )
+
+    def test_pending_is_not_offered_as_a_decision(self):
+        self.assertNotContains(self.page(), 'value="PENDING"')
+
+    def test_both_real_decisions_are_offered(self):
+        page = self.page()
+        self.assertContains(page, 'value="REVIEWED"')
+        self.assertContains(page, 'value="FOLLOW_UP"')
+
+    def test_an_undecided_case_opens_on_no_decision(self):
+        """Nothing is preselected, so nothing can be submitted by accident."""
+        self.assertContains(self.page(), "Choose a decision")
+
+    def test_the_server_refuses_a_review_that_sets_pending(self):
+        self.review(status_set="PENDING", note="not a decision")
+
+        self.record.refresh_from_db()
+        self.assertEqual(self.record.review_status, PredictionRecord.ReviewStatus.PENDING)
+        self.assertEqual(self.record.review_notes.count(), 0)
+
+    def test_a_review_with_no_decision_is_refused_and_says_so(self):
+        response = self.review(status_set="", note="forgot to choose")
+
+        self.assertEqual(self.record.review_notes.count(), 0)
+        self.assertContains(response, "Choose a decision before submitting")
+
+    def test_a_real_decision_is_still_recorded(self):
+        self.review(status_set="FOLLOW_UP", note="For sputum Xpert.")
+
+        self.record.refresh_from_db()
+        self.assertEqual(self.record.review_status, PredictionRecord.ReviewStatus.FOLLOW_UP)
+        self.assertEqual(self.record.review_notes.count(), 1)
+
+    def test_a_decided_case_opens_on_the_decision_it_carries(self):
+        self.review(status_set="REVIEWED", note="No follow-up indicated.")
+
+        self.assertContains(self.page(), 'value="REVIEWED" selected')
+
+
 class DuplicateInBatchTests(SignedIn, TestCase):
     """The same film twice in one submission.
 
@@ -1070,14 +1183,38 @@ class FailureScenarioTests(SignedIn, TestCase):
     def test_an_unreadable_overlay_does_not_discard_a_valid_prediction(self):
         """A failed explanation is recorded, not raised.
 
-        The map is built on first view now, so the failure happens there
-        rather than during the upload. The prediction has to survive it either
-        way: a screening without a heatmap is still a screening.
+        NFR-07: where the heatmap cannot be made, the prediction is still
+        presented, with an explicit notice that no visual explanation is
+        available. A screening without a heatmap is still a screening.
+
+        A single upload builds its map during the upload, so that is where the
+        failure now lands. The test followed the build when it moved.
         """
         from screening.services.overlays import ExplanationUnavailable
 
-        self.upload(make_image(), reference="FAIL-CAM")
+        with mock.patch(
+            "screening.views.GradCAMGenerator.overlay",
+            side_effect=ExplanationUnavailable("no gradients"),
+        ):
+            self.upload(make_image(), reference="FAIL-CAM")
+
         record = PredictionRecord.objects.get()
+        self.assertEqual(record.explanation_status, PredictionRecord.ExplanationStatus.FAILED)
+        self.assertIsNotNone(record.tb_probability)
+        self.assertEqual(record.patient_reference, "FAIL-CAM")
+
+    def test_a_deferred_explanation_that_fails_is_recorded_too(self):
+        """The batch path still builds on first view, and still has to survive.
+
+        Kept separate from the single-image case because the two now fail in
+        different places, and a test that covers only the one that moved would
+        leave the other unexercised.
+        """
+        from screening.services.overlays import ExplanationUnavailable
+
+        self.upload(make_image("l.png"), make_image("r.png"), reference="FAIL-BATCH")
+        record = PredictionRecord.objects.filter(patient_reference="FAIL-BATCH-01").get()
+        self.assertEqual(record.explanation_status, PredictionRecord.ExplanationStatus.PENDING)
 
         with mock.patch(
             "screening.views.GradCAMGenerator.overlay",

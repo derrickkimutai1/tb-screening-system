@@ -251,6 +251,13 @@ def upload(request):
         else:
             # One image behaves exactly as it always has.
             if len(images) == 1 and screened:
+                # Built here rather than when the page asks for it. NFR-08
+                # requires every result to be shown with its heatmap, and a
+                # page that arrives saying "building the explanation" does
+                # not meet that however briefly it says it. One image fits
+                # the ten seconds NFR-01 allows; a batch does not, which is
+                # the only reason the deferred path exists at all.
+                build_explanation(screened[0])
                 return redirect("screening:case_detail", case_id=screened[0].case_id)
             if len(images) == 1 and rejected:
                 form.add_error("xray_image", rejected[0]["reason"])
@@ -335,7 +342,14 @@ def case_detail(request, case_id):
             )
             return redirect("screening:case_detail", case_id=record.case_id)
     else:
-        review_form = ReviewForm(initial={"status_set": record.review_status})
+        # A decided case opens on the decision it carries, so a reviewer
+        # changing their mind sees what they are changing. An undecided one
+        # opens on nothing, because "pending" is not a decision this form can
+        # record and prefilling it would put the old default back.
+        decided = record.review_status != PredictionRecord.ReviewStatus.PENDING
+        review_form = ReviewForm(
+            initial={"status_set": record.review_status} if decided else None
+        )
 
     return render(
         request,
@@ -857,6 +871,73 @@ def worklist(request):
     )
 
 
+def build_explanation(record):
+    """Build the visual explanation for one record, and save what came of it.
+
+    Shared by the two paths that need it. A single screening builds its map
+    before the result page is rendered, so NFR-08 holds as written and no
+    clinician is shown a prediction without the picture that produced it. A
+    batch defers, because an occlusion map is several hundred forward passes
+    and twenty of them would spend minutes on images nobody has opened.
+
+    Returns the record. The caller reads `explanation_status` for the outcome;
+    a failure is recorded on the row rather than raised, because NFR-07 asks
+    for a prediction carrying an explicit notice rather than a lost request.
+    """
+    source = Path(settings.MEDIA_ROOT) / record.xray_image.name
+    relative = f"heatmaps/{record.created_at:%Y/%m}/{record.case_id}.png"
+    destination = Path(settings.MEDIA_ROOT) / relative
+
+    # Grad-CAM carries the result, because SO4 names it and that is the
+    # objective this system was approved against. Its measured limitation is
+    # not hidden by that decision: the case page prints its lung-mask lift
+    # next to the occlusion map's and the 1.00 a random map scores, read from
+    # the evaluation artifacts, so a reader sees the method and the figure
+    # together and the figure is the one the measurement produced.
+    engine = PredictionEngine()
+    try:
+        prepared = engine.processor.prepare(source)
+        GradCAMGenerator().overlay(source, engine.model(), prepared, destination)
+    except (ExplanationUnavailable, OSError, ValueError):
+        logger.exception("The explanation failed for case %s", record.case_id)
+        record.explanation_status = PredictionRecord.ExplanationStatus.FAILED
+        record.save(update_fields=["explanation_status", "updated_at"])
+        return record
+
+    record.explanation_image = relative
+    record.explanation_status = PredictionRecord.ExplanationStatus.GENERATED
+    record.explanation_method = GRADCAM_METHOD_NAME
+
+    # The occlusion map, kept as the comparison that justifies the figures
+    # above. It costs about three seconds against Grad-CAM's half, and it is
+    # the one that measured better, so losing it must not lose the result: the
+    # failure is caught separately and the record saves either way.
+    comparison = f"occlusion/{record.created_at:%Y/%m}/{record.case_id}.png"
+    fields = ["explanation_image", "explanation_status", "explanation_method"]
+    try:
+        OcclusionGenerator().overlay(
+            source, engine.model(), prepared, Path(settings.MEDIA_ROOT) / comparison
+        )
+    except (ExplanationUnavailable, OSError, ValueError):
+        logger.warning("The occlusion comparison failed for case %s", record.case_id)
+    else:
+        record.comparison_image = comparison
+        record.comparison_method = METHOD_NAME
+        fields += ["comparison_image", "comparison_method"]
+
+    record.save(update_fields=[*fields, "updated_at"])
+    return record
+
+
+def explanation_payload(record):
+    """What the case page needs in order to swap the picture in."""
+    return {
+        "status": record.explanation_status,
+        "url": record.explanation_image.url if record.has_explanation else None,
+        "comparison_url": (record.comparison_image.url if record.comparison_image else None),
+    }
+
+
 @login_required
 @require_POST
 def case_explanation(request, case_id):
@@ -883,57 +964,8 @@ def case_explanation(request, case_id):
         # spend the same work to fail the same way.
         return JsonResponse({"status": record.explanation_status, "url": None})
 
-    source = Path(settings.MEDIA_ROOT) / record.xray_image.name
-    relative = f"heatmaps/{record.created_at:%Y/%m}/{record.case_id}.png"
-    destination = Path(settings.MEDIA_ROOT) / relative
-
-    # Grad-CAM carries the result, because SO4 names it and that is the
-    # objective this system was approved against. Its measured limitation is
-    # not hidden by that decision: the case page prints its lung-mask lift
-    # next to the occlusion map's and the 1.00 a random map scores, read from
-    # the evaluation artifacts, so a reader sees the method and the figure
-    # together and the figure is the one the measurement produced.
-    engine = PredictionEngine()
-    try:
-        prepared = engine.processor.prepare(source)
-        GradCAMGenerator().overlay(source, engine.model(), prepared, destination)
-    except (ExplanationUnavailable, OSError, ValueError):
-        logger.exception("The explanation failed for case %s", record.case_id)
-        record.explanation_status = PredictionRecord.ExplanationStatus.FAILED
-        record.save(update_fields=["explanation_status", "updated_at"])
-        return JsonResponse({"status": record.explanation_status, "url": None})
-
-    record.explanation_image = relative
-    record.explanation_status = PredictionRecord.ExplanationStatus.GENERATED
-    record.explanation_method = GRADCAM_METHOD_NAME
-
-    # The occlusion map, kept as the comparison that justifies the figures
-    # above. It costs about three seconds against Grad-CAM's half, and it is
-    # the one that measured better, so losing it must not lose the result: the
-    # failure is caught separately and the record saves either way.
-    comparison = f"occlusion/{record.created_at:%Y/%m}/{record.case_id}.png"
-    fields = ["explanation_image", "explanation_status", "explanation_method"]
-    try:
-        OcclusionGenerator().overlay(
-            source, engine.model(), prepared, Path(settings.MEDIA_ROOT) / comparison
-        )
-    except (ExplanationUnavailable, OSError, ValueError):
-        logger.warning("The occlusion comparison failed for case %s", record.case_id)
-    else:
-        record.comparison_image = comparison
-        record.comparison_method = METHOD_NAME
-        fields += ["comparison_image", "comparison_method"]
-
-    record.save(update_fields=[*fields, "updated_at"])
-    return JsonResponse(
-        {
-            "status": record.explanation_status,
-            "url": record.explanation_image.url,
-            "comparison_url": (
-                record.comparison_image.url if record.comparison_image else None
-            ),
-        }
-    )
+    build_explanation(record)
+    return JsonResponse(explanation_payload(record))
 
 
 @login_required
