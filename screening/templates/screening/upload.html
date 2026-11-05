@@ -135,6 +135,8 @@
             so a wrong one can be dropped rather than screened.
           </p>
 
+          <p class="field-hint field-error" id="selection-repeat" role="status" hidden></p>
+
           <button type="submit" class="btn btn-action mt-3 w-100" id="analyse">
             <span data-label>Screen the batch</span>
           </button>
@@ -198,11 +200,62 @@
 
     const limit = {{ max_batch|default:20 }};
     const maxBytes = {{ max_upload_mb|default:20 }} * 1024 * 1024;
-    let chosen = [];
+    const repeated = document.getElementById("selection-repeat");
 
-    input.addEventListener("change", () => {
-      chosen = Array.from(input.files);
+    // The files to send, and what each one contains. The two arrays move
+    // together: anything that adds or removes a file touches both.
+    let chosen = [];
+    let digests = [];
+    let skipped = [];
+
+    // Identity by content, not by name.
+    //
+    // This system stores a radiograph under its case id, so the same film
+    // saved out twice arrives as two unrelated filenames holding identical
+    // pixels. Comparing names sees two files and screens both, which is how
+    // one chest ends up as two cases in a clinician's worklist. Comparing
+    // bytes sees one.
+    //
+    // crypto.subtle needs a secure context. localhost counts as one and the
+    // deployment is HTTPS, but a plain-http host somewhere would not, so
+    // there is a weaker fallback rather than no check at all.
+    async function identify(file) {
+      if (window.crypto && window.crypto.subtle) {
+        try {
+          const hash = await crypto.subtle.digest("SHA-256", await file.arrayBuffer());
+          return Array.from(new Uint8Array(hash))
+            .map((b) => b.toString(16).padStart(2, "0"))
+            .join("");
+        } catch (error) {
+          // Fall through to the name-based key below.
+        }
+      }
+      return `${file.name}:${file.size}:${file.lastModified}`;
+    }
+
+    async function add(files, replace) {
+      if (replace) {
+        chosen = [];
+        digests = [];
+      }
+      skipped = [];
+      for (const file of files) {
+        const id = await identify(file);
+        if (digests.includes(id)) {
+          skipped.push(file.name);
+          continue;
+        }
+        chosen.push(file);
+        digests.push(id);
+      }
+      write();
       render();
+    }
+
+    // Choosing through the dialogue replaces the selection; it can still
+    // contain two names holding the same image, so it is deduplicated too.
+    input.addEventListener("change", () => {
+      add(Array.from(input.files), true);
     });
 
     if (browse) browse.addEventListener("click", () => input.click());
@@ -228,9 +281,7 @@
           file.type.startsWith("image/")
         );
         if (!dropped.length) return;
-        chosen = chosen.concat(dropped);
-        write();
-        render();
+        add(dropped, false);
       });
     }
 
@@ -274,6 +325,21 @@
       list.textContent = "";
       panel.hidden = chosen.length === 0;
       if (empty) empty.hidden = chosen.length > 0;
+
+      // Said out loud rather than dropped silently. A file that vanishes
+      // without explanation reads as the page losing it, and the next thing
+      // somebody does is add it again.
+      if (repeated) {
+        repeated.hidden = skipped.length === 0;
+        repeated.textContent =
+          skipped.length === 1
+            ? `${skipped[0]} holds the same image as a file already in the queue, ` +
+              `so it was not added again.`
+            : skipped.length
+              ? `${skipped.length} files hold the same image as files already in ` +
+                `the queue and were not added again.`
+              : "";
+      }
 
       if (!chosen.length) {
         count.textContent = "No file selected yet";
@@ -322,6 +388,8 @@
         drop.setAttribute("aria-label", `Remove ${file.name}`);
         drop.addEventListener("click", () => {
           chosen.splice(index, 1);
+          digests.splice(index, 1);
+          skipped = [];
           write();
           render();
         });

@@ -820,3 +820,39 @@ The two management commands were run: the audit chain verifies over 414 rows,
 and `prunemedia` reports 78 orphaned files holding 113 MB, left by records
 deleted over the life of the project. It is a dry run until `--delete`, and
 that is the operator's call rather than mine.
+
+## The same film twice
+
+Found by walking the upload page rather than by reading it. A radiograph
+dropped on the panel was appended to the queue, so dragging the same file
+twice queued it twice, screened it twice, and produced two records under two
+references. A clinician then has two cases to decide for one chest.
+
+What made it hard to see is that identity here cannot be the filename. This
+system stores a radiograph under its case id, so the same film saved out
+twice carries two unrelated names; comparing names finds nothing wrong with
+either. The check has to read the bytes. It now does, in two places: the
+queue hashes each file with `crypto.subtle` before adding it and says which
+file it skipped and why, and the upload view hashes each file of a batch and
+rejects a repeat against the reference it repeats. A check that only runs in
+the browser is not a check, and the server had none at all.
+
+The guard is scoped to one submission. The same film arriving again next
+month is a follow-up, not a mistake, and a test holds that distinction.
+
+**The suite could not have caught this, and said the opposite.** `make_image()`
+built identical pixels on every call, so `test_three_images_create_three_records`
+was handing in one film under three names and asserting that three records came
+back - the exact behaviour now being removed, written down as correct. The
+fixture derives its base tone from the filename: the same name still gives the
+same image on every run, and two names never give the same one. Six new tests
+cover the guard, and four of them were confirmed to fail with it disabled.
+
+Worth recording how this got past a sweep that reported no errors. The sweep
+drove the server over HTTP and never dropped a file on the page, so a defect
+living entirely in a drag handler was outside everything it touched.
+
+Counted across `media/uploads/`: 62 files holding 37 distinct images, two of
+which account for 22 files on their own. Scored across those 37, the model
+spans 0.0016 to 0.9999 and fills the middle, which is the answer to whether
+identical scores meant a collapsed model. They meant identical inputs.

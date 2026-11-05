@@ -80,12 +80,22 @@ def make_image(name="chest.png", size=(256, 256), fmt="PNG"):
     is not a radiograph, and the fixture used to be exactly that - which is
     why a real decoding fault that turned films into black rectangles went
     unnoticed by three hundred tests.
+
+    Different under a different name, because the upload now refuses to screen
+    the same image twice in one batch. The old fixture produced byte-identical
+    pixels every call, so a test that meant "three radiographs" was really
+    handing in one film under three names - which is exactly the thing the
+    upload is meant to catch, and would have made a passing suite prove the
+    opposite of what it claimed. The base tone is derived from the name, so a
+    given name still gives the same image on every run and two names never
+    give the same one.
     """
     width, height = size
     image = Image.new("L", size)
+    base = 40 - (sum(name.encode("utf-8")) % 12)
     image.putdata(
         [
-            40 + ((x * 180) // max(1, width)) + ((y * 30) // max(1, height)) % 36
+            base + ((x * 180) // max(1, width)) + ((y * 30) // max(1, height)) % 36
             for y in range(height)
             for x in range(width)
         ]
@@ -569,6 +579,66 @@ class BatchUploadTests(SignedIn, TestCase):
 
         self.assertContains(response, "WARD-B-01")
         self.assertContains(response, "WARD-B-02")
+
+
+class DuplicateInBatchTests(SignedIn, TestCase):
+    """The same film twice in one submission.
+
+    Found by walking the upload page rather than by reading it: dropping a
+    file on the panel appended to the queue, so dragging it twice screened it
+    twice. Two records, two references, and a clinician with two cases to
+    decide for one chest.
+
+    Identity has to be the bytes. This system stores a radiograph under its
+    case id, so the same film saved out twice carries two unrelated names,
+    and a check on the name finds nothing wrong with either of them.
+    """
+
+    def post(self, images, reference="DUP-01"):
+        return self.client.post(
+            reverse("screening:upload"),
+            {"patient_reference": reference, "xray_image": images},
+        )
+
+    def test_the_same_image_twice_is_screened_once(self):
+        self.post([make_image("left.png"), make_image("left.png")])
+
+        self.assertEqual(PredictionRecord.objects.count(), 1)
+
+    def test_identical_pixels_under_different_names_are_still_one_film(self):
+        """The case that caused this: two names, one chest."""
+        first = make_image("a1b2c3.png")
+        second = SimpleUploadedFile("d4e5f6.png", first.read(), content_type="image/png")
+        first.seek(0)
+
+        self.post([first, second])
+
+        self.assertEqual(PredictionRecord.objects.count(), 1)
+
+    def test_the_repeat_is_reported_against_the_one_it_repeats(self):
+        response = self.post([make_image("left.png"), make_image("left.png")], "WARD-C")
+
+        self.assertContains(response, "already in this batch")
+        self.assertContains(response, "WARD-C-01")
+
+    def test_different_films_are_both_screened(self):
+        """The guard must not swallow a real batch."""
+        self.post([make_image("left.png"), make_image("right.png")])
+
+        self.assertEqual(PredictionRecord.objects.count(), 2)
+
+    def test_the_rejected_copy_leaves_nothing_in_storage(self):
+        self.post([make_image("left.png"), make_image("left.png")])
+
+        stored = list(PredictionRecord.objects.values_list("xray_image", flat=True))
+        self.assertEqual(len(stored), 1)
+
+    def test_the_same_film_may_be_screened_again_later(self):
+        """Within one batch it is a mistake; across visits it is a follow-up."""
+        self.post([make_image("left.png")], "VISIT-1")
+        self.post([make_image("left.png")], "VISIT-2")
+
+        self.assertEqual(PredictionRecord.objects.count(), 2)
 
 
 class BatchReferenceTests(TestCase):

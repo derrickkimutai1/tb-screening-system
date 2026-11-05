@@ -8,6 +8,7 @@ where their results are persisted.
 """
 
 import csv
+import hashlib
 import json
 import logging
 import uuid
@@ -108,6 +109,27 @@ def screen(case_id, image_path):
     return fields
 
 
+def content_digest(uploaded):
+    """A digest of what an upload actually contains.
+
+    Identity by filename does not work here. The radiographs this system
+    stores are named after their case id, so the same film saved twice
+    arrives under two unrelated names and a check on the name sees two
+    different files. Reading the bytes is the only thing that answers the
+    question being asked.
+
+    The pointer is returned to the start afterwards, because everything
+    downstream - the image decode, the metadata strip, the write to storage -
+    reads the same handle and would otherwise find it empty.
+    """
+    digest = hashlib.sha256()
+    uploaded.seek(0)
+    for chunk in uploaded.chunks():
+        digest.update(chunk)
+    uploaded.seek(0)
+    return digest.hexdigest()
+
+
 def reference_for(base, index, total):
     """Name one image within a batch.
 
@@ -179,11 +201,34 @@ def upload(request):
         base = form.cleaned_data["patient_reference"]
         screened, rejected = [], []
 
+        # What has already been screened in this batch, by content. A film
+        # dragged onto the page twice used to be screened twice and produce
+        # two records under two references, which a clinician then sees as
+        # two cases to decide. Checking here rather than only in the browser
+        # because a check that only runs in the browser is not a check.
+        already = {}
+
         try:
             for position, uploaded in enumerate(images, start=1):
+                reference = reference_for(base, position, len(images))
+                digest = content_digest(uploaded)
+                if digest in already:
+                    rejected.append(
+                        {
+                            "filename": uploaded.name,
+                            "reference": reference,
+                            "reason": (
+                                "The same image is already in this batch, as "
+                                f"{already[digest]}. It was not screened again."
+                            ),
+                        }
+                    )
+                    continue
+                already[digest] = reference
+
                 record, failure = screen_one(
                     uploaded,
-                    reference_for(base, position, len(images)),
+                    reference,
                     request.user,
                 )
                 if record is not None:
