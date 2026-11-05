@@ -228,7 +228,7 @@ because the proposal governs.
 | Threshold selection from validation | 0.102 / 0.546, WHO specificity target not reachable | `threshold_selection.png` |
 | Architecture comparison, four candidates | ResNet50 0.9478, EfficientNetB0 0.9126, MobileNetV2 0.9119, scratch CNN 0.6108 | `architecture_comparison.md` / `.png` |
 | Cross-dataset generalisation | Changing hospital costs **0.071 AUC** (0.9336 → 0.8625) | `cross_dataset.json` |
-| Shortcut and occlusion testing | Source AUC 1.000 available, occlusion cost 0.021, lungs 0.787 vs surroundings 0.426 | `shortcut_tests.json` / `.png` |
+| Shortcut and occlusion testing | Source AUC 1.000 available, occlusion cost 0.021, lungs 0.788 vs surroundings 0.545 over all 138 Montgomery films | `cross_dataset.json`, `shortcut_tests.json` / `.png` |
 | Explanation quality | Lift 1.61 on TB films, +0.447 [+0.125, +0.780] over Grad-CAM paired | `explanation_methods.md`, `explanation_comparison-all.json` |
 | Score calibration | ECE 0.1018, underconfident; not a probability | `calibration.json` / `.png` |
 | Response time (NFR-01) | Median 6.24s, p90 6.90s, 49 of 50 within 10s | `response_times.json` / `.png` |
@@ -239,7 +239,7 @@ because the proposal governs.
 | | |
 |---|---|
 | **Implemented in** | `screening/tests.py` |
-| **Result** | **365 tests**, covering valid and invalid uploads, oversized files, unsupported types, batch behaviour, quality thresholds, triage boundaries, preprocessing equivalence, authentication, the allowlist, role permissions, review attribution, metadata stripping, and the fifteen failure scenarios the Build Phase notes enumerate. |
+| **Result** | **384 tests**, covering valid and invalid uploads, oversized files, unsupported types, batch behaviour, quality thresholds, triage boundaries, preprocessing equivalence, authentication, the allowlist, role permissions, review attribution, metadata stripping, and the fifteen failure scenarios the Build Phase notes enumerate. |
 | **Automation** | GitHub Actions runs lint, formatting, migration checks and the suite against PostgreSQL on every push. |
 | **Record** | `docs/test-record.md`, generated from the suite by `scripts/build_test_record.py` so it cannot drift. `docs/sprint-2-test-record.md` is kept as the Sprint 2 snapshot. |
 | **Failure paths** | A deceptive file, an empty file, a filename attempting traversal, a filename carrying instructions, a corrupt image inside a batch, a failed heatmap, an absent model, an orphaned upload, a lost session, a guessed case id, an unknown case id, a duplicate submission, and the health endpoint under both outcomes. |
@@ -283,7 +283,7 @@ Stated here rather than left to be discovered.
 ## How to verify any row above
 
 ```bash
-.venv/Scripts/python.exe manage.py test screening      # the 365 tests
+.venv/Scripts/python.exe manage.py test screening      # the 384 tests
 .venv/Scripts/python.exe ml/scripts/compare_architectures.py
 .venv/Scripts/python.exe ml/scripts/evaluate_explanations.py --split all
 .venv/Scripts/python.exe ml/scripts/learning_curve.py

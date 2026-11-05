@@ -278,7 +278,7 @@ limits how far the results generalise. This is measured and reported rather than
 The application is complete and runs: sign-in, screening of single images and
 batches, quality checking, triage, explanations, a review queue, review with
 role separation, printable reports, CSV export, a tamper-evident access trail
-and a health endpoint. 365 tests pass, and the same suite runs on every push.
+and a health endpoint. 384 tests pass, and the same suite runs on every push.
 The count is restated here by hand; `docs/test-record.md` is generated from the
 suite and is the one that cannot be wrong.
 
