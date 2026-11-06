@@ -36,3 +36,7 @@ ml/artifacts/gradcam_samples/
 # it was built on.
 /build/
 /dist/
+
+# Course and reference documents. Kept beside the project so they are not
+# lost from Downloads, not committed: they are coursework, not source.
+/reference/
