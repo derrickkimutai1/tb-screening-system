@@ -413,6 +413,124 @@
 </div>
 {% endif %}
 
+{% comment %}
+  What the system costs to run, beside what it can detect. The proposal's
+  low-resource section names a GPU and a high-bandwidth connection as the two
+  things a less-resourced facility cannot assume, and answers both with design
+  choices: a small model and CPU inference. Those are reasons to expect the
+  claim to hold, not evidence that it does. These four rows are measured.
+{% endcomment %}
+{% if constrained or offline or bandwidth or cost %}
+<div class="panel mb-3">
+  <div class="panel-head">
+    <h2 class="panel-title">
+      What it takes to run
+      <span class="panel-sub">Measured, not assumed</span>
+    </h2>
+  </div>
+  <div class="table-scroll">
+    <table class="table">
+      <tbody>
+        {% if constrained %}
+          <tr>
+            <td>
+              One screening on a single processor core
+              <span class="cell-quiet d-block">
+                {{ constrained.screenings }} screenings, median
+              </span>
+            </td>
+            <td class="text-end numeric">{{ constrained.median_seconds|floatformat:1 }}s</td>
+          </tr>
+          <tr>
+            <td>Memory it actually needed</td>
+            <td class="text-end numeric">{{ constrained.machine.peak_memory_mb|floatformat:0 }} MB</td>
+          </tr>
+        {% endif %}
+        {% if constrained.model_file_mb %}
+          <tr>
+            <td>
+              Model file
+              <span class="cell-quiet d-block">NFR-02 allows 30 MB</span>
+            </td>
+            <td class="text-end numeric">{{ constrained.model_file_mb }} MB</td>
+          </tr>
+        {% endif %}
+        {% if offline %}
+          <tr>
+            <td>
+              Offline build, from launch to first answer
+              <span class="cell-quiet d-block">
+                {{ offline.disk_gb }} GB on disk, no network
+              </span>
+            </td>
+            <td class="text-end numeric">
+              {% if offline.cold_start_seconds %}
+                {{ offline.cold_start_seconds|floatformat:1 }}s
+              {% else %}&mdash;{% endif %}
+            </td>
+          </tr>
+          <tr>
+            <td>Outside hosts the offline build asks for</td>
+            <td class="text-end numeric">{{ offline.external_host_count }}</td>
+          </tr>
+        {% endif %}
+        {% if bandwidth %}
+          <tr>
+            <td>
+              Data per screening
+              <span class="cell-quiet d-block">
+                {{ bandwidth.one_screening.upload_mb }} MB up,
+                the radiograph and both maps back
+              </span>
+            </td>
+            <td class="text-end numeric">{{ bandwidth.one_screening.total_mb }} MB</td>
+          </tr>
+          <tr>
+            <td>
+              Interface, first visit only
+              <span class="cell-quiet d-block">Cached on every visit after</span>
+            </td>
+            <td class="text-end numeric">{{ bandwidth.first_visit.total_kb|floatformat:0 }} KB</td>
+          </tr>
+        {% endif %}
+        {% if cost %}
+          <tr>
+            <td>
+              Screenings a month inside the free hosting grant
+              <span class="cell-quiet d-block">
+                1 vCPU, 2 GiB, scaling to zero when idle
+              </span>
+            </td>
+            <td class="text-end numeric">{{ cost.screenings_per_month_within_grant }}</td>
+          </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+  <div class="panel-body">
+    <p class="field-hint mt-0">
+      {% if constrained and not constrained.meets_requirement %}
+        On a single core only {{ constrained.within_ten_seconds }} of
+        {{ constrained.screenings }} screenings come in under the ten seconds
+        NFR-01 allows, where the requirement asks for nine in ten. The
+        requirement is met on the recommended machine and missed on the minimum
+        one, and both are reported rather than the better of the two.
+      {% endif %}
+      {% if bandwidth %}
+        The radiographs dominate the traffic, so the lever on a slow connection
+        is image size rather than anything in the interface.
+      {% endif %}
+    </p>
+    <p class="field-hint mb-0">
+      The count of outside hosts is read from every template, stylesheet and
+      script the offline build ships. Nothing it serves names a host but
+      itself, which is what lets it run with the network disconnected. It is a
+      reading of the files rather than a capture of the traffic.
+    </p>
+  </div>
+</div>
+{% endif %}
+
 <div class="notice notice-boundary">
   <strong>What none of this establishes.</strong>
   The model was trained and tested on {{ test.provenance.dataset.images }} public

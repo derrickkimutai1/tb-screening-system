@@ -1,0 +1,71 @@
+{
+  "measures": "hosting cost as a share of the platform's published free monthly grant",
+  "derived_from": {
+    "median_screening_seconds": 6.243,
+    "source": "ml/artifacts/response_times.json",
+    "cold_start_seconds": 19.3,
+    "cold_starts_assumed_per_day": 4,
+    "requests_assumed_per_screening": 8
+  },
+  "instance": {
+    "vcpu": 1,
+    "memory_gib": 2,
+    "scales_to_zero": true
+  },
+  "free_grant_per_subscription_per_month": {
+    "vcpu_seconds": 180000,
+    "gib_seconds": 360000,
+    "requests": 2000000
+  },
+  "binding_constraint": "GiB-seconds, because the instance holds 2 GiB and memory bills at twice the processor",
+  "screenings_per_month_within_grant": 28461,
+  "volumes": [
+    {
+      "screenings_per_day": 20,
+      "screenings_per_month": 600,
+      "active_seconds_per_month": 6062,
+      "active_hours_per_month": 1.7,
+      "vcpu_seconds": 6062,
+      "gib_seconds": 12124,
+      "requests": 4800,
+      "share_of_vcpu_grant": 0.0337,
+      "share_of_gib_grant": 0.0337,
+      "share_of_request_grant": 0.0024,
+      "within_free_grant": true
+    },
+    {
+      "screenings_per_day": 50,
+      "screenings_per_month": 1500,
+      "active_seconds_per_month": 11681,
+      "active_hours_per_month": 3.2,
+      "vcpu_seconds": 11681,
+      "gib_seconds": 23361,
+      "requests": 12000,
+      "share_of_vcpu_grant": 0.0649,
+      "share_of_gib_grant": 0.0649,
+      "share_of_request_grant": 0.006,
+      "within_free_grant": true
+    },
+    {
+      "screenings_per_day": 100,
+      "screenings_per_month": 3000,
+      "active_seconds_per_month": 21045,
+      "active_hours_per_month": 5.8,
+      "vcpu_seconds": 21045,
+      "gib_seconds": 42090,
+      "requests": 24000,
+      "share_of_vcpu_grant": 0.1169,
+      "share_of_gib_grant": 0.1169,
+      "share_of_request_grant": 0.012,
+      "within_free_grant": true
+    }
+  ],
+  "always_on_comparison": {
+    "seconds_per_month": 2592000,
+    "vcpu_seconds": 2592000,
+    "gib_seconds": 5184000,
+    "times_over_gib_grant": 14.4,
+    "note": "Keeping one replica running permanently, which is what scaling to zero avoids."
+  },
+  "note": "No currency figure is given. Published per-second rates differ by region and change, and the question a facility actually asks is whether the service costs anything, which the free grant settles. The grant figures are the platform's own published allowance. Cold starts are included because scaling to zero trades a charge for a wait, and leaving them out would understate the usage of a clinic that screens in short bursts through the day."
+}

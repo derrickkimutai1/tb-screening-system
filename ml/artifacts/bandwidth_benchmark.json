@@ -1,0 +1,27 @@
+{
+  "measures": "payload bytes for the first visit and for one complete screening",
+  "first_visit": {
+    "page_html_bytes": 24566,
+    "stylesheets_and_scripts_bytes": 357301,
+    "fonts_bytes": 135548,
+    "total_bytes": 517415,
+    "total_kb": 505.3,
+    "note": "Served from the browser cache on every later visit."
+  },
+  "one_screening": {
+    "upload_bytes": 5202442,
+    "upload_mb": 4.96,
+    "result_page_html_bytes": 20279,
+    "images_returned_bytes": 7027006,
+    "images_returned": {
+      "radiograph": 5328.7,
+      "heatmap": 753.2,
+      "occlusion": 780.4
+    },
+    "total_bytes": 12249727,
+    "total_mb": 11.68
+  },
+  "worklist_page_html_bytes": 46747,
+  "film_used": "MCUCXR_0001_0.png",
+  "note": "Measured through Django's test client over the real middleware, views, templates and database. Payload only: no TLS overhead, no HTTP headers and no compression, which would reduce the HTML and the stylesheet substantially and would not touch the radiographs. The upload dominates, and the radiograph that comes back dominates again, so the practical lever on a slow link is image size rather than anything in the interface."
+}

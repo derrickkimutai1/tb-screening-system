@@ -1,0 +1,29 @@
+{
+  "measures": "the packaged Windows build: disk footprint, cold start, and whether it names any external host",
+  "build_path": "dist\\TB Screening",
+  "disk_bytes": 1418485161,
+  "disk_gb": 1.32,
+  "model_file_mb": 26.0,
+  "cold_start_seconds": 2.05,
+  "cold_start_problem": null,
+  "cold_start_port": 8765,
+  "external_hosts_fetched": [],
+  "external_host_count": 0,
+  "external_hosts_linked": [
+    "www.google.com",
+    "xregexp.com"
+  ],
+  "external_link_count": 2,
+  "files_scanned_for_hosts": [
+    ".html",
+    ".css",
+    ".js",
+    ".svg"
+  ],
+  "directories_scanned": [
+    "_internal/screening/templates",
+    "_internal/staticfiles",
+    "_internal/templates"
+  ],
+  "note": "The fetch count is a static read of every template, stylesheet, script and SVG the build serves to a browser, looking only where a request is actually caused: an element's src, a stylesheet link, a CSS url() or @import, a fetch call, and a form's action. An earlier version of this check counted any address anywhere in a file and reported 36 outside hosts, every one of them a bug tracker in a comment, a line of licence text, or the w3.org namespace that every SVG declares and nothing requests. Hosts behind an anchor are counted separately, because a link a person has to click is not something the page loads. The bundled third-party packages are not scanned; they are not served. This is a reading of the files rather than a capture of the traffic, so it is evidence and not proof: it would not catch an address assembled at runtime. Cold start is wall-clock from launching the executable to the port answering, which covers unpacking, Django startup and the migration check, but not the first prediction."
+}

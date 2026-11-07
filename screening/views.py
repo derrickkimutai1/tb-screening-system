@@ -1336,6 +1336,14 @@ def model_performance(request):
     """
     test = _artifact("metrics.json")
     calibration = _artifact("calibration.json")
+    # What the system costs to run, as distinct from what it can detect. The
+    # proposal's low-resource claim rested on the model being small and the
+    # inference being CPU-only, which were design choices rather than
+    # measurements; these three files are the measurements.
+    constrained = _artifact("constrained_benchmark.json")
+    offline = _artifact("offline_benchmark.json")
+    bandwidth = _artifact("bandwidth_benchmark.json")
+    cost = _artifact("cost_benchmark.json")
     across = _artifact("cross_dataset.json")
     explanation = _artifact("explanation_comparison-all.json")
     occlusion = _artifact("occlusion-p32s16-all-tb_evaluation.json")
@@ -1371,6 +1379,10 @@ def model_performance(request):
             "occlusion": occlusion,
             "gradcam": gradcam,
             "timing": timing,
+            "constrained": constrained,
+            "offline": offline,
+            "bandwidth": bandwidth,
+            "cost": cost,
             "architectures": architectures,
             "matrix": matrix,
             "missed": missed,

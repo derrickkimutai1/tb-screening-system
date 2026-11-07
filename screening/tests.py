@@ -4487,6 +4487,43 @@ class ModelPerformancePageTests(TestCase):
 
         self.assertContains(response, "not met")
 
+    def test_the_running_cost_panel_reads_its_own_artifacts(self):
+        """What the system costs to run, beside what it can detect.
+
+        The proposal answers low-resource deployment with a small model and
+        CPU inference, which are reasons to expect the claim to hold rather
+        than evidence that it does. These figures are measured, and like
+        every other number on this page they are read at request time.
+        """
+        self.client.force_login(self.user)
+
+        body = self.client.get(reverse("screening:model_performance")).content.decode()
+
+        self.assertIn("What it takes to run", body)
+        for figure in ("constrained", "offline", "bandwidth", "cost"):
+            self.assertIsNotNone(
+                self.client.get(reverse("screening:model_performance")).context[figure],
+                f"the {figure} benchmark artifact is missing",
+            )
+
+    def test_the_single_core_shortfall_is_stated_rather_than_omitted(self):
+        """A requirement met on one machine and missed on another says both."""
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("screening:model_performance"))
+
+        if not response.context["constrained"]["meets_requirement"]:
+            self.assertContains(response, "where the requirement asks for nine in ten")
+
+    def test_the_offline_claim_says_how_it_was_checked(self):
+        """Reading the files is not capturing the traffic, and must not pass
+        for it."""
+        self.client.force_login(self.user)
+
+        response = self.client.get(reverse("screening:model_performance"))
+
+        self.assertContains(response, "reading of the files rather than a capture")
+
     def test_a_build_without_the_artifacts_says_so_rather_than_breaking(self):
         """The packaged build may not carry them; it must not 500."""
         self.client.force_login(self.user)

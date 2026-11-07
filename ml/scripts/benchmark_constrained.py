@@ -130,6 +130,9 @@ def main():
         "slowest_seconds": timings[-1],
         "fastest_seconds": timings[0],
         "within_ten_seconds": sum(1 for t in timings if t <= 10),
+        "share_within_ten_seconds": round(sum(1 for t in timings if t <= 10) / len(timings), 3),
+        # NFR-01 asks for at least ninety per cent, not for a majority.
+        "meets_requirement": sum(1 for t in timings if t <= 10) / len(timings) >= 0.9,
         "model_file_mb": round(
             (ROOT / "ml/models/tb_mobilenetv2_v1.keras").stat().st_size / (1024 * 1024), 1
         )

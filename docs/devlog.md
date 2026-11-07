@@ -907,3 +907,59 @@ choices are now the two real decisions, the field opens on nothing so there is
 no careless default to land on, and the server refuses a crafted submission
 that sets a case back to pending. Seven tests, four of which were confirmed to
 fail with the guard removed.
+
+## Measuring what it costs to run, not only what it can detect
+
+The proposal answers low-resource deployment in section 2.3.3 with a GPU-free
+design and a lightweight network. Those are reasons to expect the claim to
+hold. They are not evidence that it does, and the chapter had nothing behind
+them beyond the model being small. Four measurements now sit in the artefacts
+directory and on the performance page, which already reads its figures at
+request time.
+
+**On one processor core**, pinned with `cpu_affinity`, a complete screening
+takes a median of 10.93 seconds over 30 runs, with a peak of 1,331 MB. Only 4
+of the 30 come in under the ten seconds NFR-01 allows, where the requirement
+asks for nine in ten. So the system fits inside 2 GB on a single core and
+misses its own latency requirement there, and the page says both rather than
+the better of the two.
+
+**The packaged build** answers 2.05 seconds after launch, occupies 1.32 GB,
+and - the figure that matters - fetches from **zero** outside hosts. Fonts,
+stylesheets, scripts and the chart library are all local.
+
+**One screening moves 11.68 MB**: 4.96 MB up and 6.86 MB of radiograph and
+maps back. The interface itself is 505 KB and only on the first visit. The
+lever on a slow connection is image size; nothing in the interface comes
+close.
+
+**Hosting is free at any volume a clinic would produce.** At 100 screenings a
+day the application is active 5.8 hours a month and uses 11.7 per cent of the
+platform's published free grant; the grant covers about 28,500 screenings a
+month. Keeping one replica running permanently would be 14.4 times the grant,
+which is the measured case for scaling to zero rather than an assertion about
+it. No currency figure is given, because published rates change and differ by
+region while the grant settles the question a facility actually asks.
+
+### Two measurements that were wrong first
+
+**The first single-core figure was 15.4 seconds and it was contention.** The
+packaged build was loading on the same machine while the timing ran. Pinning a
+process to one core does not stop another process competing for memory
+bandwidth and disc. Re-run alone it is 10.93.
+
+**The offline build appeared to hang for ten minutes and did not.** Two
+versions of the harness read its console through a pipe, and the build sat at
+"Preparing the database" without ever answering; it was close to being written
+up as a defect in the deliverable. Started the way a person starts it, with
+its output going to a file, the same build answers in two seconds. The harness
+now finds the port by asking the operating system which one the process is
+listening on, and the comment in the script says why.
+
+**And the first offline check reported 36 external hosts.** Every one was a
+bug tracker in a code comment, a line of licence text, or the w3.org namespace
+that every SVG declares and nothing requests. A number that counts those is
+true and useless. The check now looks only where a browser is actually made to
+fetch - src, stylesheet links, CSS url() and @import, fetch calls, form
+actions - and counts hosts behind an anchor separately, because a link
+somebody has to click is not something the page loads. The answer is zero.
