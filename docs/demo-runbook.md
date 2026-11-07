@@ -61,11 +61,18 @@ On the result page, point at each part:
 - **The score**, drawn as a gauge. This is the model's output, between 0 and 1.
 - **The triage level**, with its written justification naming the thresholds used.
 - **The threshold scale** showing where this score sits across the bands.
-- **The two panels** — the original radiograph and the explanation beside it. On a case
-  nobody has opened before, the panel says it is building and fills in a few seconds
-  later. That is deliberate: the map is measured, not inferred, so it is produced when
-  somebody actually looks at a case rather than for every image of a batch. Opening the
-  same case again is instant, because the map is stored.
+- **The two panels** — the original radiograph and the explanation beside it, marked
+  **Generated**. A single upload builds its map before the page is shown, because
+  NFR-08 asks for every result to be presented with the picture that produced it. A
+  batch is the exception and defers: an occlusion map is several hundred forward
+  passes, so twenty of them would spend minutes on images nobody has opened. A
+  deferred case builds its map when somebody first opens it, and `manage.py
+  buildexplanations` warms them all in advance so that never happens on screen.
+
+  Say "generated before the page was rendered" rather than "building now". An earlier
+  version of the system deferred every map, including single uploads, and this runbook
+  described that; the behaviour changed and the panel no longer shows a waiting state
+  for the upload you are about to do.
 
 > "The Explanation panel is Grad-CAM, which is the method the proposal names in SO4.
 > Its caption says the map localises weakly, and the measurement is directly below it."
