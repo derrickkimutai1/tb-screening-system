@@ -1018,3 +1018,82 @@ carries 1.11 and 1.63. Those are correct there. That table is measured on the
 `occlusion-p32s16-development-tb_evaluation.json` read accurately. The error
 was never in the development table; it was in quoting the development figure
 where the all-split figure belonged.
+
+## A sweep of the whole system before the defence
+
+Not a feature, an audit: every page, route, command, script and stored row
+checked for anything that would misbehave in front of an examiner. Most of it
+came back clean, and the three things that did not were worth the pass.
+
+**The test suite was writing into the real media folder.** Eleven test classes
+carried `@override_settings(MEDIA_ROOT=...)` and four did not, so every run
+left twenty-two radiographs and heatmaps in the directory holding real
+screenings. 291 files and 166 MB had collected that way. Nothing ever failed,
+which is why it lasted: a test that writes to the wrong directory still
+passes, and only `prunemedia` counting orphans brought it to light.
+
+Redirecting per class was the wrong mechanism, because it has to be remembered
+on every class anyone adds later and twice it was not. `config/test_runner.py`
+now redirects `MEDIA_ROOT` for the whole run, which covers classes that have
+not been written yet. `MediaIsolationTests` asserts the redirect is actually
+in force; with the runner removed it fails, so the protection is tested rather
+than assumed. Verified by counting the directory before and after a run:
+twenty-two files before the change, zero after.
+
+That change broke `test_media_lives_beside_the_database`, which compared the
+two live settings. The comparison only ever showed they happened to be equal
+in that process. It now sets `TB_DATA_DIR`, reloads, and asserts `MEDIA_ROOT`
+follows it, which is the packaging property the test was named for and is
+immune to a test-time override.
+
+**Seventeen of thirty-nine records were still showing "building the
+explanation".** A batch upload defers its maps on purpose - an occlusion map
+is several hundred forward passes and twenty of them would spend minutes on
+images nobody has opened - and builds each one when its case is first opened.
+Correct for throughput, and the wrong state for a worklist about to be shown
+to somebody, because an unopened case displays the notice where NFR-08 asks
+for the picture. Opening seventeen cases by hand is not a procedure, so
+`manage.py buildexplanations` exists: it builds every pending map, takes
+`--dry-run`, `--retry` and `--limit`, and counts a failure rather than
+abandoning the run. All seventeen built, 106 seconds, none failed.
+
+**The worklist opened on fifteen demonstration rows.** Five identical copies
+of DEMO-001 at 0.9758 from the duplicate-upload defect fixed earlier, plus
+`demo`, `demo 01`, `Demo-005` and the rest, all waiting twenty-six days at the
+top of the clinical worklist. The twenty-four KNH-26-00xx cases underneath
+read as a real caseload. Removed with the images they referenced, then the 291
+orphans with `prunemedia --delete`.
+
+### What the sweep found nothing wrong with
+
+Worth recording, because an audit that only lists faults does not say what was
+checked.
+
+- `manage.py check` clean; `check --deploy` clean under the production flags,
+  with the two HSTS warnings silenced deliberately and the reason in settings.
+- No missing migrations; all sixteen applied.
+- `ruff check` and `ruff format` clean over 63 files.
+- Every URL resolved as every role: anonymous redirects to sign-in on all
+  fourteen protected pages, all three roles get 200 on all of them, and the
+  two 405s are the POST-only endpoints.
+- No JavaScript console error on any page.
+- Every `{% url %}`, `{% include %}`, `{% extends %}` and `{% static %}`
+  reference resolves; 140 static files collect.
+- The audit chain verifies: 698 rows, intact.
+- Both dashboard charts carry the right labels and data, read back out of
+  Chart.js rather than read off a screenshot.
+- Every figure on the performance page matches the artefact it is read from.
+
+### And one instrument that damaged what it measured
+
+Checking that each `ml/scripts` file still loads, I ran every one with
+`--help`. Eleven of them do not use argparse, so `--help` is an ignored
+argument and the script simply runs: `metrics.json`,
+`architecture_comparison`, two benchmark artefacts and `test_predictions.csv`
+were overwritten before the sweep was stopped, and nine stray `BENCH-` records
+were left in the database. All reverted from git, the records removed.
+
+The same lesson as the offline benchmark that appeared to hang: a check has to
+be read for what it does to the system, not for what it is meant to ask. The
+import check is now static - it parses each file and resolves the imports
+without executing anything.

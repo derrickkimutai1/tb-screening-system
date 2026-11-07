@@ -56,6 +56,10 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "django.contrib.sites",
+    # For intcomma only. A five-figure count reads as a typo without a
+    # separator, and USE_THOUSAND_SEPARATOR would reformat every number
+    # on every page, model scores included.
+    "django.contrib.humanize",
     "allauth",
     "allauth.account",
     "allauth.socialaccount",
@@ -213,6 +217,11 @@ MEDIA_URL = "media/"
 # Beside the database, so a packaged build keeps the radiographs it has
 # screened with the records that describe them.
 MEDIA_ROOT = DATA_DIR / "media"
+
+# Under test this is redirected to a temporary directory for the whole run.
+# Left to a per-class decorator it was forgotten on four classes and the suite
+# wrote into the real media folder; the runner's docstring has the detail.
+TEST_RUNNER = "config.test_runner.IsolatedMediaRunner"
 
 # Upper bound on an accepted chest X-ray upload. Chest radiograph exports from
 # the reference datasets sit well below this, so anything larger is rejected by

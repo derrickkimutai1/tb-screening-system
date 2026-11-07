@@ -232,6 +232,14 @@ list what is left with `manage.py prunemedia`, and remove it with
 alone, because a screening part-way through has an image on disk before it has
 a record.
 
+A batch upload stores its results straight away and builds each heatmap when
+its case is first opened, so a case nobody has opened yet shows "building the
+explanation" instead of the map. That is only a wait, and opening the case
+ends it. Before a review session or a demonstration, an administrator can
+build them all in advance with `manage.py buildexplanations`, which takes
+about five seconds a case. `--dry-run` lists what is waiting without building
+anything.
+
 ---
 
 ## When something goes wrong

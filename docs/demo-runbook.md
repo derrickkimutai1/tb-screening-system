@@ -34,7 +34,16 @@ measured, it is versioned, it is automated, it is deployed, and it is recoverabl
    access mid-demo.
 7. **Check Google Drive is running** — the `G:` drive should be present.
 8. **Delete the rehearsal records** so the Cases list is not full of `DEMO-001`
-   duplicates when it goes on screen.
+   duplicates when it goes on screen. Then `manage.py prunemedia --delete` to
+   remove the images they left behind.
+9. **Build any waiting heatmaps:** `manage.py buildexplanations`. A batch upload
+   defers its maps until each case is opened, so a case nobody has opened shows
+   "building the explanation" rather than the picture. It is only a wait, but it
+   is the wrong thing to have on screen. `--dry-run` first if you want to see
+   what is outstanding; budget about five seconds a case.
+10. **Confirm the audit chain:** `manage.py verifyaudit` should report the chain
+    intact. The Audit trail page has the same check behind a button, which is
+    worth running live rather than claiming.
 
 ---
 
@@ -129,7 +138,7 @@ In a second terminal:
 .venv/Scripts/python.exe manage.py test screening
 ```
 
-398 tests, then `OK`.
+407 tests, then `OK`.
 
 Then open `docs/sprint-2-test-record.md` — expected result, actual result, and the
 corrections made during the sprint.
@@ -139,7 +148,7 @@ corrections made during the sprint.
 Your GitHub repository, then the commit list, then the **Actions** tab.
 
 > "Every push builds the project from scratch on a clean machine with a real PostgreSQL
-> server, runs the linter and runs all 398 tests. Checks also run on every commit, so a
+> server, runs the linter and runs all 407 tests. Checks also run on every commit, so a
 > dataset or a password cannot be committed by accident."
 
 ## 6. The cloud, about 2 minutes

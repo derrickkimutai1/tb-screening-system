@@ -12,3 +12,8 @@ ruff==0.14.*
 # rather than asserted. Not needed to run the application.
 piexif==1.1.*
 pre-commit==4.*
+# Pins a benchmark to one processor core and finds the port a packaged build
+# is listening on. It was reaching this environment only as a dependency of
+# ipykernel, so the two resource benchmarks worked here by accident and would
+# have reported "not measured" on a leaner install.
+psutil==7.*

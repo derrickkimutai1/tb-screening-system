@@ -50,6 +50,37 @@ def tearDownModule():
     shutil.rmtree(MEDIA_FOR_TESTS, ignore_errors=True)
 
 
+class MediaIsolationTests(TestCase):
+    """The suite must not write into the real media folder.
+
+    It did, for most of this project's life. Eleven classes redirected
+    MEDIA_ROOT with a decorator and four did not, so every run left twenty-two
+    radiographs and heatmaps in the directory holding real screenings; 291
+    files and 166 MB had collected before `prunemedia` counted them. Nothing
+    ever failed, which is exactly why it survived so long.
+
+    `config.test_runner.IsolatedMediaRunner` now redirects the whole run. This
+    checks that it is actually in force, because a protection nothing tests is
+    a protection nobody notices losing.
+    """
+
+    def test_uploads_do_not_land_in_the_projects_media_folder(self):
+        real = (Path(settings.DATA_DIR) / "media").resolve()
+        self.assertNotEqual(
+            Path(settings.MEDIA_ROOT).resolve(),
+            real,
+            "MEDIA_ROOT points at the real media folder during tests; the test "
+            "runner in config/test_runner.py is not being used.",
+        )
+
+    def test_media_root_is_a_temporary_directory(self):
+        root = Path(settings.MEDIA_ROOT).resolve()
+        self.assertTrue(
+            root.is_relative_to(Path(tempfile.gettempdir()).resolve()),
+            f"MEDIA_ROOT is {root}, which is not under the temporary directory.",
+        )
+
+
 # Templates that are documents rather than pages of the interface: they do not
 # extend base.html and have no access to its stylesheet.
 STANDALONE_DOCUMENTS = {"case_report.html"}
@@ -3293,9 +3324,35 @@ class PackagedSettingsTests(TestCase):
         self.assertTrue(hasattr(settings, "DATA_DIR"))
 
     def test_media_lives_beside_the_database(self):
-        from django.conf import settings
+        """A packaged build must keep radiographs next to the database.
 
-        self.assertEqual(settings.MEDIA_ROOT, settings.DATA_DIR / "media")
+        Checked by pointing TB_DATA_DIR somewhere and reloading, rather than
+        by comparing the two live settings. Comparing them tested only that
+        they happened to be equal in this process, which stopped being true
+        once the test runner started redirecting MEDIA_ROOT to a temporary
+        directory. Reloading tests the thing that actually matters: that
+        MEDIA_ROOT is derived from DATA_DIR and follows it wherever the
+        launcher puts it.
+        """
+        import importlib
+        import os
+        from unittest import mock
+
+        with mock.patch.dict(
+            os.environ,
+            {
+                "TB_DATA_DIR": str(Path(tempfile.gettempdir()) / "tb-packaged-check"),
+                "DJANGO_SECRET_KEY": "x",
+                "DB_NAME": "x",
+                "DB_USER": "x",
+                "DB_PASSWORD": "x",
+            },
+        ):
+            module = importlib.reload(importlib.import_module("config.settings"))
+            self.assertEqual(module.MEDIA_ROOT, module.DATA_DIR / "media")
+            self.assertEqual(module.MEDIA_ROOT.parent, module.DATA_DIR)
+        # Restore the real settings for everything that follows.
+        importlib.reload(importlib.import_module("config.settings"))
 
     def test_the_static_root_can_be_pointed_at_the_bundle(self):
         """PyInstaller unpacks elsewhere, so this cannot be fixed to the project."""
@@ -3646,6 +3703,108 @@ class PruneMediaTests(TestCase):
             call_command("prunemedia", stdout=output)
 
         self.assertIn("no media directory", output.getvalue())
+
+
+class BuildExplanationsCommandTests(TestCase):
+    """Warming up the maps a batch upload deferred.
+
+    A batch stores its predictions and leaves each heatmap to be built when
+    the case is first opened, which is right for throughput and wrong when
+    the worklist is about to be shown to somebody: an unopened case displays
+    "building the explanation" where NFR-08 asks for the picture. Seventeen
+    cases were sitting in that state before this command existed.
+
+    `build_explanation` is replaced here. What is being tested is which
+    records the command selects and what it reports, not the maps themselves,
+    which the explanation tests already cover and which cost four seconds
+    each.
+    """
+
+    def waiting(self, reference, status):
+        return screened_case(patient_reference=reference, explanation_status=status)
+
+    def run_command(self, *flags, outcome=None):
+        from django.core.management import call_command
+
+        seen = []
+
+        def fake_build(record):
+            seen.append(record.patient_reference)
+            record.explanation_status = outcome or PredictionRecord.ExplanationStatus.GENERATED
+            record.save(update_fields=["explanation_status"])
+            return record
+
+        output = io.StringIO()
+        with mock.patch("screening.views.build_explanation", fake_build):
+            call_command("buildexplanations", *flags, stdout=output)
+        return output.getvalue(), seen
+
+    def test_it_builds_every_pending_record(self):
+        self.waiting("WAIT-01", PredictionRecord.ExplanationStatus.PENDING)
+        self.waiting("WAIT-02", PredictionRecord.ExplanationStatus.PENDING)
+
+        report, seen = self.run_command()
+
+        self.assertCountEqual(seen, ["WAIT-01", "WAIT-02"])
+        self.assertIn("2 built", report)
+        self.assertFalse(
+            PredictionRecord.objects.filter(
+                explanation_status=PredictionRecord.ExplanationStatus.PENDING
+            ).exists()
+        )
+
+    def test_it_leaves_records_that_already_have_a_map(self):
+        self.waiting("DONE-01", PredictionRecord.ExplanationStatus.GENERATED)
+
+        report, seen = self.run_command()
+
+        self.assertEqual(seen, [])
+        self.assertIn("already has its map", report)
+
+    def test_a_failed_record_is_skipped_unless_asked_for(self):
+        """A map that failed once usually fails the same way again."""
+        self.waiting("GONE-01", PredictionRecord.ExplanationStatus.FAILED)
+
+        report, seen = self.run_command()
+
+        self.assertEqual(seen, [])
+        self.assertIn("already has its map", report)
+
+    def test_retry_includes_the_failed_ones(self):
+        self.waiting("GONE-01", PredictionRecord.ExplanationStatus.FAILED)
+
+        _, seen = self.run_command("--retry")
+
+        self.assertEqual(seen, ["GONE-01"])
+
+    def test_dry_run_builds_nothing(self):
+        self.waiting("WAIT-01", PredictionRecord.ExplanationStatus.PENDING)
+
+        report, seen = self.run_command("--dry-run")
+
+        self.assertEqual(seen, [])
+        self.assertIn("WAIT-01", report)
+        self.assertIn("Nothing was built", report)
+        self.assertEqual(
+            PredictionRecord.objects.get(patient_reference="WAIT-01").explanation_status,
+            PredictionRecord.ExplanationStatus.PENDING,
+        )
+
+    def test_the_limit_stops_the_run_early(self):
+        for index in range(4):
+            self.waiting(f"WAIT-{index}", PredictionRecord.ExplanationStatus.PENDING)
+
+        _, seen = self.run_command("--limit", "2")
+
+        self.assertEqual(len(seen), 2)
+
+    def test_a_failure_is_counted_rather_than_raised(self):
+        """One bad image must not abandon the rest of the run."""
+        self.waiting("WAIT-01", PredictionRecord.ExplanationStatus.PENDING)
+
+        report, _ = self.run_command(outcome=PredictionRecord.ExplanationStatus.FAILED)
+
+        self.assertIn("0 built, 1 failed", report)
 
 
 class ClinicalWorkflowTests(TestCase):

@@ -1,4 +1,5 @@
 {% extends "screening/base.html" %}
+{% load humanize %}
 
 {% block title %}Model performance{% endblock %}
 {% block crumb %}Model performance{% endblock %}
@@ -501,7 +502,7 @@
                 1 vCPU, 2 GiB, scaling to zero when idle
               </span>
             </td>
-            <td class="text-end numeric">{{ cost.screenings_per_month_within_grant }}</td>
+            <td class="text-end numeric">{{ cost.screenings_per_month_within_grant|intcomma }}</td>
           </tr>
         {% endif %}
       </tbody>
