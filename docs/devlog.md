@@ -963,3 +963,58 @@ true and useless. The check now looks only where a browser is actually made to
 fetch - src, stylesheet links, CSS url() and @import, fetch calls, form
 actions - and counts hosts behind an anchor separately, because a link
 somebody has to click is not something the page loads. The answer is zero.
+
+## A figure that no script owned
+
+`explanation_side_by_side.png` is the worked example: one radiograph, the
+Grad-CAM map, the occlusion map. It is the figure most likely to end up on a
+slide and be asked about, and until now it was the only figure in
+`ml/artifacts/` that no script produced. It had been assembled by hand in
+October and left there.
+
+Two faults, from the one cause.
+
+**The numbers on it were from a superseded run.** It printed lift 1.11 beside
+the Grad-CAM panel and 1.63 beside the occlusion panel. The sweep on 4
+November corrected those two values in `README.md`, `traceability.md` and
+`what-measuring-found.md`; it could not correct them here, because they were
+pixels. A number drawn into an image does not turn up in a grep, which is the
+whole argument for not drawing numbers into images by hand.
+
+**Worse, they were the wrong kind of number.** 1.11 and 1.63 are *dataset
+means* - and from the development split at that, where the occlusion settings
+were chosen. They were printed beside a *single film*, where every reader will
+take them for that film's values. They are not. The film shown is
+`MCUCXR_0104_1`, and its own lifts are **1.74 for Grad-CAM and 2.18 for
+occlusion**. The figure was stating one thing and inviting the reading of
+another.
+
+`ml/scripts/plot_explanation_example.py` now draws it. What changed:
+
+- Both maps come from the application's own generators and are drawn by the
+  application's own renderer, so the figure shows what the system produces
+  rather than a second implementation that could drift from it.
+- Each panel is labelled **lift on this film**, and the dataset means sit in
+  the footer labelled as means over all 58 masked TB films, with the paired
+  difference, its interval, and the fact that the interval on the 9 held-out
+  films includes zero. The two quantities can no longer be confused.
+- The hand-drawn lung boundary is traced on both heatmap panels. Lift is the
+  share of the highlight falling inside that line divided by the share of the
+  frame the line encloses, so with the line drawn the figure shows its own
+  arithmetic instead of asserting a ratio.
+- The script recomputes each lift and compares it against the value the
+  evaluation run recorded for the same film. If they disagree by more than
+  0.01 it refuses to write the figure and says which artefact to re-run.
+  Tested by perturbing a stored lift: it exits and writes nothing.
+
+The film is unchanged - `MCUCXR_0104_1`, Montgomery, test split, confirmed TB,
+scoring 0.8395. Keeping it matters: choosing a new film after seeing which one
+flatters the method is how a figure stops being evidence, so the film is a
+flag rather than a default and the default is the one that was always there.
+
+One thing checked and deliberately left alone: `explanation_methods.md` also
+carries 1.11 and 1.63. Those are correct there. That table is measured on the
+49 development films and says so in its own header, and 1.63 is
+`occlusion-p32s16-development-tb_evaluation.json` read accurately. The error
+was never in the development table; it was in quoting the development figure
+where the all-split figure belonged.

@@ -129,7 +129,7 @@ In a second terminal:
 .venv/Scripts/python.exe manage.py test screening
 ```
 
-395 tests, then `OK`.
+398 tests, then `OK`.
 
 Then open `docs/sprint-2-test-record.md` — expected result, actual result, and the
 corrections made during the sprint.
@@ -139,7 +139,7 @@ corrections made during the sprint.
 Your GitHub repository, then the commit list, then the **Actions** tab.
 
 > "Every push builds the project from scratch on a clean machine with a real PostgreSQL
-> server, runs the linter and runs all 395 tests. Checks also run on every commit, so a
+> server, runs the linter and runs all 398 tests. Checks also run on every commit, so a
 > dataset or a password cannot be committed by accident."
 
 ## 6. The cloud, about 2 minutes
