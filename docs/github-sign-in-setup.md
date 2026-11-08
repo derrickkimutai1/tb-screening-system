@@ -31,14 +31,17 @@ when another provider's console is in the way.
    | Application name | `TB Screening` |
    | Homepage URL | the address of your deployment, or `http://localhost:8000` |
    | Application description | optional |
-   | Authorization callback URL | see below |
+   | Redirect URI | see below |
 
-3. The callback URL is the address with `/accounts/github/login/callback/` on
-   the end. For the deployment:
+   GitHub used to call the last one **Authorization callback URL** and allow
+   exactly one. It is now **Redirect URI**, under a **Redirect URIs** heading
+   with an **Add redirect URI** button, and an app may hold up to ten. Leave
+   **Allow wildcard matching** unticked: this application has two fixed
+   addresses and does not need it.
 
-   ```
-   https://tb-screening.happybay-20a0549c.southafricanorth.azurecontainerapps.io/accounts/github/login/callback/
-   ```
+3. The redirect URI is the address with `/accounts/github/login/callback/` on
+   the end, trailing slash included. GitHub matches it exactly and a missing
+   slash is the usual cause of `redirect_uri_mismatch`.
 
    For local development:
 
@@ -46,8 +49,15 @@ when another provider's console is in the way.
    http://localhost:8000/accounts/github/login/callback/
    ```
 
-   A GitHub OAuth App takes **one** callback URL, so register two apps if you
-   want both, and keep their credentials apart.
+   For the deployment:
+
+   ```
+   https://tb-screening.happybay-20a0549c.southafricanorth.azurecontainerapps.io/accounts/github/login/callback/
+   ```
+
+   Because an app now takes several, **add both to the same app** rather than
+   registering two. One pair of credentials then serves the laptop and the
+   cloud, which is one fewer secret to keep in step.
 
 4. **Register application**. GitHub shows a Client ID. Click **Generate a new
    client secret** and copy it now; it is not shown again.
