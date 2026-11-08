@@ -81,6 +81,13 @@ served through WhiteNoise's manifest storage, which refuses any asset missing fr
 the manifest that command builds, and `staticfiles/` is not tracked by Git. Skip it
 and both the interface and the test suite fail on a fresh clone.
 
+After that first setup, **`start-app.bat`** does the daily run: double-click it, or
+make a Desktop shortcut to it. It checks PostgreSQL is reachable before starting
+rather than letting the first page fail with a database error, starts the server
+and opens a browser at <http://localhost:8000/>. The window it opens is the
+server, so leaving it open is what keeps the application running and Ctrl+C stops
+it.
+
 ### Signing in
 
 Every screening page requires a session. There are three ways to get one, and

@@ -1,6 +1,12 @@
 # Normalise line endings so the repository stays consistent across machines.
 * text=auto eol=lf
 
+# Windows batch files must keep CRLF. cmd.exe misreads an LF-only batch
+# file, so the repository-wide eol=lf above would make the launcher fail
+# on a fresh clone.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
 # Binary assets must never be converted.
 *.png binary
 *.jpg binary

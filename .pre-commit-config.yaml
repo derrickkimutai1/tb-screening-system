@@ -16,6 +16,9 @@ repos:
       - id: check-case-conflict
       - id: mixed-line-ending
         args: [--fix=lf]
+        # Batch files are the exception: cmd.exe needs CRLF, and this
+        # hook would quietly break the launcher on every commit.
+        exclude: '\.(bat|cmd)$'
       # Guards against committing a dataset by accident. The selected model is
       # a deliverable and is tracked deliberately, so it is exempt; training
       # checkpoints stay out through .gitignore.
