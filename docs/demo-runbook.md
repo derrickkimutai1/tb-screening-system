@@ -59,97 +59,187 @@ measured, it is versioned, it is automated, it is deployed, and it is recoverabl
 
 ---
 
-## 1. The working system, about 3 minutes
+## The shape of the thirteen minutes
 
-Open the app at `localhost:8000`.
+The old order of this runbook opened on the upload form. That is the weakest
+thing here and it went first, which left the evidence — the part that took
+most of the project — at minute four, after the plumbing.
 
-> "A clinician uploads a chest X-ray with a non-identifying case reference."
+The order below is reversed on purpose. **Say what the system does and what it
+cannot do before showing it work.** A score on screen means nothing to a panel
+that does not yet know the error rate behind it; shown afterwards, the same
+number is a demonstration of something already established. It also puts every
+weakness on the record in your own words in the first two minutes, which is
+the difference between a limitation and a thing you were caught not saying.
 
-Upload the **TB case**. Say what it is before the result appears, so the result is a
-prediction rather than a reveal.
+| | Section | Minutes |
+|---|---|---|
+| 1 | What it does, and what it cannot | 2.5 |
+| 2 | One screening | 3 |
+| 3 | What the explanation is worth | 2 |
+| 4 | It behaves like a clinical system | 2 |
+| 5 | How I know it works | 2 |
+| 6 | Deployed, offline, recoverable | 1.5 |
+| 7 | Close on method | 1 |
+
+---
+
+## 1. What it does, and what it cannot, about 2.5 minutes
+
+**Open the application on `/performance/`. Not the upload form.**
+
+This page is the strongest thing in the project and it reads every figure from
+the evaluation artefacts when the page loads, so nothing on it can drift from
+the run that produced it. Say that: it is the difference between a number and
+a claim.
+
+Open with this, roughly:
+
+> "Before I show you the system working, this is how well it works and where
+> it fails, because the second matters more.
+>
+> It was evaluated on 120 radiographs held out from training **and from model
+> selection**. AUC 0.9291. It finds 54 of 59 TB cases and misses 5.
+>
+> Every figure here carries a confidence interval from 2,000 bootstrap
+> resamples, because 120 images cannot support a single precise number.
+> Sensitivity is 0.9153, and the interval runs 0.839 to 0.983.
+>
+> Specificity is 0.6393 against the WHO target of 0.70. **It over-refers, and
+> it does so by design.** I set the threshold on validation to reach 92 per
+> cent sensitivity rather than the 90 WHO asks for, because in screening a
+> missed case costs more than a false alarm. That margin earned its keep —
+> sensitivity fell to 0.9153 in transfer, so a threshold picked at exactly
+> 0.900 would have landed below the requirement. No threshold on this data
+> meets both targets at once, and the validation curve showed that before I
+> chose one."
+
+Then scroll to **Known limitations** and read the four tiles aloud. They are
+already written in the system's own words: both WHO targets cannot be met at
+once, the score is not a probability (ECE 0.1018), changing hospital costs
+0.0711 of AUC, and the explanation localises only weakly.
+
+> "The application publishes its own failures. I did not want a version of
+> this that only looks good."
+
+Then the two tables further down, each in one sentence:
+
+- **Why this model and not a larger one.** "ResNet50 scores 0.0359 of AUC
+  higher and is 9.8 times the size. I am not running it. A model that scores
+  better and cannot run on a clinic's processor has no sensitivity at all, so
+  the choice was made on deployment and the cost of making it is the last
+  column."
+- **Does it read the lungs, or the label in the corner?** "This is the one I
+  would show if I could only show one. Blank the lungs and re-score, and AUC
+  falls from 0.8625 to 0.5453 — near a coin flip. That is causal evidence that
+  the signal is in the lungs rather than in acquisition markers or borders.
+  Most of what gets called explainability is correlational. This is not."
+
+---
+
+## 2. One screening, about 3 minutes
+
+Only now open the upload form.
+
+> "A radiographer uploads a chest X-ray with a non-identifying case reference."
+
+Upload the **TB case**, and say what it is *before* the result appears, so the
+result is a prediction and not a reveal.
 
 On the result page, point at each part:
 
-- **The score**, drawn as a gauge. This is the model's output, between 0 and 1.
-- **The triage level**, with its written justification naming the thresholds used.
-- **The threshold scale** showing where this score sits across the bands.
-- **The two panels** — the original radiograph and the explanation beside it, marked
-  **Generated**. A single upload builds its map before the page is shown, because
-  NFR-08 asks for every result to be presented with the picture that produced it. A
-  batch is the exception and defers: an occlusion map is several hundred forward
-  passes, so twenty of them would spend minutes on images nobody has opened. A
-  deferred case builds its map when somebody first opens it, and `manage.py
-  buildexplanations` warms them all in advance so that never happens on screen.
+- **The score**, drawn as a gauge. The model's output between 0 and 1, and not
+  a probability — the calibration tile said why.
+- **The triage level**, with its written justification naming the thresholds
+  used. The band is explained rather than asserted.
+- **The provenance record**: the model version and the thresholds this result
+  was judged under are written into the row. "A result from last month stays
+  interpretable after I change the thresholds, which is why they are stored
+  rather than looked up."
+- **The two panels**, marked **Generated**. A single upload builds its map
+  before the page is shown. A batch defers, because an occlusion map is
+  several hundred forward passes.
 
-  Say "generated before the page was rendered" rather than "building now". An earlier
-  version of the system deferred every map, including single uploads, and this runbook
-  described that; the behaviour changed and the panel no longer shows a waiting state
-  for the upload you are about to do.
+Then upload the **normal case**. The score drops and the band changes.
 
-> "The Explanation panel is Grad-CAM, which is the method the proposal names in SO4.
-> Its caption says the map localises weakly, and the measurement is directly below it."
+> "Nothing here is hard-coded. Every value comes from the model, and the
+> thresholds came from validation."
 
-Then scroll to the **Occlusion map, for comparison** panel, which is a second panel
-under the first. Do not skip it — it is the stronger half of the answer.
+**Thirty seconds on storage, no more.** Open pgAdmin: `tb_screening` → Schemas
+→ public → `screening_predictionrecord` → View/Edit Data → All Rows.
 
-> "Both maps were measured against Montgomery's hand-drawn lung masks, where a map
-> thrown at the radiograph at random scores 1.00. Grad-CAM scores 1.16. The occlusion
-> map scores 1.61, and paired over the 58 masked TB films the gain is +0.447 with a
-> confidence interval of +0.125 to +0.780, so it is a real difference and not a sample.
+> "The same records, in PostgreSQL."
+
+---
+
+## 3. What the explanation is worth, about 2 minutes
+
+Scroll to the **Occlusion map, for comparison** panel. **Do not skip this** —
+it is the strongest two minutes available and the part most students cannot
+do at all.
+
+> "The proposal's fourth objective asks for Grad-CAM, so Grad-CAM is what the
+> system shows. Then I measured whether it was worth anything.
 >
-> The occlusion map covers each region in turn and scores the image again, so its bright
-> areas are the ones the score actually depended on. I show both: the objective asks for
-> Grad-CAM, and the measurement says what it is worth. Neither shows where disease is."
-
-The figures on that panel are read from the evaluation artefacts when the page renders,
-so they cannot disagree with the measurement. Say that if asked how you know they are
-current.
-
-Then upload the **normal case** and show the score drops and the triage level changes.
-
-> "Nothing here is hard-coded. Every value comes from the model, and the thresholds come
-> from validation."
-
-## 2. The data is stored, about 1 minute
-
-Click **Case list** — the archive, with scores, triage levels, quality status and
-review status. Click **Dashboard** — the four figures, the triage doughnut and
-the screening volume chart.
-
-Then open **pgAdmin**: `tb_screening` → Schemas → public → Tables →
-`screening_predictionrecord` → right-click → View/Edit Data → All Rows.
-
-> "The same records, in PostgreSQL. Each row stores the score, the model version and the
-> thresholds it was judged under, so an old result stays interpretable after the
-> thresholds change."
-
-## 3. The evidence, about 2 minutes
-
-This is Sprint 2's evaluation requirement. Open `ml/artifacts/`:
-
-- **`metrics.json`** — the test results
-- **`confusion_matrix.png`** and **`roc_curve.png`**
-- **`threshold_selection.png`** — how the threshold was chosen
-- **`experiments.csv`** — every training variant compared, and `architecture_comparison.md`
-- **`learning_curve.md`** — whether 800 images is what limits the model
-
-> "The model was evaluated on 120 images held out from training and from model
-> selection. AUC 0.9291, sensitivity 0.9153, specificity 0.6393. Every figure has a
-> confidence interval, because 120 images cannot support a single precise number:
-> sensitivity is 0.839 to 0.983, specificity 0.509 to 0.758.
+> Montgomery ships hand-drawn lung masks, so this can be measured instead of
+> judged by eye. A map thrown at the radiograph at random scores 1.00.
+> **Grad-CAM scores 1.16** — barely above random. I am not going to stand here
+> and call that an explanation.
 >
-> I chose the threshold on validation to reach 92 per cent sensitivity rather than the
-> WHO minimum of 90, because in screening a missed case costs more than a false alarm.
-> That margin earned its keep: sensitivity fell to 0.9153 in transfer, so a threshold
-> picked at exactly 0.900 would have landed below the requirement.
+> So I built an occlusion map, which covers each region in turn and re-scores
+> the image, so its bright areas are the ones the score actually depended on.
+> It scores **1.61**. Paired across the 58 masked TB films the gain is
+> **+0.447, with a 95 per cent interval of 0.125 to 0.780**, so it is a real
+> difference and not a sample. On the 9 held-out films the interval includes
+> zero, so the improvement is measured rather than proven, and I would rather
+> say that than round it away.
 >
-> Specificity is 63.9 per cent against the 70 per cent target, so the system over-refers.
-> That is my main outstanding defect, and the validation curve already showed no
-> threshold satisfies both targets at once on this data.
->
-> Validation AUC was 0.9119 and test AUC 0.9291, so the result generalises."
+> I also built Score-CAM. It scored 0.26 — below chance. I rejected it and
+> kept the module so anyone can re-run the comparison."
 
-## 4. Testing, about 3 minutes
+Then the point that wins the exchange:
+
+> "The metric is gameable, and it is better that I say so than that you find
+> it. Coarser maps score higher — a 5×5 grid reaches 2.12 and cannot point at
+> a lesion, and a map that is hot everywhere still scores 1.00. What ships is
+> the finest setting that clearly beats Grad-CAM, not the best-scoring one."
+
+The figures on that panel are read from the artefacts when the page renders,
+so they cannot disagree with the measurement. Say that if asked how you know
+they are current.
+
+---
+
+## 4. It behaves like a clinical system, about 2 minutes
+
+Sign out and back in as the **clinician** (see "Signing in as each role"
+below). Record a decision on the case you just screened, with a note.
+
+> "Confirming or dismissing a case is a clinical decision, so it is a separate
+> role. The radiographer sees the same caseload — nothing is hidden from them
+> — but the review panel is replaced by a note saying a clinician decides. And
+> the server refuses the review even if the form is bypassed. It answers 403,
+> and that is tested rather than asserted."
+
+Then **Audit trail**, and press **Verify chain integrity** live.
+
+> "Every view, list, screening, review, refusal and export is recorded. Each
+> row hashes its own contents together with the hash of the row before it, so
+> changing a field or removing a row from the middle breaks every hash after
+> it. That is what makes it evidence rather than a list.
+>
+> It detects alteration. It does not prevent it — somebody with write access
+> to the database could recompute the whole chain. Saying which of the two it
+> is matters more than the feature."
+
+If there is time, the **Profile** page: role, clinic, and the Data Protection
+Act 2019 section — an export of your own data, and account closure that does
+*not* delete clinical records, because a log somebody leaving could empty
+would answer nothing.
+
+---
+
+## 5. How I know it works, about 2 minutes
 
 In a second terminal:
 
@@ -157,43 +247,99 @@ In a second terminal:
 .venv/Scripts/python.exe manage.py test screening
 ```
 
-407 tests, then `OK`.
+**407 tests, then `OK`.**
 
-Then open `docs/sprint-2-test-record.md` — expected result, actual result, and the
+> "Four hundred and seven tests, covering uploads, oversized files, batch
+> duplicate rejection, quality thresholds, triage boundaries, preprocessing
+> equivalence, role permissions, metadata stripping, and the audit chain
+> detecting its own alteration."
+
+Then `docs/sprint-2-test-record.md` — expected result, actual result, and the
 corrections made during the sprint.
 
-## 5. Version control and automation, about 1 minute
+Then GitHub: the commit list, then the **Actions** tab.
 
-Your GitHub repository, then the commit list, then the **Actions** tab.
+> "Every push builds the project from scratch on a clean machine with a real
+> PostgreSQL server, runs the linter and runs all 407 tests. A dataset or a
+> password cannot be committed by accident."
 
-> "Every push builds the project from scratch on a clean machine with a real PostgreSQL
-> server, runs the linter and runs all 407 tests. Checks also run on every commit, so a
-> dataset or a password cannot be committed by accident."
+---
 
-## 6. The cloud, about 2 minutes
+## 6. Deployed, offline, recoverable, about 1.5 minutes
 
-First the live release, because Sprint III asks for one:
+The live release:
 
 <https://tb-screening.happybay-20a0549c.southafricanorth.azurecontainerapps.io/health/>
 
-> "It answers 200 with the database reachable and the model loaded. The same image the
-> tests passed on is what runs there, tagged with the commit that produced it, so I can
-> say which code is live and roll back to the previous tag with one command.
+> "It answers 200 with the database reachable and the model loaded. The same
+> image the tests passed on is what runs there, tagged with the commit that
+> produced it, so I can say which code is live and roll back with one command."
+
+Then the resource measurements from the Performance page, in one breath:
+
+> "I measured what it costs to run rather than asserting it. On a single
+> processor core a screening takes a median 10.9 seconds, so **the ten-second
+> requirement is met on the recommended machine and missed on the minimum
+> one** — both are reported rather than the better of the two. The packaged
+> Windows build answers 2 seconds after launch, occupies 1.32 GB, and fetches
+> from zero outside hosts, so it runs where there is no internet. One
+> screening moves 11.7 MB. Hosting is free to about 28,000 screenings a
+> month."
+
+Then recovery, briefly: code in GitHub, data and models in Google Drive, Colab
+reads from both.
+
+> "If this laptop failed I would clone the repository, restore from Drive, and
+> carry on."
+
+---
+
+## 7. Close on method, not apology, about 1 minute
+
+Do not end on a list of faults. Every fault has already been said, in section
+1, in your own words. End on how you know.
+
+> "Most of this project was not building the system. It was trying to show
+> that it does not work.
 >
-> It scales to zero to stay inside the free grant, so the first visit after a quiet
-> period waits for TensorFlow to load. Warm it before the session."
+> Thirteen separate measurement studies. I compared four architectures and the
+> largest won, and I am not running it — the cost of that choice is on the
+> screen. I blanked the lungs and showed the model falls to chance, so the
+> signal is where it should be. I retrained on quarters of the data twelve
+> times to find out whether 800 images is what limits it, and it still rises
+> where the data stops, so more radiographs would help and the curve says
+> roughly how many. I measured the explanation the proposal asked me for,
+> found it barely beats random, and said so on the page rather than in a
+> footnote.
+>
+> What is outstanding is specificity, a dataset that is small and not Kenyan,
+> and an explanation whose improvement is not confirmed on held-out data.
+> All three are measured rather than estimated, and `docs/sprint-backlog.md`
+> has them as Sprint 3 tasks against the objectives they serve."
 
-Then the backup, which is a different question:
+### If you are asked the hard version of any question
 
-**drive.google.com** → `tb-screening-system`: `datasets.zip`, the database dump, the
-model and artefacts.
+- **"Why MobileNetV2 when ResNet50 is better?"** — "It is better, by 0.0359 of
+  AUC, and it is 9.8 times the size. The target is a clinic with no graphics
+  card. A model that cannot run there has no sensitivity at all."
+- **"Your specificity fails the target."** — "It does, 0.6393 against 0.70,
+  and it is on the screen. No threshold on this data meets both targets. I
+  chose to miss specificity rather than sensitivity, because a missed TB case
+  costs more than a second look at someone healthy."
+- **"Your Grad-CAM barely works."** — "It scores 1.16 where random scores
+  1.00, and I measured that rather than waiting to be told. That is why there
+  is an occlusion map beside it at 1.61, with the paired interval."
+- **"It is not Kenyan data."** — "No, and section 1.5.1 of the approved
+  proposal excludes Kenyan clinical data from scope. What I could measure is
+  what changing hospital costs, and it is 0.0711 of AUC between the two
+  sources I have. The application states that no Kenyan equipment was tested."
+- **"Is this a medical device?"** — "No. It has no regulatory clearance, no
+  clinical validation study, and no DICOM or hospital-system integration. It
+  behaves like a clinical system in how it handles access, attribution and
+  evidence. It is not one, and the performance page says so before anyone
+  asks."
 
-Then the **Colab** notebook: it mounts Drive, clones the code from GitHub, and runs the
-same preprocessing module the application uses.
-
-> "Code is in GitHub, data and models are in Drive, and Colab reads from both. If this
-> laptop failed I would clone the repository, restore the data and the database from
-> Drive, and carry on."
+---
 
 ## Signing in as each role during the demonstration
 
@@ -227,31 +373,6 @@ tested rather than asserted.
 **If asked why a user cannot choose their own role**: because anyone who could
 would grant themselves the right to sign off TB cases, and the role would be
 decoration. It is set by an administrator in `/admin/`.
-
-## 7. Close with what is outstanding, about 1 minute
-
-Say these before being asked:
-
-- **Specificity is 63.9 per cent on the held-out test split**, against a 70 per cent
-  target, at the 0.102 threshold the system actually runs at. Sensitivity is 91.5 per
-  cent, above the 90 per cent asked for. No threshold meets both at once, which is a
-  property of the model on this data rather than a tuning oversight.
-- **The explanation localises, but weakly, and the gain is not confirmed on held-out
-  data.** The occlusion map scores 1.61 against lung masks where Grad-CAM scored 1.16,
-  and paired over the 58 masked TB films the gain is +0.447 [+0.125, +0.780]. On the 9
-  test films the interval includes zero. Montgomery has no more masked TB films.
-- **The lung-mask metric is gameable**, and it is better to say so first: coarser maps
-  score higher, up to 2.12 for a 5×5 grid that cannot point at a lesion, and a map that
-  is hot everywhere still scores 1.00. The shipped setting is the finest that clearly
-  beats Grad-CAM, not the best-scoring one.
-- **The dataset is small and not Kenyan**, which limits both performance and
-  generalisability. How small is now measured rather than conceded: retrained on
-  quarters of the training split, validation AUC runs 0.8646, 0.8730, 0.8941, 0.9082
-  and is still rising where the data stops. So more radiographs would still help this
-  model, and `ml/artifacts/learning_curve.md` says roughly how many.
-
-Then `docs/sprint-backlog.md` shows these as planned Sprint 3 tasks against the
-objectives they serve.
 
 ---
 
