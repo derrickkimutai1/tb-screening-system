@@ -8,14 +8,26 @@ measured, it is versioned, it is automated, it is deployed, and it is recoverabl
 ## Before the session
 
 1. **Start PostgreSQL** — it starts with Windows, but check pgAdmin connects.
-2. **Start the application** and leave it running:
+2. **Start the application** and leave it running: double-click `start-app.bat`, or
    ```
    .venv/Scripts/python.exe manage.py runserver
    ```
-3. **Set `SIGN_IN_CODE_ON_SCREEN=True` in `.env`, then sign in.** The app opens on a
-   sign-in page, not the upload form, so this comes before anything else you do in it.
-   The six-digit code appears on the page instead of being emailed. See "Signing in as
-   each role" below for the three accounts and what to say about the flag.
+3. **Decide where the sign-in code goes, then sign in.** The app opens on a sign-in
+   page, not the upload form, so this comes before anything else you do in it. One
+   line in `.env` settles it:
+
+   | `SIGN_IN_CODE_ON_SCREEN` | Where the code appears | Use it when |
+   |---|---|---|
+   | `True` | On the page, under "CODE SENT" | **Presenting.** Needs no network and no inbox, and switching between the three roles costs nothing |
+   | `False` | Really emailed, through Gmail | Ordinary use, and when showing that delivery is real |
+
+   Restart the server after changing it; `.env` is read once at startup.
+
+   **Set it to `True` before the session.** With it `False` the demonstration
+   depends on the room's wifi, on Gmail, and on an inbox being open on screen
+   beside the clinical records — three things that can fail in front of an
+   examiner and none of which are part of what is being marked. See "Signing in
+   as each role" below for the three accounts and what to say about the flag.
 
    **Request a code at most twice while rehearsing.** Three requests for one address
    inside five minutes are refused, by design, and the refusal lasts five minutes.
