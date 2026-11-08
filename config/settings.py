@@ -350,6 +350,23 @@ SOCIALACCOUNT_EMAIL_REQUIRED = True
 # moment to ask and to explain what their role permits.
 SOCIALACCOUNT_AUTO_SIGNUP = False
 SOCIALACCOUNT_FORMS = {"signup": "screening.forms.SocialSignupForm"}
+# A social login that arrives with an address already registered here used to
+# be refused: allauth sent "Account Already Exists" and then redirected to a
+# page asking for a verification code that had never been generated, which is
+# a dead end nobody can get out of. It is a deliberate anti-enumeration
+# default, and the cost of it here is that the three accounts made by email
+# code cannot be reached with Google or GitHub at all.
+#
+# Both providers verify ownership of an address before asserting it, which is
+# the condition allauth names for turning this on. The risk it accepts is
+# stated plainly in allauth's own documentation: a provider that cannot be
+# trusted could sign in to any local account by fabricating the address.
+# Google and GitHub are the only two registered, and SIGN_IN_ALLOWED_DOMAINS
+# still applies on top.
+SOCIALACCOUNT_EMAIL_AUTHENTICATION = True
+# Connect the social account while doing it, so the route keeps working if the
+# address on either side changes later.
+SOCIALACCOUNT_EMAIL_AUTHENTICATION_AUTO_CONNECT = True
 SOCIALACCOUNT_LOGIN_ON_GET = False
 SOCIALACCOUNT_STORE_TOKENS = False
 
@@ -558,10 +575,23 @@ EMAIL_HOST = os.environ.get("EMAIL_HOST", "").strip()
 # code is still generated and checked, and a wrong code is still refused. Only
 # where the code is displayed changes. It is refused outright unless DEBUG is
 # on, so a deployment cannot turn it on by setting one variable.
-SIGN_IN_CODE_ON_SCREEN = DEBUG and env_flag("SIGN_IN_CODE_ON_SCREEN", default=False)
+# Whether the code is ALSO printed on the page. It no longer decides
+# whether mail is sent, which is EMAIL_HOST's business: asking for the
+# code on screen used to switch real delivery off, so wanting both gave
+# neither and a demonstration had to choose between a working inbox and a
+# screen that works without a network.
+#
+# DEBUG gates it absolutely, so a deployment cannot show a code however
+# the environment is set. With no mail provider it switches itself on,
+# because a checkout that cannot send and does not show has no way in.
+SIGN_IN_CODE_ON_SCREEN = DEBUG and (
+    env_flag("SIGN_IN_CODE_ON_SCREEN", default=False) or not EMAIL_HOST
+)
 
-if EMAIL_HOST and not SIGN_IN_CODE_ON_SCREEN:
-    EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+if EMAIL_HOST:
+    # Delivers for real and still records the code, so the page can show it
+    # too when SIGN_IN_CODE_ON_SCREEN asks.
+    EMAIL_BACKEND = "screening.services.devmail.DeliveringBackend"
     EMAIL_PORT = int(os.environ.get("EMAIL_PORT", "587"))
     EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
     EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")

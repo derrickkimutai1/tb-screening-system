@@ -858,7 +858,14 @@ class SignInTests(TestCase):
 
         self.assertEqual(settings.ACCOUNT_SIGNUP_FIELDS, ["email*"])
 
-    @override_settings(GOOGLE_SIGN_IN_CONFIGURED=False, MICROSOFT_SIGN_IN_CONFIGURED=False)
+    @override_settings(
+        GOOGLE_SIGN_IN_CONFIGURED=False,
+        MICROSOFT_SIGN_IN_CONFIGURED=False,
+        # Added when GitHub was registered. Without it these two said "no
+        # provider" while one was still configured, so they stopped testing
+        # the case they are named for.
+        GITHUB_SIGN_IN_CONFIGURED=False,
+    )
     def test_the_gate_still_renders_without_any_provider(self):
         """A checkout with no .env must still start, for CI and for marking."""
         response = self.client.get(reverse("account_login"))
@@ -866,7 +873,14 @@ class SignInTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "No identity provider is configured")
 
-    @override_settings(GOOGLE_SIGN_IN_CONFIGURED=False, MICROSOFT_SIGN_IN_CONFIGURED=False)
+    @override_settings(
+        GOOGLE_SIGN_IN_CONFIGURED=False,
+        MICROSOFT_SIGN_IN_CONFIGURED=False,
+        # Added when GitHub was registered. Without it these two said "no
+        # provider" while one was still configured, so they stopped testing
+        # the case they are named for.
+        GITHUB_SIGN_IN_CONFIGURED=False,
+    )
     def test_the_email_route_is_offered_even_with_no_provider(self):
         """It is the way in when a provider is down or absent."""
         response = self.client.get(reverse("account_login"))
@@ -1875,14 +1889,22 @@ class EmailCodeRateLimitTests(TestCase):
 
 
 class DevelopmentCodeTests(TestCase):
-    """The on-page code must exist only where nobody can receive an email.
+    """The on-page code must exist only where DEBUG is on.
 
     Showing a sign-in code to whoever loaded the page is handing out the
-    account. It is guarded on DEBUG and on the development mail backend, and
-    these assert that removing either guard removes the code.
+    account, so the guard is what matters here rather than the convenience.
+
+    What changed: the panel used to disappear the moment a mail provider was
+    configured, because one setting decided both whether the code was sent and
+    whether it was shown. Wanting both gave neither - either the inbox worked
+    and the screen could not help when the venue had no network, or the screen
+    worked and nothing was ever delivered. Delivery is now EMAIL_HOST's
+    business and display is SIGN_IN_CODE_ON_SCREEN's, and these assert that
+    DEBUG still overrides both.
     """
 
     DEV_BACKEND = "screening.services.devmail.LastMessageBackend"
+    REAL_BACKEND = "screening.services.devmail.DeliveringBackend"
 
     def render(self):
         from django.template import Context, Template
@@ -1900,39 +1922,101 @@ class DevelopmentCodeTests(TestCase):
             [EmailMessage(subject="s", body=body, to=["someone@example.com"])]
         )
 
-    @override_settings(DEBUG=True, EMAIL_BACKEND=DEV_BACKEND)
-    def test_the_code_is_shown_in_development(self):
+    @override_settings(DEBUG=True, SIGN_IN_CODE_ON_SCREEN=True)
+    def test_the_code_is_shown_when_asked_for(self):
         self.remember()
 
         self.assertEqual(self.render(), "123456")
 
-    @override_settings(DEBUG=False, EMAIL_BACKEND=DEV_BACKEND)
+    @override_settings(DEBUG=False, SIGN_IN_CODE_ON_SCREEN=True)
     def test_nothing_is_shown_when_debug_is_off(self):
-        """Which is the case in the container and in every deployment."""
+        """Which is the case in the container and in every deployment.
+
+        The setting is asserted directly rather than through the environment,
+        because this is the guard that has to hold even if something else sets
+        the flag by mistake.
+        """
         self.remember()
 
         self.assertEqual(self.render(), "none")
 
-    @override_settings(DEBUG=True, EMAIL_BACKEND="django.core.mail.backends.smtp.EmailBackend")
-    def test_nothing_is_shown_once_real_mail_is_configured(self):
+    @override_settings(DEBUG=True, SIGN_IN_CODE_ON_SCREEN=False)
+    def test_nothing_is_shown_when_it_was_not_asked_for(self):
         self.remember()
 
         self.assertEqual(self.render(), "none")
 
-    @override_settings(DEBUG=True, EMAIL_BACKEND=DEV_BACKEND)
+    @override_settings(DEBUG=True, SIGN_IN_CODE_ON_SCREEN=True, EMAIL_BACKEND=REAL_BACKEND)
+    def test_real_delivery_no_longer_hides_the_code(self):
+        """The point of splitting the two settings apart.
+
+        A demonstration wants the message genuinely sent and the code on the
+        screen as well, so that a room with no working network is not the end
+        of the sign-in.
+        """
+        self.remember()
+
+        self.assertEqual(self.render(), "123456")
+
+    @override_settings(DEBUG=True, SIGN_IN_CODE_ON_SCREEN=True)
     def test_a_message_with_no_code_yields_nothing(self):
         """The unknown-account message has no code and must not render one."""
         self.remember("We have no record of such an account.")
 
         self.assertEqual(self.render(), "none")
 
-    @override_settings(DEBUG=True, EMAIL_BACKEND=DEV_BACKEND)
+    @override_settings(DEBUG=True, SIGN_IN_CODE_ON_SCREEN=True)
     def test_the_backend_records_the_recipient(self):
         from screening.services.devmail import last_recipient
 
         self.remember()
 
         self.assertEqual(last_recipient(), "someone@example.com")
+
+    def test_the_delivering_backend_also_remembers(self):
+        """It subclasses the SMTP backend, so sending is not exercised here.
+
+        What is exercised is that the remembering happens at all, which is the
+        whole reason a second backend exists rather than Django's own.
+        """
+        from unittest import mock
+
+        from django.core.mail import EmailMessage
+
+        from screening.services.devmail import DeliveringBackend, last_code
+
+        backend = DeliveringBackend()
+        with mock.patch.object(DeliveringBackend.__mro__[2], "send_messages", return_value=1):
+            backend.send_messages(
+                [EmailMessage(subject="s", body="code 987654", to=["a@b.test"])]
+            )
+
+        self.assertEqual(last_code(), "987654")
+
+
+class SocialEmailAuthenticationTests(TestCase):
+    """A social login must reach an account that already exists.
+
+    It did not. allauth refuses by default, sends "Account Already Exists",
+    and then redirects to a page asking for a verification code it never
+    generated, which is a dead end with no way out of it. The three accounts
+    here were made by email code, so none of them could be reached with Google
+    or GitHub at all.
+    """
+
+    def test_a_matching_verified_address_signs_in_rather_than_refusing(self):
+        from django.conf import settings
+
+        self.assertTrue(
+            settings.SOCIALACCOUNT_EMAIL_AUTHENTICATION,
+            "a social login with a matching verified address would be refused",
+        )
+
+    def test_the_social_account_is_connected_while_doing_it(self):
+        """Otherwise the route stops working if either address changes later."""
+        from django.conf import settings
+
+        self.assertTrue(settings.SOCIALACCOUNT_EMAIL_AUTHENTICATION_AUTO_CONNECT)
 
 
 @override_settings(SIGN_IN_OPEN_REGISTRATION=True)
@@ -4418,17 +4502,26 @@ class MinimumImageSizeTests(TestCase):
 class PresentationCodeTests(TestCase):
     """Showing the sign-in code on screen, and only where that is safe.
 
-    A demonstration signs in as each role in turn, which with real mail
-    configured means opening three inboxes in front of an examiner. The flag
-    puts the code back on the page. It changes where the code is displayed and
-    nothing else: the address is still typed, the code is still generated and
-    checked, and a wrong one is still refused.
+    A demonstration signs in as each role in turn, and a room whose network
+    fails should not end the sign-in. The flag puts the code on the page. It
+    changes where the code is displayed and nothing else: the address is still
+    typed, the code is still generated and checked, and a wrong one is still
+    refused.
 
-    The danger is obvious, so these check the guard rather than the feature.
+    These assert the contract after delivery and display were separated. One
+    setting used to answer both, so asking for the code on screen also
+    switched real sending off and wanting both gave neither. Now:
+
+        EMAIL_HOST                  decides whether the message is delivered
+        SIGN_IN_CODE_ON_SCREEN      decides whether the code is also shown
+        DEBUG                       overrides the second, always
+
+    The danger is obvious, so most of these check the guard rather than the
+    feature.
     """
 
     DEV_BACKEND = "screening.services.devmail.LastMessageBackend"
-    SMTP_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
+    LIVE_BACKEND = "screening.services.devmail.DeliveringBackend"
 
     def backend_with(self, debug, flag, host="smtp.example.org"):
         """Re-read settings under a given environment."""
@@ -4453,36 +4546,61 @@ class PresentationCodeTests(TestCase):
         live.EMAIL_BACKEND  # noqa: B018 - touch it so a misconfiguration surfaces here
         return chosen, on_screen
 
-    def test_the_flag_shows_the_code_while_developing(self):
+    def test_the_flag_shows_the_code_and_still_sends_it(self):
+        """The point of the change: a demonstration wants both."""
         backend, on_screen = self.backend_with(debug=True, flag=True)
 
         self.assertTrue(on_screen)
-        self.assertEqual(backend, self.DEV_BACKEND)
+        self.assertEqual(backend, self.LIVE_BACKEND)
 
-    def test_debug_off_refuses_it_even_when_the_flag_is_set(self):
+    def test_debug_off_refuses_the_display_even_when_the_flag_is_set(self):
         """A deployment must not be able to display codes by setting one name."""
         backend, on_screen = self.backend_with(debug=False, flag=True)
 
         self.assertFalse(on_screen)
-        self.assertEqual(backend, self.SMTP_BACKEND)
+        self.assertEqual(backend, self.LIVE_BACKEND)
 
-    def test_without_the_flag_configured_mail_is_used(self):
+    def test_without_the_flag_the_code_is_only_emailed(self):
         backend, on_screen = self.backend_with(debug=True, flag=False)
 
         self.assertFalse(on_screen)
-        self.assertEqual(backend, self.SMTP_BACKEND)
+        self.assertEqual(backend, self.LIVE_BACKEND)
 
-    def test_the_template_tag_stays_silent_under_the_real_backend(self):
-        """Two independent guards, so neither alone can leak a code."""
+    def test_with_no_mail_provider_the_code_is_shown_anyway(self):
+        """Otherwise a fresh checkout has no way in at all.
+
+        Nothing can be delivered without EMAIL_HOST, so an instruction to
+        check an inbox would be a lie and the sign-in a dead end. This is the
+        case the old either/or design handled by accident; it is asserted here
+        so the new one keeps handling it on purpose.
+        """
+        backend, on_screen = self.backend_with(debug=True, flag=False, host="")
+
+        self.assertTrue(on_screen)
+        self.assertEqual(backend, self.DEV_BACKEND)
+
+    def test_no_provider_and_no_debug_still_shows_nothing(self):
+        backend, on_screen = self.backend_with(debug=False, flag=False, host="")
+
+        self.assertFalse(on_screen)
+        self.assertEqual(backend, self.DEV_BACKEND)
+
+    def test_the_template_tag_follows_the_display_setting(self):
+        """Real delivery no longer silences it; only the setting does."""
         from screening.templatetags.devmail import development_code
 
-        with override_settings(DEBUG=True, EMAIL_BACKEND=self.SMTP_BACKEND):
+        with override_settings(
+            DEBUG=True, SIGN_IN_CODE_ON_SCREEN=False, EMAIL_BACKEND=self.LIVE_BACKEND
+        ):
             self.assertIsNone(development_code())
 
     def test_the_template_tag_stays_silent_when_debug_is_off(self):
+        """Checked directly, because this is the guard that must never fail."""
         from screening.templatetags.devmail import development_code
 
-        with override_settings(DEBUG=False, EMAIL_BACKEND=self.DEV_BACKEND):
+        with override_settings(
+            DEBUG=False, SIGN_IN_CODE_ON_SCREEN=True, EMAIL_BACKEND=self.DEV_BACKEND
+        ):
             self.assertIsNone(development_code())
 
 

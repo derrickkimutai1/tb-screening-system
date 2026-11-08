@@ -20,6 +20,7 @@ import re
 import threading
 
 from django.core.mail.backends.console import EmailBackend as ConsoleBackend
+from django.core.mail.backends.smtp import EmailBackend as SMTPBackend
 
 # Held for the process, not for the thread that sent the message.
 #
@@ -38,8 +39,16 @@ _last = {}
 CODE = re.compile(r"\b(\d{6})\b")
 
 
-class LastMessageBackend(ConsoleBackend):
-    """Prints like the console backend, and remembers the newest message."""
+class Remembers:
+    """Keeps the newest message, whatever the backend underneath does with it.
+
+    Delivery and display are separate questions and were once answered by one
+    setting. Choosing to show the code on the page also switched real sending
+    off, so a developer who wanted both got neither: the page showed a code and
+    the inbox stayed empty, or the inbox worked and the page could not help
+    when the venue had no network. Remembering is mixed in here so either
+    backend can do it, and the two questions are settled apart.
+    """
 
     def send_messages(self, email_messages):
         for message in email_messages:
@@ -49,6 +58,18 @@ class LastMessageBackend(ConsoleBackend):
                 _last["to"] = list(message.to)
                 _last["subject"] = message.subject
         return super().send_messages(email_messages)
+
+
+class LastMessageBackend(Remembers, ConsoleBackend):
+    """Prints like the console backend. Nothing is delivered."""
+
+
+class DeliveringBackend(Remembers, SMTPBackend):
+    """Sends the message for real, and still remembers the code.
+
+    Used whenever EMAIL_HOST is configured. Whether the code is also shown on
+    the page is SIGN_IN_CODE_ON_SCREEN's business, not this class's.
+    """
 
 
 def last_code():
