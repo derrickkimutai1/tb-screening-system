@@ -1999,18 +1999,97 @@ class SocialEmailAuthenticationTests(TestCase):
 
     It did not. allauth refuses by default, sends "Account Already Exists",
     and then redirects to a page asking for a verification code it never
-    generated, which is a dead end with no way out of it. The three accounts
+    generated, which is a dead end with no way out of it. All three accounts
     here were made by email code, so none of them could be reached with Google
     or GitHub at all.
+
+    These go through allauth's own adapter rather than asserting the setting,
+    because the setting being true and the login actually resolving are two
+    different claims and only the second one matters.
     """
 
-    def test_a_matching_verified_address_signs_in_rather_than_refusing(self):
-        from django.conf import settings
+    ADDRESS = "already.here@example.org"
 
-        self.assertTrue(
-            settings.SOCIALACCOUNT_EMAIL_AUTHENTICATION,
-            "a social login with a matching verified address would be refused",
+    class StubProvider:
+        """Enough of a provider for the adapter's own check.
+
+        Built rather than fetched so the test does not depend on Google
+        credentials being present, which they are not on a clean checkout.
+        """
+
+        app = None
+        id = "google"
+
+        def get_settings(self):
+            return {}
+
+    def existing_user(self, verified=True):
+        user = get_user_model().objects.create_user(username="already", email=self.ADDRESS)
+        from allauth.account.models import EmailAddress
+
+        EmailAddress.objects.create(
+            user=user, email=self.ADDRESS, verified=verified, primary=True
         )
+        return user
+
+    def login_for(self, address, verified):
+        """What a provider would hand back for this address."""
+        from allauth.account.models import EmailAddress
+        from allauth.socialaccount.models import SocialAccount, SocialLogin
+
+        return SocialLogin(
+            provider=self.StubProvider(),
+            account=SocialAccount(provider="google", uid="provider-side-uid"),
+            email_addresses=[EmailAddress(email=address, verified=verified, primary=True)],
+        )
+
+    def test_a_verified_matching_address_resolves_to_the_existing_account(self):
+        from allauth.socialaccount.adapter import get_adapter
+
+        user = self.existing_user()
+
+        matched = get_adapter().authenticate_by_email(self.login_for(self.ADDRESS, True))
+
+        self.assertIsNotNone(
+            matched, "the social login would be refused and sent to the dead-end page"
+        )
+        self.assertEqual(matched[0].pk, user.pk)
+
+    def test_an_unverified_address_from_the_provider_is_refused(self):
+        """The safeguard that makes the rest of this acceptable.
+
+        Accepting an address the provider has not verified would let anyone
+        who can set a display address sign in as somebody else.
+        """
+        from allauth.socialaccount.adapter import get_adapter
+
+        self.existing_user()
+
+        matched = get_adapter().authenticate_by_email(self.login_for(self.ADDRESS, False))
+
+        self.assertIsNone(matched)
+
+    def test_an_address_nobody_holds_resolves_to_nothing(self):
+        from allauth.socialaccount.adapter import get_adapter
+
+        self.existing_user()
+
+        matched = get_adapter().authenticate_by_email(
+            self.login_for("stranger@example.org", True)
+        )
+
+        self.assertIsNone(matched)
+
+    @override_settings(SOCIALACCOUNT_EMAIL_AUTHENTICATION=False)
+    def test_turning_the_setting_off_restores_the_refusal(self):
+        """Proves the behaviour comes from the setting and not from elsewhere."""
+        from allauth.socialaccount.adapter import get_adapter
+
+        self.existing_user()
+
+        matched = get_adapter().authenticate_by_email(self.login_for(self.ADDRESS, True))
+
+        self.assertIsNone(matched)
 
     def test_the_social_account_is_connected_while_doing_it(self):
         """Otherwise the route stops working if either address changes later."""
