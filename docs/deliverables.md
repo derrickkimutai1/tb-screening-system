@@ -5,7 +5,7 @@ Every number here is read from a committed artefact under `ml/artifacts/` or
 counted from the repository, and the file that holds it is named so a reader
 can check rather than take it on trust.
 
-Totals: **17,370 lines of Python** across 79 files, **407 tests** in 58
+Totals: **17,370 lines of Python** across 79 files, **429 tests** in 58
 classes, 25 templates, 16 migrations, **75 committed measurement artefacts**,
 15 engineering documents, 134 commits.
 

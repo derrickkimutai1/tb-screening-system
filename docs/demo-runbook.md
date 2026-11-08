@@ -247,7 +247,7 @@ In a second terminal:
 .venv/Scripts/python.exe manage.py test screening
 ```
 
-**407 tests, then `OK`.**
+**429 tests, then `OK`.**
 
 > "Four hundred and seven tests, covering uploads, oversized files, batch
 > duplicate rejection, quality thresholds, triage boundaries, preprocessing
@@ -260,7 +260,7 @@ corrections made during the sprint.
 Then GitHub: the commit list, then the **Actions** tab.
 
 > "Every push builds the project from scratch on a clean machine with a real
-> PostgreSQL server, runs the linter and runs all 407 tests. A dataset or a
+> PostgreSQL server, runs the linter and runs all 429 tests. A dataset or a
 > password cannot be committed by accident."
 
 ---

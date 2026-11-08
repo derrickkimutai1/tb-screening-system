@@ -1809,7 +1809,14 @@ class EmailCodeSignInTests(TestCase):
             [step[0] for step in unknown.redirect_chain],
         )
 
-    def test_signing_in_by_code_still_lands_on_the_screening_page(self):
+    def test_signing_in_by_code_lands_on_the_role_chooser(self):
+        """Which then leads to the screening page.
+
+        It used to go straight to the upload form. The role is now asked on
+        every sign-in, because one person covers both clinical jobs on
+        different days and the role describes the work rather than the
+        account.
+        """
         self.request_code()
 
         response = self.client.post(
@@ -1819,6 +1826,22 @@ class EmailCodeSignInTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "screening/choose_role.html")
+
+    def test_answering_the_chooser_reaches_the_screening_page(self):
+        self.request_code()
+        self.client.post(
+            reverse("account_confirm_login_code"),
+            {"code": self.code_from_outbox()},
+            follow=True,
+        )
+
+        response = self.client.post(
+            reverse("screening:choose_role"),
+            {"role": Profile.Role.RADIOGRAPHER},
+            follow=True,
+        )
+
         self.assertTemplateUsed(response, "screening/upload.html")
 
     @override_settings(
@@ -5752,3 +5775,147 @@ class GradCamComparisonTests(TestCase):
 
         self.assertNotIn("Occlusion map, for comparison", body)
         self.assertIn("Grad-CAM", body)
+
+
+class RoleChoiceTests(SignedIn, TestCase):
+    """Choosing which clinical role a session is worked in.
+
+    Asked on every sign-in, because one person covers both jobs on different
+    days and a demonstration has to show the difference between a radiographer
+    and a clinician without keeping two accounts open side by side.
+
+    The role therefore describes the work rather than the account, and the two
+    things that must not follow from that are tested here: administrator can
+    never be reached, and a chosen role is enforced on the server rather than
+    merely displayed.
+    """
+
+    def url(self):
+        return reverse("screening:choose_role")
+
+    def profile(self):
+        from .models import profile_for
+
+        return profile_for(self.clinician)
+
+    def test_the_page_offers_the_two_clinical_roles(self):
+        response = self.client.get(self.url())
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Radiographer")
+        self.assertContains(response, "Clinician")
+
+    def test_administrator_is_never_offered(self):
+        """The role that grants the power to set roles cannot be self-awarded."""
+        response = self.client.get(self.url())
+
+        self.assertNotContains(response, 'value="administrator"')
+
+    def test_administrator_cannot_be_chosen_by_posting_it(self):
+        """The template hiding it is not the protection; the form is."""
+        self.client.post(self.url(), {"role": Profile.Role.ADMINISTRATOR})
+
+        self.assertNotEqual(self.profile().role, Profile.Role.ADMINISTRATOR)
+
+    def test_choosing_radiographer_applies_it(self):
+        response = self.client.post(self.url(), {"role": Profile.Role.RADIOGRAPHER})
+
+        self.assertEqual(self.profile().role, Profile.Role.RADIOGRAPHER)
+        self.assertEqual(response.status_code, 302)
+
+    def test_choosing_clinician_applies_it(self):
+        self.client.post(self.url(), {"role": Profile.Role.RADIOGRAPHER})
+
+        self.client.post(self.url(), {"role": Profile.Role.CLINICIAN})
+
+        self.assertEqual(self.profile().role, Profile.Role.CLINICIAN)
+
+    def test_submitting_nothing_is_refused(self):
+        response = self.client.post(self.url(), {})
+
+        self.assertContains(response, "Choose the role you are working as.")
+
+    def test_the_choice_reaches_the_access_trail(self):
+        """A screening carries the role its author held, so a change is evidence."""
+        from .models import AccessEvent
+
+        before = AccessEvent.objects.count()
+
+        self.client.post(self.url(), {"role": Profile.Role.RADIOGRAPHER})
+
+        self.assertGreater(AccessEvent.objects.count(), before)
+        newest = AccessEvent.objects.order_by("-id").first()
+        self.assertIn("radiographer", newest.detail)
+
+    def test_an_administrator_is_not_asked_at_all(self):
+        """Demoting the only account that can set roles would lock the system."""
+        profile = self.profile()
+        profile.role = Profile.Role.ADMINISTRATOR
+        profile.save(update_fields=["role"])
+
+        response = self.client.get(self.url())
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(self.profile().role, Profile.Role.ADMINISTRATOR)
+
+    def test_choosing_radiographer_then_posting_a_review_is_refused(self):
+        """The whole point: the choice is enforced, not displayed.
+
+        A role a person picks for themselves would mean nothing if the server
+        went on trusting whatever the page last showed.
+        """
+        self.client.post(self.url(), {"role": Profile.Role.RADIOGRAPHER})
+        record = screened_case(patient_reference="ROLE-01")
+
+        response = self.client.post(
+            reverse("screening:case_detail", args=[record.case_id]),
+            {"status_set": PredictionRecord.ReviewStatus.REVIEWED, "note": "x"},
+        )
+
+        self.assertEqual(response.status_code, 403)
+        record.refresh_from_db()
+        self.assertEqual(record.review_status, PredictionRecord.ReviewStatus.PENDING)
+
+    def test_choosing_clinician_then_posting_a_review_is_allowed(self):
+        self.client.post(self.url(), {"role": Profile.Role.CLINICIAN})
+        record = screened_case(patient_reference="ROLE-02")
+
+        self.client.post(
+            reverse("screening:case_detail", args=[record.case_id]),
+            {"status_set": PredictionRecord.ReviewStatus.REVIEWED, "note": "seen"},
+        )
+
+        record.refresh_from_db()
+        self.assertEqual(record.review_status, PredictionRecord.ReviewStatus.REVIEWED)
+
+    def test_signing_in_lands_on_the_chooser(self):
+        """Including a sign-in that began from a deep link.
+
+        Those carry a `next` that allauth honours ahead of LOGIN_REDIRECT_URL,
+        so they are exactly the ones that would otherwise skip the question.
+        """
+        from django.test import RequestFactory
+
+        from .auth import ScreeningAccountAdapter
+
+        request = RequestFactory().get("/accounts/login/?next=/worklist/")
+        request.session = self.client.session
+        request.user = self.clinician
+
+        destination = ScreeningAccountAdapter().get_login_redirect_url(request)
+
+        self.assertEqual(destination, self.url())
+
+    def test_where_they_were_heading_is_remembered(self):
+        from django.test import RequestFactory
+
+        from .auth import ScreeningAccountAdapter
+
+        request = RequestFactory().get("/")
+        request.session = self.client.session
+        request.user = self.clinician
+        request.GET = {"next": "/worklist/"}
+
+        ScreeningAccountAdapter().get_login_redirect_url(request)
+
+        self.assertIn("after_role_choice", request.session)

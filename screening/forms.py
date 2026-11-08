@@ -320,3 +320,23 @@ class EmailEntryForm(forms.Form):
 
     def clean_email(self):
         return self.cleaned_data["email"].strip().lower()
+
+
+class RoleChoiceForm(forms.Form):
+    """Which clinical role this session is being worked in.
+
+    Offered on every sign-in rather than fixed to the account, because one
+    person covers both jobs on different days and a demonstration has to show
+    the difference without keeping two accounts open.
+
+    Administrator is absent, and SELECTABLE_ROLES is what keeps it absent: it
+    is the only role carrying the power to change what everyone else may do,
+    so a form offering it would let anybody take it. It is granted from one
+    address in the environment and nowhere else.
+    """
+
+    role = forms.ChoiceField(
+        choices=SELECTABLE_ROLES,
+        widget=forms.RadioSelect,
+        error_messages={"required": "Choose the role you are working as."},
+    )

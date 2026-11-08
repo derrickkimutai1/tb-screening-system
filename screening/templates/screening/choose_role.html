@@ -1,0 +1,74 @@
+{% extends "account/base_auth.html" %}
+
+{% block title %}Choose your role{% endblock %}
+
+{% block content %}
+
+<section class="gate-plate">
+  <p class="micro micro-acid">Signed in as {{ request.user.email }}</p>
+  <h1 class="display display-lg gate-wordmark">Which&nbsp;role<br>today?</h1>
+  <p class="gate-qualifier">The work, not the account</p>
+
+  <dl class="gate-spec">
+    <div><dt>Radiographer</dt><dd>Screens and reads, cannot decide</dd></div>
+    <div><dt>Clinician</dt><dd>Also records review decisions</dd></div>
+    <div><dt>Administrator</dt><dd>Never offered here</dd></div>
+  </dl>
+
+  <p class="gate-note">
+    One person covers both jobs on different days, so the role describes the
+    work being done rather than the account doing it. Administrator is the
+    exception: it carries the right to change what everyone else may do, so
+    anybody who could pick it would simply pick it. It is bound to one address
+    and granted nowhere else.
+  </p>
+</section>
+
+<section class="gate-action">
+  <div class="gate-action-head">
+    <span class="micro">Step 2 of 2</span>
+    <span class="micro gate-state gate-state-ready">Signed in</span>
+  </div>
+
+  {% if form.role.errors %}
+    <div class="notice notice-error mb-3">{{ form.role.errors.0 }}</div>
+  {% endif %}
+
+  <h2 class="gate-heading">Pick a role</h2>
+  <p class="field-hint gate-lede">
+    You can sign out and choose again at any point.
+  </p>
+
+  <form method="post" data-pending novalidate>
+    {% csrf_token %}
+
+    <div class="role-choice mb-4">
+      {% for choice in form.role %}
+        <label>
+          {{ choice.tag }}
+          {{ choice.choice_label }}
+          <span class="role-option">
+            {% if choice.data.value == 'clinician' %}
+              All radiographer duties, plus recording clinical review
+              decisions against your own name.
+            {% else %}
+              Capture and upload radiographs, and read the automated
+              triage results.
+            {% endif %}
+          </span>
+        </label>
+      {% endfor %}
+    </div>
+
+    <button type="submit" class="btn btn-action"><span data-label>Continue</span></button>
+  </form>
+
+  <p class="gate-note mt-4">
+    The server checks this on every request. Choosing radiographer and then
+    submitting a review is refused with a 403, which is tested rather than
+    asserted. The choice is written to the access trail, so a record always
+    carries the role its author held when they made it.
+  </p>
+</section>
+
+{% endblock %}

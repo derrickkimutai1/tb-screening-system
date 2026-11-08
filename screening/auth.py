@@ -29,6 +29,7 @@ from allauth.socialaccount.adapter import DefaultSocialAccountAdapter
 from django.conf import settings
 from django.contrib import messages
 from django.shortcuts import redirect
+from django.urls import reverse
 
 logger = logging.getLogger(__name__)
 
@@ -54,10 +55,29 @@ def address_is_allowed(email):
 
 
 class ScreeningAccountAdapter(DefaultAccountAdapter):
-    """Decides whether a new account may be created at all."""
+    """Decides whether a new account may be created, and where a sign-in lands."""
 
     def is_open_for_signup(self, request):
         return getattr(settings, "SIGN_IN_OPEN_REGISTRATION", False)
+
+    def get_login_redirect_url(self, request):
+        """Send every sign-in to the role chooser first.
+
+        Overridden here rather than by setting LOGIN_REDIRECT_URL, because a
+        sign-in that began from a deep link carries a  parameter that
+        allauth honours ahead of that setting, and those are exactly the
+        sign-ins that would skip the question.
+
+        Where the person was actually heading is kept in the session and the
+        chooser sends them on, so answering it costs the destination nothing.
+        An administrator is not asked and is not redirected: the chooser lets
+        them pass straight through.
+        """
+        intended = super().get_login_redirect_url(request)
+        chooser = reverse("screening:choose_role")
+        if intended and intended != chooser:
+            request.session["after_role_choice"] = intended
+        return chooser
 
 
 class ScreeningSocialAccountAdapter(DefaultSocialAccountAdapter):

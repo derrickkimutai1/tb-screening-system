@@ -20,6 +20,7 @@ urlpatterns = [
     path("trail/", views.access_trail, name="access_trail"),
     path("trail/verify/", views.verify_access_trail, name="verify_access_trail"),
     path("dashboard/", views.dashboard, name="dashboard"),
+    path("choose-role/", views.choose_role, name="choose_role"),
     path("profile/", views.profile, name="profile"),
     path("profile/export/", views.export_my_data, name="export_my_data"),
     path("profile/close/", views.delete_my_account, name="delete_my_account"),

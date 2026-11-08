@@ -45,6 +45,7 @@ from .forms import (
     EmailEntryForm,
     ProfileForm,
     ReviewForm,
+    RoleChoiceForm,
     ScreeningUploadForm,
 )
 from .models import (
@@ -368,6 +369,66 @@ def case_detail(request, case_id):
             "active": "cases",
         },
     )
+
+
+@login_required
+def choose_role(request):
+    """Ask which clinical role this session is being worked in.
+
+    Every sign-in lands here. One person covers both jobs on different days,
+    and a demonstration has to show the difference between them without
+    keeping two accounts signed in side by side, so the role describes the
+    work being done today rather than the account doing it.
+
+    Two things are not negotiable and are enforced here rather than in the
+    template:
+
+    Administrator is never offered and never reachable. It is the role that
+    grants the right to change what everyone else may do, so a form offering
+    it would let anybody take it; it comes from one address in the
+    environment. An administrator is not asked at all and passes straight
+    through, because demoting themselves by accident would lock the only
+    account that can set roles.
+
+    The choice is recorded. A screening carries the role its author held when
+    they made it, so the trail has to say when that changed.
+    """
+    profile = profile_for(request.user)
+
+    if profile.role == Profile.Role.ADMINISTRATOR:
+        return redirect(after_role_choice(request))
+
+    if request.method == "POST":
+        form = RoleChoiceForm(request.POST)
+        if form.is_valid():
+            chosen = form.cleaned_data["role"]
+            was = profile.role
+            profile.role = chosen
+            profile.save(update_fields=["role", "updated_at"])
+            AccessEvent.record(
+                request,
+                AccessEvent.Action.SIGNED_IN,
+                facility=facility_name(profile.facility),
+                detail=(
+                    f"working as {profile.get_role_display().lower()}"
+                    if was == chosen
+                    else f"changed role from {was} to {chosen}"
+                ),
+            )
+            return redirect(after_role_choice(request))
+    else:
+        form = RoleChoiceForm(initial={"role": profile.role})
+
+    return render(request, "screening/choose_role.html", {"form": form})
+
+
+def after_role_choice(request):
+    """Where the person was heading before being asked.
+
+    Kept in the session by the adapter, because allauth has already consumed
+    the `next` parameter by the time this runs.
+    """
+    return request.session.pop("after_role_choice", None) or "screening:upload"
 
 
 @login_required
