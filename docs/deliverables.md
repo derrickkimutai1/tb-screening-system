@@ -5,9 +5,9 @@ Every number here is read from a committed artefact under `ml/artifacts/` or
 counted from the repository, and the file that holds it is named so a reader
 can check rather than take it on trust.
 
-Totals: **17,370 lines of Python** across 79 files, **429 tests** in 58
-classes, 25 templates, 16 migrations, **75 committed measurement artefacts**,
-15 engineering documents, 134 commits.
+Totals: **19,236 lines of Python** across 80 files, **448 tests** in 61
+classes, 26 templates, 17 migrations, **75 committed measurement artefacts**,
+17 engineering documents, 141 commits.
 
 ---
 
@@ -75,7 +75,7 @@ classes, 25 templates, 16 migrations, **75 committed measurement artefacts**,
 
 ## 5. Web application
 
-Django 5.2 and PostgreSQL 17, 25 templates, 18 routes.
+Django 5.2 and PostgreSQL 17, 26 templates, 20 routes.
 
 - Single and batch upload with a drag-and-drop queue that **de-duplicates by
   content hash** in the browser and again on the server, so the same film
@@ -150,7 +150,7 @@ experiment with a committed artefact.
 
 ## 9. Testing
 
-- **407 automated tests in 58 classes, all passing**, covering valid and
+- **448 automated tests in 61 classes, all passing**, covering valid and
   invalid uploads, oversized files, unsupported types, batch behaviour and
   duplicate rejection, quality thresholds, triage boundaries, preprocessing
   equivalence, authentication, role permissions, review attribution, metadata
@@ -162,12 +162,12 @@ experiment with a committed artefact.
 
 ## 10. Documentation and repository
 
-15 engineering documents, including a development log recording decisions and
+17 engineering documents, including a development log recording decisions and
 the measurements that settled them, a requirements traceability matrix, an
 operating-point note, deployment guides for Azure and for the packaged build,
 a demonstration runbook, a user guide, and three sign-in setup guides.
 
-134 commits with the reasoning in the messages.
+141 commits with the reasoning in the messages.
 
 ---
 
