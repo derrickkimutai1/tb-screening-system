@@ -22,6 +22,12 @@ urlpatterns = [
     path("dashboard/", views.dashboard, name="dashboard"),
     path("choose-role/", views.choose_role, name="choose_role"),
     path("profile/", views.profile, name="profile"),
+    path("profile/staff/add/", views.add_staff_account, name="add_staff_account"),
+    path(
+        "profile/staff/<int:profile_id>/active/",
+        views.set_staff_active,
+        name="set_staff_active",
+    ),
     path("profile/export/", views.export_my_data, name="export_my_data"),
     path("profile/close/", views.delete_my_account, name="delete_my_account"),
     path("health/", views.health, name="health"),

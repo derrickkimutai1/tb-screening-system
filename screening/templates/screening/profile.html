@@ -219,6 +219,116 @@
   </div>
 </div>
 
+{% if roster %}
+<div class="panel mt-3">
+  <div class="panel-head">
+    <h2 class="panel-title">Who can reach this system</h2>
+    <span class="micro">Administrator only</span>
+  </div>
+
+  <p class="field-hint">
+    Every account on this installation, not only this clinic, for the same
+    reason the access trail is not scoped: somebody has to be able to answer
+    who holds an account. Last seen is read from the trail rather than stored
+    on the account, so it cannot drift from what was actually recorded.
+  </p>
+
+  <div class="table-scroll">
+    <table class="table">
+      <thead>
+        <tr>
+          <th scope="col">Account</th>
+          <th scope="col">Role</th>
+          <th scope="col">Clinic</th>
+          <th scope="col">Last seen</th>
+          <th scope="col">Access</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for entry in roster %}
+          <tr{% if not entry.user.is_active %} class="row-muted"{% endif %}>
+            <td>{{ entry.user.email|default:entry.display_name }}</td>
+            <td>{{ entry.get_role_display }}</td>
+            <td>{{ entry.facility.name|default:"Not set" }}</td>
+            <td>
+              {% if entry.last_seen %}
+                {{ entry.last_seen|date:"j M Y, H:i" }}
+              {% else %}
+                Never signed in
+              {% endif %}
+            </td>
+            <td>
+              {% if entry.user_id == user.id %}
+                <span class="field-hint">This is you</span>
+              {% else %}
+                <form method="post"
+                      action="{% url 'screening:set_staff_active' entry.pk %}">
+                  {% csrf_token %}
+                  {% if entry.user.is_active %}
+                    <input type="hidden" name="active" value="0">
+                    <button type="submit" class="btn btn-danger-quiet btn-sm">
+                      Deactivate
+                    </button>
+                  {% else %}
+                    <input type="hidden" name="active" value="1">
+                    <button type="submit" class="btn btn-quiet btn-sm">
+                      Reactivate
+                    </button>
+                  {% endif %}
+                </form>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <p class="field-hint mt-3">
+    Deactivating stops an account signing in and changes nothing else. The
+    screenings and reviews it recorded stay with the clinic, still attributed
+    to it, so somebody who has left does not take the authorship of their work
+    with them. It can be undone from the same button. Permanent removal stays
+    in the framework's administration, because it cannot be undone from here.
+  </p>
+
+  <h3 class="panel-title mt-4">Add an account</h3>
+  <p class="field-hint">
+    Sets a role and a clinic so they are waiting at the first sign-in. There is
+    no password to issue: the system has none, and the first sign-in is by a
+    code sent to this address.
+  </p>
+
+  <form method="post" action="{% url 'screening:add_staff_account' %}"
+        class="staff-add mt-2">
+    {% csrf_token %}
+    <div class="row g-2">
+      <div class="col-md-5">
+        <label class="field-label" for="{{ staff_form.email.id_for_label }}">
+          Email address
+        </label>
+        {{ staff_form.email }}
+      </div>
+      <div class="col-md-3">
+        <label class="field-label" for="{{ staff_form.role.id_for_label }}">
+          Role
+        </label>
+        {{ staff_form.role }}
+      </div>
+      <div class="col-md-3">
+        <label class="field-label" for="{{ staff_form.facility.id_for_label }}">
+          Clinic
+        </label>
+        {{ staff_form.facility }}
+      </div>
+      <div class="col-md-1 d-flex align-items-end">
+        <button type="submit" class="btn btn-action w-100">Add</button>
+      </div>
+    </div>
+  </form>
+</div>
+{% endif %}
+
 <script>
   // One confirmation in the browser as well as the typed address on the
   // server, because this cannot be undone from inside the application.

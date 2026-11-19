@@ -21,6 +21,61 @@ SELECTABLE_ROLES = [
 ACCEPTED_SUFFIXES = {".png", ".jpg", ".jpeg"}
 
 
+class StaffAccountForm(forms.Form):
+    """Set a colleague up, from the one screen that may do it.
+
+    Every role is offered here, administrator included, which is the opposite
+    of the chooser a person meets at sign-in. The two are not in conflict: the
+    chooser excludes administrator because anybody reaching it is choosing for
+    themselves, and a role that grants the power to set roles cannot be
+    self-awarded. Granting it to somebody else is a different act, available
+    only to an account that already holds it.
+
+    There is no password field because the system has none. An account exists
+    so that a role and a clinic can be waiting when its owner first signs in
+    with a code; without it they arrive as a radiographer attached to nowhere
+    and have to ask for both.
+    """
+
+    email = forms.EmailField(
+        label="Email address",
+        widget=forms.EmailInput(attrs={"class": "form-control", "autocomplete": "off"}),
+        error_messages={"required": "Enter the address they will sign in with."},
+    )
+    role = forms.ChoiceField(
+        choices=Profile.Role.choices,
+        widget=forms.Select(attrs={"class": "form-select"}),
+        error_messages={"required": "Choose the role this account holds."},
+    )
+    facility = forms.ModelChoiceField(
+        queryset=Facility.objects.none(),
+        required=False,
+        empty_label="Not set",
+        widget=forms.Select(attrs={"class": "form-select"}),
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["facility"].queryset = active_facilities()
+
+    def clean_email(self):
+        """One account per address, checked case insensitively.
+
+        allauth matches addresses without regard to case, so permitting two
+        rows differing only in capitals would create an account its owner
+        could never reach.
+        """
+        from django.contrib.auth import get_user_model
+
+        address = self.cleaned_data["email"].strip().lower()
+        if get_user_model().objects.filter(email__iexact=address).exists():
+            raise forms.ValidationError(
+                "An account already exists for that address. Change its role "
+                "below rather than adding it again."
+            )
+        return address
+
+
 def active_facilities(including=None):
     """The clinics a user may choose.
 

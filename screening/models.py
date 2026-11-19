@@ -525,6 +525,11 @@ class AccessEvent(models.Model):
         SIGNED_IN = "SIGNED_IN", "Signed in"
         SIGNED_OUT = "SIGNED_OUT", "Signed out"
         REFUSED = "REFUSED", "Refused an action"
+        # Its own kind of event rather than one of the above: nobody screened
+        # or read anything, but who may do so afterwards is different. Account
+        # closure still records itself as REFUSED, which predates this and is
+        # left alone rather than changed alongside an unrelated feature.
+        ADMINISTERED = "ADMINISTERED", "Changed an account"
 
     # SET_NULL rather than CASCADE: deleting an account must not erase the
     # evidence of what it did. actor_label keeps the address as it was.

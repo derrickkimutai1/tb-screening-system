@@ -29,7 +29,14 @@ from django.urls import reverse
 from django.utils import timezone
 from PIL import Image
 
-from .models import PredictionRecord, Profile, ReviewNote
+from .models import (
+    AccessEvent,
+    Facility,
+    PredictionRecord,
+    Profile,
+    ReviewNote,
+    profile_for,
+)
 
 sys.path.insert(0, str(settings.ML_DIR))
 import preprocessing  # noqa: E402
@@ -5919,3 +5926,278 @@ class RoleChoiceTests(SignedIn, TestCase):
         ScreeningAccountAdapter().get_login_redirect_url(request)
 
         self.assertIn("after_role_choice", request.session)
+
+
+class StaffAccountTests(SignedIn, TestCase):
+    """Managing who holds an account, from the profile page.
+
+    The second privilege the administrator role grants on its own, after the
+    installation-wide access trail. Both are gated on the role rather than on
+    Django's staff flag, so these tests set the role and never touch is_staff:
+    an administrator who is not a Django superuser must still reach this.
+
+    What matters is not that the buttons appear. It is that the endpoints
+    behind them refuse everybody else, that an account is stopped at the door
+    rather than deleted, and that the system cannot be left with nobody able
+    to manage it.
+    """
+
+    def setUp(self):
+        super().setUp()
+        self.facility = Facility.objects.create(name="Test Clinic")
+
+    def become(self, role):
+        profile = profile_for(self.clinician)
+        profile.role = role
+        profile.facility = self.facility
+        profile.save(update_fields=["role", "facility", "updated_at"])
+        return profile
+
+    def colleague(self, email="colleague@example.org", role=None, active=True):
+        account = get_user_model().objects.create_user(
+            username=email, email=email, is_active=active
+        )
+        profile = profile_for(account)
+        profile.role = role or Profile.Role.RADIOGRAPHER
+        profile.facility = self.facility
+        profile.save(update_fields=["role", "facility", "updated_at"])
+        return profile
+
+    def test_an_administrator_sees_the_roster(self):
+        self.become(Profile.Role.ADMINISTRATOR)
+        self.colleague()
+
+        response = self.client.get(reverse("screening:profile"))
+
+        self.assertContains(response, "Who can reach this system")
+        self.assertContains(response, "colleague@example.org")
+
+    def test_a_clinician_does_not_see_the_roster(self):
+        self.become(Profile.Role.CLINICIAN)
+        self.colleague()
+
+        response = self.client.get(reverse("screening:profile"))
+
+        self.assertNotContains(response, "Who can reach this system")
+        self.assertNotContains(response, "colleague@example.org")
+
+    def test_a_radiographer_does_not_see_the_roster(self):
+        self.become(Profile.Role.RADIOGRAPHER)
+
+        response = self.client.get(reverse("screening:profile"))
+
+        self.assertNotContains(response, "Who can reach this system")
+
+    def test_an_administrator_can_add_an_account(self):
+        self.become(Profile.Role.ADMINISTRATOR)
+
+        self.client.post(
+            reverse("screening:add_staff_account"),
+            {
+                "email": "new@example.org",
+                "role": Profile.Role.CLINICIAN,
+                "facility": self.facility.pk,
+            },
+        )
+
+        account = get_user_model().objects.get(email="new@example.org")
+        self.assertEqual(profile_for(account).role, Profile.Role.CLINICIAN)
+        self.assertEqual(profile_for(account).facility, self.facility)
+
+    def test_an_added_account_has_no_usable_password(self):
+        """The system issues none, so one must not be invented here."""
+        self.become(Profile.Role.ADMINISTRATOR)
+
+        self.client.post(
+            reverse("screening:add_staff_account"),
+            {"email": "new@example.org", "role": Profile.Role.RADIOGRAPHER},
+        )
+
+        account = get_user_model().objects.get(email="new@example.org")
+        self.assertFalse(account.has_usable_password())
+
+    def test_the_role_survives_the_profile_signal(self):
+        """post_save creates a profile at the default role the moment the
+        account exists, so a role set on the way in would be overwritten.
+        """
+        self.become(Profile.Role.ADMINISTRATOR)
+
+        self.client.post(
+            reverse("screening:add_staff_account"),
+            {"email": "boss@example.org", "role": Profile.Role.ADMINISTRATOR},
+        )
+
+        account = get_user_model().objects.get(email="boss@example.org")
+        self.assertEqual(profile_for(account).role, Profile.Role.ADMINISTRATOR)
+
+    def test_a_clinician_cannot_add_an_account(self):
+        self.become(Profile.Role.CLINICIAN)
+
+        response = self.client.post(
+            reverse("screening:add_staff_account"),
+            {"email": "new@example.org", "role": Profile.Role.CLINICIAN},
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertFalse(get_user_model().objects.filter(email="new@example.org").exists())
+
+    def test_a_radiographer_cannot_add_an_account(self):
+        self.become(Profile.Role.RADIOGRAPHER)
+
+        response = self.client.post(
+            reverse("screening:add_staff_account"),
+            {"email": "new@example.org", "role": Profile.Role.CLINICIAN},
+        )
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_a_refused_attempt_reaches_the_trail(self):
+        self.become(Profile.Role.CLINICIAN)
+        before = AccessEvent.objects.count()
+
+        self.client.post(
+            reverse("screening:add_staff_account"),
+            {"email": "new@example.org", "role": Profile.Role.CLINICIAN},
+        )
+
+        self.assertGreater(AccessEvent.objects.count(), before)
+        newest = AccessEvent.objects.order_by("-id").first()
+        self.assertEqual(newest.action, AccessEvent.Action.REFUSED)
+
+    def test_the_same_address_cannot_be_added_twice(self):
+        """allauth matches addresses without regard to case, so two rows
+        differing only in capitals would make an account nobody could reach.
+        """
+        self.become(Profile.Role.ADMINISTRATOR)
+        self.colleague("taken@example.org")
+
+        self.client.post(
+            reverse("screening:add_staff_account"),
+            {"email": "TAKEN@example.org", "role": Profile.Role.CLINICIAN},
+        )
+
+        self.assertEqual(
+            get_user_model().objects.filter(email__iexact="taken@example.org").count(),
+            1,
+        )
+
+    def test_adding_an_account_reaches_the_trail(self):
+        self.become(Profile.Role.ADMINISTRATOR)
+
+        self.client.post(
+            reverse("screening:add_staff_account"),
+            {"email": "new@example.org", "role": Profile.Role.CLINICIAN},
+        )
+
+        newest = AccessEvent.objects.order_by("-id").first()
+        self.assertEqual(newest.action, AccessEvent.Action.ADMINISTERED)
+        self.assertIn("new@example.org", newest.detail)
+
+    def test_an_administrator_can_deactivate_an_account(self):
+        self.become(Profile.Role.ADMINISTRATOR)
+        subject = self.colleague()
+
+        self.client.post(
+            reverse("screening:set_staff_active", args=[subject.pk]),
+            {"active": "0"},
+        )
+
+        subject.user.refresh_from_db()
+        self.assertFalse(subject.user.is_active)
+
+    def test_deactivating_does_not_delete_the_account(self):
+        """Deletion would null every link from a screening to its author."""
+        self.become(Profile.Role.ADMINISTRATOR)
+        subject = self.colleague()
+
+        self.client.post(
+            reverse("screening:set_staff_active", args=[subject.pk]),
+            {"active": "0"},
+        )
+
+        self.assertTrue(get_user_model().objects.filter(pk=subject.user_id).exists())
+        self.assertTrue(Profile.objects.filter(pk=subject.pk).exists())
+
+    def test_a_deactivated_account_can_be_let_back_in(self):
+        self.become(Profile.Role.ADMINISTRATOR)
+        subject = self.colleague(active=False)
+
+        self.client.post(
+            reverse("screening:set_staff_active", args=[subject.pk]),
+            {"active": "1"},
+        )
+
+        subject.user.refresh_from_db()
+        self.assertTrue(subject.user.is_active)
+
+    def test_an_administrator_cannot_deactivate_themselves(self):
+        self.become(Profile.Role.ADMINISTRATOR)
+        mine = profile_for(self.clinician)
+
+        self.client.post(
+            reverse("screening:set_staff_active", args=[mine.pk]),
+            {"active": "0"},
+        )
+
+        self.clinician.refresh_from_db()
+        self.assertTrue(self.clinician.is_active)
+
+    def test_the_last_administrator_cannot_be_deactivated(self):
+        """Otherwise nobody could manage accounts afterwards."""
+        self.become(Profile.Role.ADMINISTRATOR)
+        other = self.colleague("second@example.org", Profile.Role.ADMINISTRATOR)
+        # Acting on one's own account is refused separately, so the only way
+        # to reach this guard is a second administrator being the last active.
+        self.clinician.is_active = False
+        self.clinician.save(update_fields=["is_active"])
+
+        self.client.post(
+            reverse("screening:set_staff_active", args=[other.pk]),
+            {"active": "0"},
+        )
+
+        other.user.refresh_from_db()
+        self.assertTrue(other.user.is_active)
+
+    def test_a_clinician_cannot_deactivate_anybody(self):
+        self.become(Profile.Role.CLINICIAN)
+        subject = self.colleague()
+
+        response = self.client.post(
+            reverse("screening:set_staff_active", args=[subject.pk]),
+            {"active": "0"},
+        )
+
+        self.assertEqual(response.status_code, 403)
+        subject.user.refresh_from_db()
+        self.assertTrue(subject.user.is_active)
+
+    def test_deactivating_reaches_the_trail(self):
+        self.become(Profile.Role.ADMINISTRATOR)
+        subject = self.colleague()
+
+        self.client.post(
+            reverse("screening:set_staff_active", args=[subject.pk]),
+            {"active": "0"},
+        )
+
+        newest = AccessEvent.objects.order_by("-id").first()
+        self.assertEqual(newest.action, AccessEvent.Action.ADMINISTERED)
+        self.assertIn("deactivated", newest.detail)
+
+    def test_the_trail_stays_verifiable_after_account_changes(self):
+        """The chain must survive the events this feature writes."""
+        self.become(Profile.Role.ADMINISTRATOR)
+        subject = self.colleague()
+
+        self.client.post(
+            reverse("screening:add_staff_account"),
+            {"email": "another@example.org", "role": Profile.Role.CLINICIAN},
+        )
+        self.client.post(
+            reverse("screening:set_staff_active", args=[subject.pk]),
+            {"active": "0"},
+        )
+
+        _, problems = AccessEvent.verify_chain()
+        self.assertEqual(problems, [])

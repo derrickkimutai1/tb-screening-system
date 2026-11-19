@@ -23,13 +23,13 @@ from allauth.account.internal.stagekit import clear_login
 from allauth.account.utils import complete_signup, filter_users_by_email
 from django.conf import settings
 from django.contrib import messages
-from django.contrib.auth import logout
+from django.contrib.auth import get_user_model, logout
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.core.files.storage import default_storage
 from django.core.paginator import Paginator
 from django.db import connections, transaction
-from django.db.models import Count, Q
+from django.db.models import Count, Max, Q
 from django.db.models.functions import TruncDate
 from django.db.utils import OperationalError
 from django.http import FileResponse, Http404, HttpResponse, JsonResponse
@@ -47,6 +47,7 @@ from .forms import (
     ReviewForm,
     RoleChoiceForm,
     ScreeningUploadForm,
+    StaffAccountForm,
 )
 from .models import (
     AccessEvent,
@@ -455,6 +456,10 @@ def profile(request):
             "profile": profile,
             "form": form,
             "active": "profile",
+            "roster": staff_roster(profile),
+            "staff_form": (
+                StaffAccountForm() if profile.role == Profile.Role.ADMINISTRATOR else None
+            ),
             "reviewed_total": reviewed.count(),
             "screened_total": screened,
             "recent_reviews": recent,
@@ -466,6 +471,174 @@ def profile(request):
             ),
         },
     )
+
+
+def staff_roster(profile):
+    """Who holds an account, for an administrator and for nobody else.
+
+    The second thing the administrator role grants on its own, after the
+    installation-wide access trail. Both answer the same question from
+    different directions: the trail says what was done, the roster says by
+    whom it could have been done.
+
+    It is deliberately read only. Creating and removing accounts is rare,
+    irreversible and done by one person, so it stays in the framework's own
+    administration rather than being rebuilt in the clinical interface, where
+    a misplaced click sits beside the upload form. What belongs here is the
+    answer to "who can reach this system", which is a question an
+    administrator has while looking at the trail rather than one that needs
+    its own screen.
+
+    Returns None rather than an empty list for anyone else, so the template
+    omits the section instead of rendering an empty one. The check is on the
+    role rather than on the Django staff flag, because this is a privilege of
+    the clinical role, not of the framework account that happens to carry it.
+    """
+    if profile.role != Profile.Role.ADMINISTRATOR:
+        return None
+
+    # Last seen comes from the trail rather than from a column on the profile,
+    # because a column would have to be written on every request to stay true
+    # and the trail already records exactly this.
+    return (
+        Profile.objects.select_related("user", "facility")
+        .annotate(last_seen=Max("user__access_events__created_at"))
+        .order_by("facility__name", "user__email")
+    )
+
+
+def administrators_only(request):
+    """Refuse, and record the refusal, unless this is an administrator.
+
+    Returned rather than raised so each caller can hand back a redirect with a
+    message, which is what a person who followed a stale link should see. The
+    refusal is written to the trail for the same reason every other one is: an
+    attempt on a privileged endpoint is worth more in the log than out of it.
+    """
+    profile = profile_for(request.user)
+    if profile.role == Profile.Role.ADMINISTRATOR:
+        return None
+
+    AccessEvent.record(
+        request,
+        AccessEvent.Action.REFUSED,
+        facility=facility_name(profile.facility),
+        detail="tried to manage accounts without the administrator role",
+    )
+    raise PermissionDenied("Managing accounts is limited to administrators.")
+
+
+@login_required
+@require_POST
+def add_staff_account(request):
+    """Create an account so a role and a clinic are waiting for its owner.
+
+    No password is set because the system issues none. The account exists so
+    that the first sign-in, by a code sent to this address, lands somewhere
+    specific: without it a new colleague arrives as a radiographer attached to
+    no clinic and sees an empty system.
+
+    The profile is written after the user, not with it, because the post_save
+    signal creates one with the default role the moment the account exists.
+    Setting the role on the way in would be silently overwritten.
+    """
+    administrators_only(request)
+
+    form = StaffAccountForm(request.POST)
+    if not form.is_valid():
+        for error in form.errors.values():
+            messages.error(request, error[0])
+        return redirect("screening:profile")
+
+    address = form.cleaned_data["email"]
+    account = get_user_model().objects.create_user(username=address, email=address)
+    account.set_unusable_password()
+    account.save(update_fields=["password"])
+
+    profile = profile_for(account)
+    profile.role = form.cleaned_data["role"]
+    profile.facility = form.cleaned_data["facility"]
+    profile.save(update_fields=["role", "facility", "updated_at"])
+
+    AccessEvent.record(
+        request,
+        AccessEvent.Action.ADMINISTERED,
+        facility=facility_name(profile.facility),
+        detail=(f"added an account for {address} as {profile.get_role_display().lower()}"),
+    )
+    messages.success(
+        request,
+        f"{address} can now sign in as a "
+        f"{profile.get_role_display().lower()}. No password is needed; the "
+        f"first sign-in is by a code sent to that address.",
+    )
+    return redirect("screening:profile")
+
+
+@login_required
+@require_POST
+def set_staff_active(request, profile_id):
+    """Stop an account signing in, or let it back in.
+
+    Deactivation rather than deletion. Removing the row would set every
+    screening's and review's link to that person to null, and the question
+    "who read this film" would be answerable only from the name written into
+    the record as text. Somebody who has left can be stopped at the door
+    without their work losing its author, and somebody who left by mistake can
+    be let back in.
+
+    Two refusals: an administrator cannot shut their own account out from
+    here, since the way to leave is the closure on this page that states what
+    it does; and the last administrator cannot be deactivated, because nobody
+    would be able to set a role afterwards.
+    """
+    administrators_only(request)
+
+    subject = get_object_or_404(
+        Profile.objects.select_related("user", "facility"), pk=profile_id
+    )
+    wanted = request.POST.get("active") == "1"
+
+    if subject.user_id == request.user.id:
+        messages.error(
+            request,
+            "You cannot deactivate the account you are signed in with. Use "
+            "'Close this account' if you mean to leave.",
+        )
+        return redirect("screening:profile")
+
+    remaining = (
+        Profile.objects.filter(role=Profile.Role.ADMINISTRATOR, user__is_active=True)
+        .exclude(pk=subject.pk)
+        .count()
+    )
+    if not wanted and subject.role == Profile.Role.ADMINISTRATOR and remaining == 0:
+        messages.error(
+            request,
+            "That is the last active administrator. Give somebody else that "
+            "role first, or nobody will be able to manage accounts.",
+        )
+        return redirect("screening:profile")
+
+    subject.user.is_active = wanted
+    subject.user.save(update_fields=["is_active"])
+
+    AccessEvent.record(
+        request,
+        AccessEvent.Action.ADMINISTERED,
+        facility=facility_name(subject.facility),
+        detail=(
+            f"{'reactivated' if wanted else 'deactivated'} the account for "
+            f"{subject.user.email or subject.display_name}"
+        ),
+    )
+    messages.success(
+        request,
+        f"{subject.user.email or subject.display_name} "
+        f"{'can sign in again' if wanted else 'can no longer sign in'}. "
+        f"Their screenings and reviews are unchanged.",
+    )
+    return redirect("screening:profile")
 
 
 def search_term(params, name, limit=64):
