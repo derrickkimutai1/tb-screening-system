@@ -861,6 +861,17 @@ code {
 
 /* ---- The result ---------------------------------------------------------- */
 
+/* The patient the score belongs to, kept beside it rather than only in the
+   page header, which scrolls out of view on a long case. */
+.score-subject {
+  font-family: var(--mono);
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--ink);
+  letter-spacing: 0.01em;
+  margin-top: 0.1rem;
+}
+
 .score-figure { display: flex; align-items: baseline; gap: 0.75rem; flex-wrap: wrap; }
 .score-value {
   font-size: 2.5rem;

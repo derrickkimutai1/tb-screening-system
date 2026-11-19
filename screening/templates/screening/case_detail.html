@@ -307,7 +307,11 @@
         <span class="tag mono-text">{{ record.model_version }}</span>
       </div>
       <div class="panel-body">
-        <span class="micro">Model score</span>
+        <!-- The reference sits with the score rather than only in the page
+             header, which scrolls away. A number this consequential should
+             never be on screen without the patient it belongs to. -->
+        <span class="micro">Model score for</span>
+        <div class="score-subject">{{ record.patient_reference }}</div>
         <div class="score-figure mt-1">
           <span class="score-value">{{ record.tb_probability }}</span>
           <span class="triage {{ record.triage_css_class }}">
